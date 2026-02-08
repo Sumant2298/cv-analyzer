@@ -58,49 +58,6 @@ def _extract_docx(filepath: str) -> str:
     return '\n'.join(para.text for para in doc.paragraphs if para.text.strip())
 
 
-def extract_text_from_input(file_field: str, text_field: str) -> str:
-    """Try file upload first, then fall back to pasted text."""
-    file = request.files.get(file_field)
-    if file and file.filename and allowed_file(file.filename):
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
-        try:
-            text = extract_text_from_file(filepath)
-        finally:
-            os.remove(filepath)
-        return text
-    return request.form.get(text_field, '').strip()
-
-
-def _save_cv_file(file_field: str, text_field: str):
-    """Save the original CV to collected_cvs/ folder.
-    If uploaded as a file, save the original file.
-    If pasted as text, convert to PDF and save."""
-    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-
-    # Check if a file was uploaded
-    file = request.files.get(file_field)
-    if file and file.filename and allowed_file(file.filename):
-        ext = file.filename.rsplit('.', 1)[1].lower()
-        save_name = f'cv_{timestamp}.{ext}'
-        save_path = os.path.join(CV_STORAGE, save_name)
-        # Need to re-read the file since stream was already consumed
-        file.seek(0)
-        file.save(save_path)
-        return save_name
-
-    # Fall back to pasted text → convert to PDF
-    text = request.form.get(text_field, '').strip()
-    if text:
-        save_name = f'cv_{timestamp}.pdf'
-        save_path = os.path.join(CV_STORAGE, save_name)
-        _text_to_pdf(text, save_path)
-        return save_name
-
-    return None
-
-
 def _text_to_pdf(text: str, output_path: str):
     """Convert plain text to a PDF file."""
     from fpdf import FPDF
@@ -113,6 +70,53 @@ def _text_to_pdf(text: str, output_path: str):
     pdf.output(output_path)
 
 
+def _process_input(file_field: str, text_field: str, save_cv: bool) -> str:
+    """Handle file upload or text paste for a single input.
+
+    1. Save uploaded file to temp dir once.
+    2. Extract text from the saved file.
+    3. If save_cv is True, copy the file to CV_STORAGE.
+    4. Clean up temp file.
+
+    For text-only input, extract text directly and optionally
+    convert to PDF for storage.
+
+    Returns extracted text.
+    """
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    file = request.files.get(file_field)
+
+    # --- File upload path ---
+    if file and file.filename and allowed_file(file.filename):
+        filename = secure_filename(file.filename)
+        ext = filename.rsplit('.', 1)[1].lower()
+        temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(temp_path)
+
+        try:
+            # Extract text from the saved temp file
+            text = extract_text_from_file(temp_path)
+
+            # If consent given, copy the original file to storage
+            if save_cv:
+                save_name = f'cv_{timestamp}.{ext}'
+                save_path = os.path.join(CV_STORAGE, save_name)
+                shutil.copy2(temp_path, save_path)
+        finally:
+            os.remove(temp_path)
+
+        return text
+
+    # --- Pasted text path ---
+    text = request.form.get(text_field, '').strip()
+    if text and save_cv:
+        save_name = f'cv_{timestamp}.pdf'
+        save_path = os.path.join(CV_STORAGE, save_name)
+        _text_to_pdf(text, save_path)
+
+    return text
+
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -120,21 +124,11 @@ def index():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    # Check consent BEFORE processing
     consent_given = request.form.get('cv_consent') == 'yes'
 
-    # Save CV if consent was given (do this before extract_text_from_input
-    # which consumes the file stream)
-    saved_file = None
-    if consent_given:
-        try:
-            saved_file = _save_cv_file('cv_file', 'cv_text')
-        except Exception:
-            pass  # Don't break analysis if save fails
-
     try:
-        cv_text = extract_text_from_input('cv_file', 'cv_text')
-        jd_text = extract_text_from_input('jd_file', 'jd_text')
+        cv_text = _process_input('cv_file', 'cv_text', save_cv=consent_given)
+        jd_text = _process_input('jd_file', 'jd_text', save_cv=False)
     except Exception as e:
         flash(f'Error reading file: {e}')
         return redirect(url_for('index'))
