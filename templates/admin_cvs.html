@@ -1,0 +1,49 @@
+{% extends "base.html" %}
+{% block title %}Admin - Collected CVs{% endblock %}
+{% block content %}
+<div class="mb-6">
+    <h1 class="text-2xl font-bold text-gray-800 mb-1">Collected CVs</h1>
+    <p class="text-gray-500 text-sm">{{ files|length }} CV(s) stored from consenting users.</p>
+</div>
+
+{% if files %}
+<div class="mb-4">
+    <a href="{{ url_for('download_all_cvs', token=token) }}"
+       class="bg-indigo-700 hover:bg-indigo-800 text-white font-semibold py-2 px-6 rounded-lg shadow transition text-sm">
+        Download All as ZIP
+    </a>
+</div>
+
+<div class="bg-white rounded-xl shadow overflow-hidden">
+    <table class="w-full text-sm">
+        <thead class="bg-gray-50 text-gray-600 text-left">
+            <tr>
+                <th class="px-6 py-3 font-medium">Filename</th>
+                <th class="px-6 py-3 font-medium">Size</th>
+                <th class="px-6 py-3 font-medium">Action</th>
+            </tr>
+        </thead>
+        <tbody class="divide-y divide-gray-100">
+            {% for f in files %}
+            <tr class="hover:bg-gray-50">
+                <td class="px-6 py-3 text-gray-800">{{ f.name }}</td>
+                <td class="px-6 py-3 text-gray-500">{{ f.size_kb }} KB</td>
+                <td class="px-6 py-3">
+                    <a href="{{ url_for('download_cv', filename=f.name, token=token) }}"
+                       class="text-indigo-600 hover:text-indigo-800 font-medium">Download</a>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% else %}
+<div class="bg-white rounded-xl shadow p-8 text-center text-gray-400">
+    No CVs collected yet. CVs will appear here when users consent to storage.
+</div>
+{% endif %}
+
+<div class="mt-6">
+    <a href="/" class="text-indigo-600 hover:text-indigo-800 text-sm">&larr; Back to Analyzer</a>
+</div>
+{% endblock %}
