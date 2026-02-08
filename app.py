@@ -1,8 +1,12 @@
+import json
 import os
+import re
 import shutil
 import tempfile
 from datetime import datetime
 
+import requests as http_requests
+from bs4 import BeautifulSoup
 from flask import (Flask, flash, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.utils import secure_filename
@@ -24,10 +28,22 @@ ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', 'change-me-in-production')
 
 ALLOWED_EXTENSIONS = {'pdf', 'docx', 'txt'}
 
+BROWSER_HEADERS = {
+    'User-Agent': ('Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) '
+                   'AppleWebKit/537.36 (KHTML, like Gecko) '
+                   'Chrome/120.0.0.0 Safari/537.36'),
+    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+    'Accept-Language': 'en-US,en;q=0.9',
+}
+
 
 def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
+
+# ---------------------------------------------------------------------------
+# File extraction helpers
+# ---------------------------------------------------------------------------
 
 def extract_text_from_file(filepath: str) -> str:
     ext = filepath.rsplit('.', 1)[-1].lower()
@@ -59,7 +75,6 @@ def _extract_docx(filepath: str) -> str:
 
 
 def _text_to_pdf(text: str, output_path: str):
-    """Convert plain text to a PDF file."""
     from fpdf import FPDF
     pdf = FPDF()
     pdf.add_page()
@@ -70,52 +85,152 @@ def _text_to_pdf(text: str, output_path: str):
     pdf.output(output_path)
 
 
-def _process_input(file_field: str, text_field: str, save_cv: bool) -> str:
-    """Handle file upload or text paste for a single input.
+# ---------------------------------------------------------------------------
+# URL extraction helpers
+# ---------------------------------------------------------------------------
 
-    1. Save uploaded file to temp dir once.
-    2. Extract text from the saved file.
-    3. If save_cv is True, copy the file to CV_STORAGE.
-    4. Clean up temp file.
+def _extract_from_linkedin_url(url: str) -> str:
+    """Extract profile text from a public LinkedIn profile URL."""
+    if 'linkedin.com/in/' not in url:
+        return ''
 
-    For text-only input, extract text directly and optionally
-    convert to PDF for storage.
+    try:
+        resp = http_requests.get(url, headers=BROWSER_HEADERS, timeout=15,
+                                 allow_redirects=True)
+        resp.raise_for_status()
+    except Exception:
+        return ''
 
-    Returns extracted text.
-    """
+    soup = BeautifulSoup(resp.text, 'html.parser')
+    parts = []
+
+    # Strategy 1: JSON-LD structured data
+    for script in soup.find_all('script', type='application/ld+json'):
+        try:
+            data = json.loads(script.string or '')
+            if isinstance(data, dict) and data.get('@type') == 'Person':
+                if data.get('name'):
+                    parts.append(data['name'])
+                if data.get('jobTitle'):
+                    parts.append(data['jobTitle'])
+                if data.get('description'):
+                    parts.append(data['description'])
+                if data.get('worksFor'):
+                    org = data['worksFor']
+                    if isinstance(org, dict) and org.get('name'):
+                        parts.append(f"Works at {org['name']}")
+                if data.get('alumniOf'):
+                    alumni = data['alumniOf']
+                    if isinstance(alumni, list):
+                        for school in alumni:
+                            if isinstance(school, dict) and school.get('name'):
+                                parts.append(f"Education: {school['name']}")
+        except (json.JSONDecodeError, TypeError):
+            continue
+
+    # Strategy 2: Open Graph meta tags
+    if not parts:
+        og_title = soup.find('meta', property='og:title')
+        og_desc = soup.find('meta', property='og:description')
+        if og_title and og_title.get('content'):
+            parts.append(og_title['content'])
+        if og_desc and og_desc.get('content'):
+            parts.append(og_desc['content'])
+
+    # Strategy 3: Page title and top-card elements
+    if not parts:
+        title = soup.find('title')
+        if title and title.string:
+            parts.append(title.string.strip())
+        for cls in ['top-card-layout__title', 'top-card-layout__headline',
+                     'top-card-layout__summary', 'top-card__subline-item']:
+            el = soup.find(class_=cls)
+            if el:
+                parts.append(el.get_text(strip=True))
+
+    return '\n'.join(parts)
+
+
+def _extract_from_jd_url(url: str) -> str:
+    """Extract job description text from a URL using trafilatura."""
+    try:
+        resp = http_requests.get(url, headers=BROWSER_HEADERS, timeout=15,
+                                 allow_redirects=True)
+        resp.raise_for_status()
+    except Exception:
+        return ''
+
+    html = resp.text
+
+    # Primary: trafilatura for clean content extraction
+    try:
+        import trafilatura
+        text = trafilatura.extract(html, include_comments=False,
+                                   include_tables=True, favor_recall=True)
+        if text and len(text) > 50:
+            return text
+    except Exception:
+        pass
+
+    # Fallback: BeautifulSoup text extraction
+    soup = BeautifulSoup(html, 'html.parser')
+    for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
+        tag.decompose()
+    text = soup.get_text(separator='\n', strip=True)
+    text = re.sub(r'\n{3,}', '\n\n', text)
+    return text[:10000]
+
+
+# ---------------------------------------------------------------------------
+# Unified input processing
+# ---------------------------------------------------------------------------
+
+def _process_input(file_field: str, text_field: str, url_field: str = None,
+                   save_cv: bool = False, url_extractor=None) -> str:
+    """Handle file upload, URL, or text paste. Priority: file > URL > text."""
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     file = request.files.get(file_field)
 
-    # --- File upload path ---
+    # --- 1. File upload (highest priority) ---
     if file and file.filename and allowed_file(file.filename):
         filename = secure_filename(file.filename)
         ext = filename.rsplit('.', 1)[1].lower()
         temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(temp_path)
-
         try:
-            # Extract text from the saved temp file
             text = extract_text_from_file(temp_path)
-
-            # If consent given, copy the original file to storage
             if save_cv:
                 save_name = f'cv_{timestamp}.{ext}'
-                save_path = os.path.join(CV_STORAGE, save_name)
-                shutil.copy2(temp_path, save_path)
+                shutil.copy2(temp_path, os.path.join(CV_STORAGE, save_name))
         finally:
             os.remove(temp_path)
-
         return text
 
-    # --- Pasted text path ---
+    # --- 2. URL input ---
+    if url_field and url_extractor:
+        url = request.form.get(url_field, '').strip()
+        if url:
+            text = url_extractor(url)
+            if text:
+                if save_cv:
+                    save_name = f'cv_{timestamp}.pdf'
+                    _text_to_pdf(text, os.path.join(CV_STORAGE, save_name))
+                return text
+            else:
+                flash('Could not extract content from the URL. Please paste text instead.')
+                return ''
+
+    # --- 3. Pasted text (lowest priority) ---
     text = request.form.get(text_field, '').strip()
     if text and save_cv:
         save_name = f'cv_{timestamp}.pdf'
-        save_path = os.path.join(CV_STORAGE, save_name)
-        _text_to_pdf(text, save_path)
-
+        _text_to_pdf(text, os.path.join(CV_STORAGE, save_name))
     return text
 
+
+# ---------------------------------------------------------------------------
+# Routes
+# ---------------------------------------------------------------------------
 
 @app.route('/')
 def index():
@@ -127,14 +242,23 @@ def analyze():
     consent_given = request.form.get('cv_consent') == 'yes'
 
     try:
-        cv_text = _process_input('cv_file', 'cv_text', save_cv=consent_given)
-        jd_text = _process_input('jd_file', 'jd_text', save_cv=False)
+        cv_text = _process_input(
+            'cv_file', 'cv_text', url_field='cv_url',
+            save_cv=consent_given, url_extractor=_extract_from_linkedin_url)
+        jd_text = _process_input(
+            'jd_file', 'jd_text', url_field='jd_url',
+            save_cv=False, url_extractor=_extract_from_jd_url)
     except Exception as e:
-        flash(f'Error reading file: {e}')
+        flash(f'Error reading input: {e}')
         return redirect(url_for('index'))
 
     if not cv_text or not jd_text:
-        flash('Please provide both a CV and a Job Description.')
+        if not cv_text and not jd_text:
+            flash('Please provide both a CV and a Job Description.')
+        elif not cv_text:
+            flash('Could not get CV content. Please try uploading a file or pasting text.')
+        else:
+            flash('Could not get JD content. Please try uploading a file or pasting text.')
         return redirect(url_for('index'))
 
     if len(jd_text.split()) < 10:
@@ -155,11 +279,9 @@ def analyze():
 
 @app.route('/admin/cvs')
 def list_cvs():
-    """List all stored CVs (requires ?token=...)."""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return 'Unauthorized', 401
-
     files = sorted(os.listdir(CV_STORAGE), reverse=True)
     files = [f for f in files if not f.startswith('.')]
     file_info = []
@@ -167,50 +289,40 @@ def list_cvs():
         path = os.path.join(CV_STORAGE, f)
         size_kb = round(os.path.getsize(path) / 1024, 1)
         file_info.append({'name': f, 'size_kb': size_kb})
-
     return render_template('admin_cvs.html', files=file_info, token=token)
 
 
 @app.route('/admin/cvs/download/<filename>')
 def download_cv(filename):
-    """Download a single stored CV (requires ?token=...)."""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return 'Unauthorized', 401
-
     filename = secure_filename(filename)
     filepath = os.path.join(CV_STORAGE, filename)
     if not os.path.isfile(filepath):
         return 'File not found', 404
-
     return send_file(filepath, as_attachment=True)
 
 
 @app.route('/admin/cvs/download-all')
 def download_all_cvs():
-    """Download all stored CVs as a zip (requires ?token=...)."""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return 'Unauthorized', 401
-
     files = [f for f in os.listdir(CV_STORAGE) if not f.startswith('.')]
     if not files:
         return 'No CVs stored yet', 404
-
     zip_path = os.path.join(tempfile.gettempdir(), 'all_cvs')
     shutil.make_archive(zip_path, 'zip', CV_STORAGE)
-
     return send_file(zip_path + '.zip', as_attachment=True,
                      download_name='collected_cvs.zip')
 
 
 @app.route('/api/cvs')
 def api_list_cvs():
-    """JSON API to list stored CVs (for sync script)."""
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Unauthorized'}), 401
-
     files = sorted(os.listdir(CV_STORAGE), reverse=True)
     files = [f for f in files if not f.startswith('.')]
     return jsonify({'files': files})

@@ -5,28 +5,83 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CV Analyzer{% endblock %}</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                    brand: {
+                        50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+                        300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1',
+                        600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81'
+                    }
+                }
+            }
+        }
+    }
+    </script>
+    <style>
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes scaleIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
+        @keyframes slideDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fillBar { from { width:0%; } }
+        @keyframes drawRing { from { stroke-dashoffset:283; } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .anim-fade-up   { animation: fadeInUp .5s ease-out both; }
+        .anim-fade-up-1 { animation: fadeInUp .5s ease-out .1s both; }
+        .anim-fade-up-2 { animation: fadeInUp .5s ease-out .2s both; }
+        .anim-fade-up-3 { animation: fadeInUp .5s ease-out .3s both; }
+        .anim-fade-up-4 { animation: fadeInUp .5s ease-out .4s both; }
+        .anim-fade       { animation: fadeIn .4s ease-out both; }
+        .anim-scale      { animation: scaleIn .4s ease-out both; }
+        .anim-slide-down { animation: slideDown .3s ease-out both; }
+        .anim-bar        { animation: fillBar 1s ease-out both; }
+        .anim-ring       { animation: drawRing 1.2s ease-out both; }
+        .spinner         { animation: spin .8s linear infinite; }
+        @media print {
+            nav, footer, .no-print { display: none !important; }
+            body { background: white !important; }
+            .shadow, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+        }
+    </style>
 </head>
-<body class="bg-gray-50 min-h-screen">
-    <nav class="bg-indigo-700 text-white p-4 shadow-lg">
-        <div class="max-w-6xl mx-auto flex justify-between items-center">
-            <a href="/" class="text-xl font-bold tracking-tight">CV Analyzer</a>
-            <span class="text-indigo-200 text-sm">Offline NLP-Powered</span>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-800">
+    <nav class="bg-gradient-to-r from-brand-700 via-brand-600 to-purple-600 text-white shadow-lg">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
+            <a href="/" class="flex items-center gap-2.5 group">
+                <div class="w-9 h-9 bg-white/20 rounded-lg flex items-center justify-center backdrop-blur-sm group-hover:bg-white/30 transition">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+                <span class="text-xl font-bold tracking-tight">CV Analyzer</span>
+            </a>
+            <span class="text-white/60 text-xs font-medium tracking-wide uppercase hidden sm:block">NLP-Powered Analysis</span>
         </div>
     </nav>
-    <main class="max-w-6xl mx-auto p-6">
-        {% with messages = get_flashed_messages() %}
-        {% if messages %}
-        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
-            {% for msg in messages %}
-            <p>{{ msg }}</p>
-            {% endfor %}
+
+    {% with messages = get_flashed_messages() %}
+    {% if messages %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 mt-4 anim-slide-down">
+        {% for msg in messages %}
+        <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl mb-2">
+            <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+            <p class="text-sm">{{ msg }}</p>
         </div>
-        {% endif %}
-        {% endwith %}
-        {% block content %}{% endblock %}
-    </main>
-    <footer class="text-center text-gray-400 text-sm py-6">
-        CV Analyzer &mdash; All processing happens locally on your machine.
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% endwith %}
+
+    <main>{% block content %}{% endblock %}</main>
+
+    <footer class="bg-slate-900 text-slate-400 mt-12 no-print">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
+            <p class="text-sm">CV Analyzer &mdash; All processing happens on the server. Your data stays private.</p>
+            <p class="text-xs mt-2 text-slate-500">Powered by spaCy, scikit-learn &amp; RAKE-NLTK</p>
+        </div>
     </footer>
 </body>
 </html>
