@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CV Analyzer{% endblock %}</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <nav class="bg-indigo-700 text-white p-4 shadow-lg">
+        <div class="max-w-6xl mx-auto flex justify-between items-center">
+            <a href="/" class="text-xl font-bold tracking-tight">CV Analyzer</a>
+            <span class="text-indigo-200 text-sm">Offline NLP-Powered</span>
+        </div>
+    </nav>
+    <main class="max-w-6xl mx-auto p-6">
+        {% with messages = get_flashed_messages() %}
+        {% if messages %}
+        <div class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-6">
+            {% for msg in messages %}
+            <p>{{ msg }}</p>
+            {% endfor %}
+        </div>
+        {% endif %}
+        {% endwith %}
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="text-center text-gray-400 text-sm py-6">
+        CV Analyzer &mdash; All processing happens locally on your machine.
+    </footer>
+</body>
+</html>

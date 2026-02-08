@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}CV Analysis Results{% endblock %}
+{% block content %}
+
+<!-- Overall Score -->
+<div class="bg-white rounded-xl shadow p-8 mb-6 text-center">
+    <h2 class="text-lg font-semibold text-gray-600 mb-3">Overall Match Score</h2>
+    <div class="inline-flex items-center justify-center w-36 h-36 rounded-full border-8
+        {% if results.composite_score >= 70 %}border-green-400 text-green-600
+        {% elif results.composite_score >= 40 %}border-yellow-400 text-yellow-600
+        {% else %}border-red-400 text-red-600{% endif %}">
+        <span class="text-4xl font-bold">{{ results.composite_score }}%</span>
+    </div>
+    <p class="text-sm text-gray-400 mt-3">
+        TF-IDF Similarity: {{ results.tfidf_score }}% &middot;
+        Skill Match: {{ results.skill_match.skill_score }}% &middot;
+        Verb Alignment: {{ results.experience_analysis.verb_alignment }}%
+    </p>
+</div>
+
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+    <!-- Matched Skills -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="text-lg font-semibold text-green-700 mb-3">Matched Skills ({{ results.skill_match.matched|length }})</h3>
+        {% if results.skill_match.matched %}
+        <div class="flex flex-wrap gap-2">
+            {% for skill in results.skill_match.matched %}
+            <span class="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-1 rounded">{{ skill }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm">No matching skills found in the taxonomy.</p>
+        {% endif %}
+    </div>
+
+    <!-- Missing Skills -->
+    <div class="bg-white rounded-xl shadow p-6">
+        <h3 class="text-lg font-semibold text-red-700 mb-3">Missing Skills ({{ results.skill_match.missing|length }})</h3>
+        {% if results.skill_match.missing %}
+        <div class="flex flex-wrap gap-2">
+            {% for skill in results.skill_match.missing %}
+            <span class="bg-red-100 text-red-800 text-xs font-medium px-2.5 py-1 rounded">{{ skill }}</span>
+            {% endfor %}
+        </div>
+        {% else %}
+        <p class="text-gray-400 text-sm">No gaps found — you cover all JD skills.</p>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Category Breakdown -->
+{% if results.skill_match.category_breakdown %}
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-indigo-700 mb-4">Skill Match by Category</h3>
+    <div class="space-y-4">
+        {% for category, data in results.skill_match.category_breakdown.items() %}
+        <div>
+            <div class="flex justify-between items-center mb-1">
+                <span class="text-sm font-medium text-gray-700">{{ category.replace('_', ' ')|title }}</span>
+                <span class="text-sm font-semibold
+                    {% if data.score >= 70 %}text-green-600
+                    {% elif data.score >= 40 %}text-yellow-600
+                    {% else %}text-red-600{% endif %}">{{ data.score }}%</span>
+            </div>
+            <div class="w-full bg-gray-200 rounded-full h-2.5">
+                <div class="h-2.5 rounded-full
+                    {% if data.score >= 70 %}bg-green-500
+                    {% elif data.score >= 40 %}bg-yellow-500
+                    {% else %}bg-red-500{% endif %}"
+                    style="width: {{ data.score }}%"></div>
+            </div>
+            <div class="flex flex-wrap gap-1 mt-1">
+                {% for skill in data.matched %}
+                <span class="text-xs text-green-700">{{ skill }}</span>
+                {% endfor %}
+                {% for skill in data.missing %}
+                <span class="text-xs text-red-500 line-through">{{ skill }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Extra Skills (in CV but not JD) -->
+{% if results.skill_match.extra %}
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-blue-700 mb-3">Additional Skills in Your CV</h3>
+    <p class="text-sm text-gray-500 mb-2">These skills are in your CV but not explicitly required by the JD.</p>
+    <div class="flex flex-wrap gap-2">
+        {% for skill in results.skill_match.extra %}
+        <span class="bg-blue-50 text-blue-700 text-xs font-medium px-2.5 py-1 rounded">{{ skill }}</span>
+        {% endfor %}
+    </div>
+</div>
+{% endif %}
+
+<!-- Experience Relevance -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-indigo-700 mb-4">Experience Relevance</h3>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Action Verbs -->
+        <div>
+            <h4 class="text-sm font-semibold text-gray-600 mb-2">Action Verb Alignment: {{ results.experience_analysis.verb_alignment }}%</h4>
+            {% if results.experience_analysis.common_action_verbs %}
+            <p class="text-xs text-gray-500 mb-1">Matching verbs:</p>
+            <div class="flex flex-wrap gap-1 mb-3">
+                {% for verb in results.experience_analysis.common_action_verbs %}
+                <span class="bg-green-50 text-green-700 text-xs px-2 py-0.5 rounded">{{ verb }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+            {% if results.experience_analysis.missing_action_verbs %}
+            <p class="text-xs text-gray-500 mb-1">Consider using:</p>
+            <div class="flex flex-wrap gap-1">
+                {% for verb in results.experience_analysis.missing_action_verbs %}
+                <span class="bg-orange-50 text-orange-700 text-xs px-2 py-0.5 rounded">{{ verb }}</span>
+                {% endfor %}
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Section Relevance -->
+        <div>
+            <h4 class="text-sm font-semibold text-gray-600 mb-2">CV Section Relevance to JD</h4>
+            {% if results.experience_analysis.section_relevance %}
+            <div class="space-y-2">
+                {% for section in results.experience_analysis.section_relevance %}
+                <div>
+                    <div class="flex justify-between text-xs mb-0.5">
+                        <span class="text-gray-600">{{ section.section }}</span>
+                        <span class="font-medium
+                            {% if section.relevance >= 40 %}text-green-600
+                            {% elif section.relevance >= 20 %}text-yellow-600
+                            {% else %}text-red-500{% endif %}">{{ section.relevance }}%</span>
+                    </div>
+                    <div class="w-full bg-gray-200 rounded-full h-1.5">
+                        <div class="h-1.5 rounded-full
+                            {% if section.relevance >= 40 %}bg-green-500
+                            {% elif section.relevance >= 20 %}bg-yellow-500
+                            {% else %}bg-red-400{% endif %}"
+                            style="width: {{ section.relevance }}%"></div>
+                    </div>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-400">Could not detect distinct sections in your CV.</p>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Keywords Comparison -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-indigo-700 mb-4">Top Keywords</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div>
+            <h4 class="text-sm font-semibold text-gray-600 mb-2">JD Keywords</h4>
+            <div class="flex flex-wrap gap-1">
+                {% for kw in results.jd_keywords[:15] %}
+                <span class="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded" title="Score: {{ kw.score }}">{{ kw.phrase }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        <div>
+            <h4 class="text-sm font-semibold text-gray-600 mb-2">CV Keywords</h4>
+            <div class="flex flex-wrap gap-1">
+                {% for kw in results.cv_keywords[:15] %}
+                <span class="bg-gray-100 text-gray-700 text-xs px-2 py-0.5 rounded" title="Score: {{ kw.score }}">{{ kw.phrase }}</span>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Suggestions -->
+<div class="bg-white rounded-xl shadow p-6 mb-6">
+    <h3 class="text-lg font-semibold text-indigo-700 mb-4">Improvement Suggestions</h3>
+    <ol class="list-decimal list-inside space-y-3">
+        {% for suggestion in results.suggestions %}
+        <li class="text-sm text-gray-700 leading-relaxed">{{ suggestion }}</li>
+        {% endfor %}
+    </ol>
+</div>
+
+<!-- Back Button -->
+<div class="text-center mb-8">
+    <a href="{{ url_for('index') }}"
+       class="inline-block bg-indigo-700 hover:bg-indigo-800 text-white font-semibold py-2 px-8 rounded-lg shadow transition">
+        Analyze Another CV
+    </a>
+</div>
+
+{% endblock %}

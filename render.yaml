@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: cv-analyzer
+    runtime: python
+    buildCommand: ./build.sh
+    startCommand: gunicorn app:app
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: PYTHON_VERSION
+        value: "3.11.11"
