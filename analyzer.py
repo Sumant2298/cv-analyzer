@@ -1,12 +1,22 @@
+import os
 import re
 from collections import Counter
 
+import nltk
 import spacy
 from rake_nltk import Rake
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
 from skills_data import SKILL_CATEGORIES
+
+# Ensure NLTK can find data on Render and locally
+_nltk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nltk_data')
+if os.path.isdir(_nltk_path):
+    nltk.data.path.insert(0, _nltk_path)
+_render_nltk = '/opt/render/project/src/nltk_data'
+if os.path.isdir(_render_nltk):
+    nltk.data.path.insert(0, _render_nltk)
 
 nlp = spacy.load("en_core_web_sm")
 
