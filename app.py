@@ -3,7 +3,7 @@ import shutil
 import tempfile
 from datetime import datetime
 
-from flask import (Flask, flash, redirect, render_template, request,
+from flask import (Flask, flash, jsonify, redirect, render_template, request,
                    send_file, url_for)
 from werkzeug.utils import secure_filename
 
@@ -208,6 +208,18 @@ def download_all_cvs():
 
     return send_file(zip_path + '.zip', as_attachment=True,
                      download_name='collected_cvs.zip')
+
+
+@app.route('/api/cvs')
+def api_list_cvs():
+    """JSON API to list stored CVs (for sync script)."""
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return jsonify({'error': 'Unauthorized'}), 401
+
+    files = sorted(os.listdir(CV_STORAGE), reverse=True)
+    files = [f for f in files if not f.startswith('.')]
+    return jsonify({'files': files})
 
 
 if __name__ == '__main__':
