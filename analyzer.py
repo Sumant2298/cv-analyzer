@@ -169,20 +169,31 @@ def analyze_cv_against_jd(cv_text: str, jd_text: str) -> dict:
         'quick_match': quick_match,
     }
 
-    # LLM-powered: extract top JD skills and match against CV
+    # LLM-powered: extract top JD skill groups and match against CV
     top_jd_skills = extract_jd_top_skills(jd_text)
     if top_jd_skills:
-        results['top_skills'] = match_top_skills(top_jd_skills, cv_text)
+        results['top_skill_groups'] = match_top_skills(top_jd_skills, cv_text)
         # Update quick match skills display with top skills data
-        found_count = sum(1 for s in results['top_skills'] if s['found'])
-        total_count = len(results['top_skills'])
-        results['quick_match']['skills']['cv_value'] = f'{found_count}/{total_count} key skills'
+        total_skills = sum(g['total'] for g in results['top_skill_groups'])
+        found_skills = sum(g['matched'] for g in results['top_skill_groups'])
+        results['quick_match']['skills']['cv_value'] = f'{found_skills}/{total_skills} key skills'
     else:
-        results['top_skills'] = []
+        results['top_skill_groups'] = []
 
     # LLM-enhanced insights (non-blocking: empty dict on failure)
     llm_insights = generate_llm_insights(cv_text, jd_text, results)
     results['llm_insights'] = llm_insights
+
+    # ATS score: use LLM estimate if available, otherwise compute from NLP
+    if llm_insights.get('ats_score') is not None:
+        results['ats_score'] = llm_insights['ats_score']
+    else:
+        # Fallback ATS estimate: keyword overlap + skill match + verb alignment
+        kw_overlap = _compute_keyword_overlap(jd_keywords, cv_keywords)
+        results['ats_score'] = round(
+            kw_overlap * 0.35 + skill_score * 0.45 + verb_score * 0.20, 0
+        )
+
     if llm_insights.get('enhanced_suggestions'):
         merge_suggestions(results['suggestions'], llm_insights['enhanced_suggestions'])
 
@@ -543,6 +554,24 @@ def compare_location(cv_loc: str | None, jd_loc: str | None) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# ATS keyword overlap
+# ---------------------------------------------------------------------------
+
+def _compute_keyword_overlap(jd_keywords: list[dict], cv_keywords: list[dict]) -> float:
+    """Compute percentage of JD keywords found in CV keywords (case-insensitive)."""
+    if not jd_keywords:
+        return 0.0
+    jd_phrases = {kw['phrase'].lower() for kw in jd_keywords[:20]}
+    cv_phrases = {kw['phrase'].lower() for kw in cv_keywords[:30]}
+    # Check exact matches + partial containment
+    matched = 0
+    for jd_p in jd_phrases:
+        if jd_p in cv_phrases or any(jd_p in cp or cp in jd_p for cp in cv_phrases):
+            matched += 1
+    return (matched / len(jd_phrases)) * 100 if jd_phrases else 0.0
+
+
+# ---------------------------------------------------------------------------
 # Keyword categorization
 # ---------------------------------------------------------------------------
 
@@ -623,31 +652,36 @@ def categorize_keywords(keywords: list[dict]) -> dict[str, list[dict]]:
 # Top skills matching (LLM-powered)
 # ---------------------------------------------------------------------------
 
-def match_top_skills(top_skills: list[dict], cv_text: str) -> list[dict]:
-    """Match LLM-identified top JD skills against the CV text.
+def match_top_skills(skill_groups: list[dict], cv_text: str) -> list[dict]:
+    """Match LLM-identified skill groups against the CV text.
 
-    Returns the top_skills list enriched with 'found' (bool) and
-    'cv_evidence' (str) keys.
+    Takes grouped format: [{"category": "...", "skills": [...], "importance": "..."}]
+    Returns enriched groups with per-skill match status.
     """
     cv_lower = cv_text.lower()
     enriched = []
-    for skill in top_skills:
-        skill_name = skill.get('skill', '')
-        skill_lower = skill_name.lower()
+    for group in skill_groups:
+        category = group.get('category', 'Other')
+        importance = group.get('importance', 'Must-have')
+        skills_matched = []
 
-        # Check if skill appears in CV (with word boundary awareness)
-        if len(skill_lower) <= 2:
-            pattern = r'(?<![a-z])' + re.escape(skill_lower) + r'(?![a-z])'
-        else:
-            pattern = r'\b' + re.escape(skill_lower) + r'\b'
+        for skill_name in group.get('skills', []):
+            skill_lower = skill_name.lower()
+            # Check if skill appears in CV (with word boundary awareness)
+            if len(skill_lower) <= 2:
+                pattern = r'(?<![a-z])' + re.escape(skill_lower) + r'(?![a-z])'
+            else:
+                pattern = r'\b' + re.escape(skill_lower) + r'\b'
+            found = bool(re.search(pattern, cv_lower))
+            skills_matched.append({'skill': skill_name, 'found': found})
 
-        found = bool(re.search(pattern, cv_lower))
-
+        matched_count = sum(1 for s in skills_matched if s['found'])
         enriched.append({
-            'skill': skill_name,
-            'category': skill.get('category', 'Other'),
-            'importance': skill.get('importance', 'Must-have'),
-            'found': found,
+            'category': category,
+            'importance': importance,
+            'skills': skills_matched,
+            'matched': matched_count,
+            'total': len(skills_matched),
         })
     return enriched
 

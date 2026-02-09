@@ -22,6 +22,24 @@
                     <span class="text-[10px] text-white/60 font-medium">Match Score</span>
                 </div>
             </div>
+            <!-- ATS Score Ring -->
+            {% if results.ats_score is defined %}
+            <div class="relative anim-scale flex-shrink-0">
+                <svg class="w-20 h-20 sm:w-24 sm:h-24 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="45" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="7"/>
+                    <circle cx="50" cy="50" r="45" fill="none"
+                        stroke="{% if results.ats_score >= 70 %}#4ade80{% elif results.ats_score >= 40 %}#facc15{% else %}#f87171{% endif %}"
+                        stroke-width="7" stroke-linecap="round"
+                        stroke-dasharray="283"
+                        stroke-dashoffset="{{ 283 - (283 * results.ats_score / 100) }}"
+                        class="anim-ring"/>
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span class="text-xl sm:text-2xl font-extrabold">{{ results.ats_score }}%</span>
+                    <span class="text-[9px] text-white/60 font-medium">ATS Score</span>
+                </div>
+            </div>
+            {% endif %}
             <!-- Sub-scores — Inline -->
             <div class="anim-fade-up-1 flex-1 min-w-0">
                 <h1 class="text-xl sm:text-2xl font-bold mb-2">Analysis Complete</h1>
@@ -50,6 +68,51 @@
             </div>
         </div>
         <p class="text-sm text-slate-600 leading-relaxed">{{ results.llm_insights.profile_summary }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Working Well / Needs Improvement Cards -->
+    {% if results.llm_insights and (results.llm_insights.working_well or results.llm_insights.needs_improvement) %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5 anim-fade-up">
+        <!-- What's Working Well -->
+        {% if results.llm_insights.working_well %}
+        <div class="bg-white rounded-2xl shadow-lg border border-green-200 p-5">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">What's Working Well</h3>
+            </div>
+            <ul class="space-y-2">
+                {% for item in results.llm_insights.working_well %}
+                <li class="flex items-start gap-2">
+                    <svg class="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    <span class="text-sm text-slate-600 leading-relaxed">{{ item }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
+
+        <!-- What Needs Improvement -->
+        {% if results.llm_insights.needs_improvement %}
+        <div class="bg-white rounded-2xl shadow-lg border border-red-200 p-5">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">What Needs Improvement</h3>
+            </div>
+            <ul class="space-y-2">
+                {% for item in results.llm_insights.needs_improvement %}
+                <li class="flex items-start gap-2">
+                    <svg class="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                    <span class="text-sm text-slate-600 leading-relaxed">{{ item }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        {% endif %}
     </div>
     {% endif %}
 
@@ -145,40 +208,58 @@
     </div>
     {% endif %}
 
-    <!-- Top Skills Assessment (LLM-powered) -->
-    {% if results.top_skills %}
+    <!-- Top Skills Assessment (LLM-powered, Grouped) -->
+    {% if results.top_skill_groups %}
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-2">
         <div class="flex items-center gap-2 mb-1">
             <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
             <h3 class="text-lg font-bold text-slate-800">Top Skills Assessment</h3>
         </div>
-        <p class="text-xs text-slate-400 mb-4 ml-7">The skills a recruiter would screen for first — matched against your CV</p>
+        <p class="text-xs text-slate-400 mb-4 ml-7">Key skill areas a recruiter screens for — grouped by category, matched against your CV</p>
 
-        {% set found_count = results.top_skills|selectattr('found')|list|length %}
-        {% set total_count = results.top_skills|length %}
+        {% set total_skills = results.top_skill_groups|sum(attribute='total') %}
+        {% set found_skills = results.top_skill_groups|sum(attribute='matched') %}
         <div class="flex items-center gap-3 mb-4 bg-slate-50 rounded-xl px-4 py-3">
-            <div class="text-2xl font-extrabold {% if found_count >= total_count * 0.7 %}text-green-600{% elif found_count >= total_count * 0.4 %}text-amber-600{% else %}text-red-600{% endif %}">{{ found_count }}/{{ total_count }}</div>
+            <div class="text-2xl font-extrabold {% if found_skills >= total_skills * 0.7 %}text-green-600{% elif found_skills >= total_skills * 0.4 %}text-amber-600{% else %}text-red-600{% endif %}">{{ found_skills }}/{{ total_skills }}</div>
             <div>
                 <p class="text-sm font-semibold text-slate-700">Key Skills Matched</p>
                 <p class="text-xs text-slate-400">
-                    {% if found_count >= total_count * 0.7 %}Strong coverage — you'd likely pass the skills screen
-                    {% elif found_count >= total_count * 0.4 %}Moderate coverage — some critical gaps to address
+                    {% if found_skills >= total_skills * 0.7 %}Strong coverage — you'd likely pass the skills screen
+                    {% elif found_skills >= total_skills * 0.4 %}Moderate coverage — some critical gaps to address
                     {% else %}Weak coverage — significant skills gap for this role{% endif %}
                 </p>
             </div>
         </div>
 
-        <div class="space-y-2">
-            {% for skill in results.top_skills %}
-            <div class="flex items-center gap-3 px-3 py-2 rounded-lg {{ 'bg-green-50 border border-green-200' if skill.found else 'bg-red-50 border border-red-200' }}">
-                {% if skill.found %}
-                <svg class="w-5 h-5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                {% else %}
-                <svg class="w-5 h-5 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
-                {% endif %}
-                <span class="text-sm font-semibold {{ 'text-green-800' if skill.found else 'text-red-800' }} flex-1">{{ skill.skill }}</span>
-                <span class="text-[10px] font-medium px-2 py-0.5 rounded-full {{ 'bg-slate-200 text-slate-600' if skill.category == 'Other' else 'bg-brand-100 text-brand-700' }}">{{ skill.category }}</span>
-                <span class="text-[10px] font-bold px-2 py-0.5 rounded-full {{ 'bg-red-100 text-red-600' if skill.importance == 'Must-have' else 'bg-amber-100 text-amber-600' }}">{{ skill.importance }}</span>
+        <div class="space-y-3">
+            {% for group in results.top_skill_groups %}
+            <div class="rounded-xl border {{ 'border-green-200 bg-green-50/50' if group.matched == group.total else ('border-amber-200 bg-amber-50/30' if group.matched > 0 else 'border-red-200 bg-red-50/50') }} p-3">
+                <div class="flex items-center justify-between mb-2">
+                    <div class="flex items-center gap-2">
+                        {% if group.matched == group.total %}
+                        <svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                        {% elif group.matched > 0 %}
+                        <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v3.586L7.707 9.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L11 10.586V7z" clip-rule="evenodd"/></svg>
+                        {% else %}
+                        <svg class="w-4 h-4 text-red-400" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                        {% endif %}
+                        <span class="text-sm font-bold text-slate-800">{{ group.category }}</span>
+                        <span class="text-[10px] font-bold px-1.5 py-0.5 rounded-full {{ 'bg-red-100 text-red-600' if group.importance == 'Must-have' else 'bg-amber-100 text-amber-600' }}">{{ group.importance }}</span>
+                    </div>
+                    <span class="text-xs font-bold {{ 'text-green-600' if group.matched == group.total else ('text-amber-600' if group.matched > 0 else 'text-red-500') }}">{{ group.matched }}/{{ group.total }}</span>
+                </div>
+                <div class="flex flex-wrap gap-1.5 ml-6">
+                    {% for s in group.skills %}
+                    <span class="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-md {{ 'bg-green-100 text-green-700 border border-green-300' if s.found else 'bg-red-100 text-red-700 border border-red-300' }}">
+                        {% if s.found %}
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                        {% else %}
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                        {% endif %}
+                        {{ s.skill }}
+                    </span>
+                    {% endfor %}
+                </div>
             </div>
             {% endfor %}
         </div>
