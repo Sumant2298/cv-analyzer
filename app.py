@@ -6,6 +6,9 @@ import shutil
 import tempfile
 from datetime import datetime
 
+from dotenv import load_dotenv
+load_dotenv()  # Load .env file (GROQ_API_KEY, etc.)
+
 import requests as http_requests
 from bs4 import BeautifulSoup
 from flask import (Flask, flash, jsonify, redirect, render_template, request,

@@ -10,3 +10,4 @@ requests>=2.31
 beautifulsoup4>=4.12
 trafilatura>=1.12
 groq>=0.12
+python-dotenv>=1.0
