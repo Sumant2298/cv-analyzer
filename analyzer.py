@@ -90,13 +90,20 @@ def _generate_skill_example(skill: str) -> str:
     # Generic but still actionable template
     return f'Implemented {skill} in [project context], resulting in [measurable outcome]'
 
-# Ensure NLTK can find data on Render and locally
+# Ensure NLTK data is available (download at runtime if missing)
 _nltk_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'nltk_data')
 if os.path.isdir(_nltk_path):
     nltk.data.path.insert(0, _nltk_path)
 _render_nltk = '/opt/render/project/src/nltk_data'
 if os.path.isdir(_render_nltk):
     nltk.data.path.insert(0, _render_nltk)
+
+# Auto-download NLTK data if not found (handles any deployment platform)
+for _resource in ('stopwords', 'punkt_tab'):
+    try:
+        nltk.data.find(f'corpora/{_resource}' if _resource == 'stopwords' else f'tokenizers/{_resource}')
+    except LookupError:
+        nltk.download(_resource, quiet=True)
 
 nlp = spacy.load("en_core_web_sm")
 
