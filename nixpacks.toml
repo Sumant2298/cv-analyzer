@@ -1,0 +1,12 @@
+[phases.setup]
+nixPkgs = ["...", "gcc"]
+
+[phases.install]
+cmds = [
+    "pip install -r requirements.txt",
+    "python -m spacy download en_core_web_sm",
+    "python -c \"import nltk; nltk.download('stopwords'); nltk.download('punkt_tab')\""
+]
+
+[start]
+cmd = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --timeout 120"
