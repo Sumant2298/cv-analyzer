@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import shutil
@@ -12,6 +13,11 @@ from flask import (Flask, flash, jsonify, redirect, render_template, request,
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
+
+# Configure logging for debugging on Render
+logging.basicConfig(level=logging.INFO,
+                    format='%(asctime)s [%(levelname)s] %(message)s')
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
@@ -90,25 +96,46 @@ def _text_to_pdf(text: str, output_path: str):
 # ---------------------------------------------------------------------------
 
 def _extract_from_linkedin_url(url: str) -> str:
-    """Extract profile text from a public LinkedIn profile URL."""
+    """Extract profile text from a public LinkedIn profile URL.
+
+    Returns extracted text, or a string starting with 'ERROR:' if
+    extraction failed with a user-friendly reason.
+    """
     if 'linkedin.com/in/' not in url:
         return ''
+
+    logger.info('LinkedIn extraction: requesting %s', url)
 
     try:
         resp = http_requests.get(url, headers=BROWSER_HEADERS, timeout=15,
                                  allow_redirects=True)
+        logger.info('LinkedIn response: status=%s, final_url=%s, length=%d',
+                     resp.status_code, resp.url, len(resp.text))
         resp.raise_for_status()
-    except Exception:
-        return ''
+    except http_requests.exceptions.Timeout:
+        logger.warning('LinkedIn extraction: request timed out')
+        return 'ERROR:TIMEOUT'
+    except http_requests.exceptions.ConnectionError:
+        logger.warning('LinkedIn extraction: connection error')
+        return 'ERROR:CONNECTION'
+    except Exception as e:
+        logger.warning('LinkedIn extraction: request failed: %s', e)
+        return 'ERROR:REQUEST'
+
+    # LinkedIn returns 999 to block bots/servers
+    if resp.status_code == 999:
+        logger.warning('LinkedIn extraction: got status 999 (bot-blocked)')
+        return 'ERROR:BLOCKED'
 
     # If redirected to login/authwall, public profile is not available
     if 'authwall' in resp.url or '/login' in resp.url:
-        return ''
+        logger.warning('LinkedIn extraction: redirected to authwall (%s)', resp.url)
+        return 'ERROR:AUTHWALL'
 
     soup = BeautifulSoup(resp.text, 'html.parser')
     parts = []
 
-    # --- Name and headline from top-card (most reliable) ---
+    # --- Strategy 1: Name and headline from top-card (most reliable) ---
     name_el = soup.find(class_='top-card-layout__title')
     if name_el:
         parts.append(name_el.get_text(strip=True))
@@ -116,7 +143,7 @@ def _extract_from_linkedin_url(url: str) -> str:
     if headline_el:
         parts.append(headline_el.get_text(strip=True))
 
-    # --- Description from meta tags ---
+    # --- Strategy 2: Description from meta tags ---
     desc_meta = soup.find('meta', attrs={'name': 'description'})
     if desc_meta and desc_meta.get('content'):
         parts.append(desc_meta['content'])
@@ -125,13 +152,13 @@ def _extract_from_linkedin_url(url: str) -> str:
         if og_desc and og_desc.get('content'):
             parts.append(og_desc['content'])
 
-    # --- Profile meta: first/last name ---
+    # --- Strategy 3: Profile meta: first/last name ---
     first = soup.find('meta', property='profile:first_name')
     last = soup.find('meta', property='profile:last_name')
     if first and last and not name_el:
         parts.append(f"{first.get('content', '')} {last.get('content', '')}")
 
-    # --- JSON-LD structured data (may have Person nested in @graph) ---
+    # --- Strategy 4: JSON-LD structured data ---
     for script in soup.find_all('script', type='application/ld+json'):
         try:
             data = json.loads(script.string or '')
@@ -139,7 +166,6 @@ def _extract_from_linkedin_url(url: str) -> str:
             if isinstance(data, dict):
                 if data.get('@type') == 'Person':
                     persons.append(data)
-                # LinkedIn wraps data in @graph with Article types
                 for item in data.get('@graph', []):
                     if isinstance(item, dict):
                         author = item.get('author', {})
@@ -163,28 +189,57 @@ def _extract_from_linkedin_url(url: str) -> str:
         except (json.JSONDecodeError, TypeError):
             continue
 
-    # --- Experience from profile-section-card elements ---
+    # --- Strategy 5: Profile section cards (experience, education) ---
     for card in soup.find_all(class_='profile-section-card'):
         text = card.get_text(separator=' ', strip=True)
         if text and len(text) > 5:
             parts.append(text)
 
-    # --- Subline items (location, connections, etc.) ---
+    # --- Strategy 6: Any section with role-based classes ---
+    for cls in ['experience__list', 'education__list',
+                'certifications__list', 'skills__list']:
+        el = soup.find(class_=cls)
+        if el:
+            text = el.get_text(separator=' ', strip=True)
+            if text and len(text) > 5:
+                parts.append(text)
+
+    # --- Strategy 7: Subline items (location, connections) ---
     for el in soup.find_all(class_='top-card__subline-item'):
         text = el.get_text(strip=True)
         if text:
             parts.append(text)
 
-    # --- Fallback: OG title if we got nothing ---
+    # --- Strategy 8: Aggressive fallback — try <title> and OG title ---
     if not parts:
         og_title = soup.find('meta', property='og:title')
         if og_title and og_title.get('content'):
-            parts.append(og_title['content'])
+            title_text = og_title['content']
+            # LinkedIn titles often contain "Name - Title - LinkedIn"
+            parts.append(title_text)
         title = soup.find('title')
         if title and title.string:
             parts.append(title.string.strip())
 
-    return '\n'.join(parts)
+    # --- Strategy 9: Last resort — extract all visible text from page ---
+    if not parts:
+        for tag in soup(['script', 'style', 'nav', 'footer', 'header', 'noscript']):
+            tag.decompose()
+        body_text = soup.get_text(separator='\n', strip=True)
+        # Remove very short lines (likely UI elements)
+        lines = [l for l in body_text.split('\n') if len(l) > 15]
+        if lines:
+            parts.append('\n'.join(lines[:50]))  # Cap at 50 useful lines
+
+    extracted = '\n'.join(parts)
+    logger.info('LinkedIn extraction: got %d chars from %d strategies',
+                len(extracted), len(parts))
+
+    if not extracted or len(extracted) < 30:
+        logger.warning('LinkedIn extraction: insufficient content (%d chars)', len(extracted))
+        return 'ERROR:BLOCKED'
+
+    return extracted
 
 
 def _extract_from_jd_url(url: str) -> str:
@@ -247,13 +302,35 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
         url = request.form.get(url_field, '').strip()
         if url:
             text = url_extractor(url)
+
+            # Handle specific LinkedIn error codes
+            if text.startswith('ERROR:'):
+                error_code = text.split(':')[1]
+                is_linkedin = 'linkedin.com' in url
+                if error_code == 'AUTHWALL' and is_linkedin:
+                    flash('LinkedIn redirected to a login page. This usually means '
+                          'the profile is private or LinkedIn is blocking server '
+                          'requests. Please paste your CV/profile text instead.',
+                          'warning')
+                elif error_code == 'BLOCKED' and is_linkedin:
+                    flash('LinkedIn returned limited data (likely blocking server '
+                          'requests). Please copy-paste your LinkedIn profile text '
+                          'or upload your CV as a file instead.', 'warning')
+                elif error_code in ('TIMEOUT', 'CONNECTION'):
+                    flash('Could not connect to the URL. Please check the link '
+                          'and try again, or paste text instead.', 'warning')
+                else:
+                    flash('Could not extract content from the URL. '
+                          'Please paste text instead.', 'warning')
+                return ''
+
             if text:
                 if save_cv:
                     save_name = f'cv_{timestamp}.pdf'
                     _text_to_pdf(text, os.path.join(CV_STORAGE, save_name))
                 return text
             else:
-                flash('Could not extract content from the URL. Please paste text instead.')
+                flash('Could not extract content from the URL. Please paste text instead.', 'warning')
                 return ''
 
     # --- 3. Pasted text (lowest priority) ---
@@ -285,25 +362,25 @@ def analyze():
             'jd_file', 'jd_text', url_field='jd_url',
             save_cv=False, url_extractor=_extract_from_jd_url)
     except Exception as e:
-        flash(f'Error reading input: {e}')
+        flash(f'Error reading input: {e}', 'error')
         return redirect(url_for('index'))
 
     if not cv_text or not jd_text:
         if not cv_text and not jd_text:
-            flash('Please provide both a CV and a Job Description.')
+            flash('Please provide both a CV and a Job Description.', 'error')
         elif not cv_text:
-            flash('Could not get CV content. Please try uploading a file or pasting text.')
+            flash('Could not get CV content. Please try uploading a file or pasting text.', 'error')
         else:
-            flash('Could not get JD content. Please try uploading a file or pasting text.')
+            flash('Could not get JD content. Please try uploading a file or pasting text.', 'error')
         return redirect(url_for('index'))
 
     if len(jd_text.split()) < 10:
-        flash('Job description seems very short. Results may be unreliable.')
+        flash('Job description seems very short. Results may be unreliable.', 'warning')
 
     try:
         results = analyze_cv_against_jd(cv_text, jd_text)
     except Exception as e:
-        flash(f'Analysis error: {e}')
+        flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
 
     return render_template('results.html', results=results)
