@@ -352,12 +352,23 @@ def _extract_experience_sections(cv_text: str) -> list[tuple[str, str]]:
     )
     parts = re.split(pattern, cv_text, flags=re.IGNORECASE)
 
-    sections = []
+    # Merge duplicate sections (e.g., "SKILLS" and "Skills" → single "Skills")
+    seen: dict[str, int] = {}  # normalized_name → index in sections list
+    sections: list[tuple[str, str]] = []
     i = 1
     while i < len(parts) - 1:
         header = parts[i].strip()
         content = parts[i + 1].strip() if i + 1 < len(parts) else ''
-        sections.append((header, content))
+        # Normalize: collapse whitespace and title-case
+        normalized = re.sub(r'\s+', ' ', header).title()
+        if normalized in seen:
+            # Merge content into existing section
+            idx = seen[normalized]
+            old_header, old_content = sections[idx]
+            sections[idx] = (old_header, old_content + '\n' + content)
+        else:
+            seen[normalized] = len(sections)
+            sections.append((normalized, content))
         i += 2
 
     if not sections:
