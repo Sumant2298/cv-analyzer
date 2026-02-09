@@ -8,7 +8,7 @@ from rake_nltk import Rake
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
-from llm_service import generate_llm_insights, merge_suggestions
+from llm_service import generate_llm_insights, merge_suggestions, extract_jd_top_skills
 from skills_data import SKILL_CATEGORIES
 
 # ---------------------------------------------------------------------------
@@ -159,6 +159,8 @@ def analyze_cv_against_jd(cv_text: str, jd_text: str) -> dict:
         'tfidf_score': tfidf_score,
         'jd_keywords': jd_keywords,
         'cv_keywords': cv_keywords,
+        'jd_keywords_categorized': categorize_keywords(jd_keywords),
+        'cv_keywords_categorized': categorize_keywords(cv_keywords),
         'jd_skills': _sets_to_lists(jd_skills),
         'cv_skills': _sets_to_lists(cv_skills),
         'skill_match': _serialize_skill_match(skill_match),
@@ -166,6 +168,17 @@ def analyze_cv_against_jd(cv_text: str, jd_text: str) -> dict:
         'suggestions': suggestions,
         'quick_match': quick_match,
     }
+
+    # LLM-powered: extract top JD skills and match against CV
+    top_jd_skills = extract_jd_top_skills(jd_text)
+    if top_jd_skills:
+        results['top_skills'] = match_top_skills(top_jd_skills, cv_text)
+        # Update quick match skills display with top skills data
+        found_count = sum(1 for s in results['top_skills'] if s['found'])
+        total_count = len(results['top_skills'])
+        results['quick_match']['skills']['cv_value'] = f'{found_count}/{total_count} key skills'
+    else:
+        results['top_skills'] = []
 
     # LLM-enhanced insights (non-blocking: empty dict on failure)
     llm_insights = generate_llm_insights(cv_text, jd_text, results)
@@ -527,6 +540,116 @@ def compare_location(cv_loc: str | None, jd_loc: str | None) -> dict:
         quality = 'Weak Match'
 
     return {'cv_value': cv_display, 'jd_value': jd_display, 'match_quality': quality}
+
+
+# ---------------------------------------------------------------------------
+# Keyword categorization
+# ---------------------------------------------------------------------------
+
+KEYWORD_CATEGORIES = {
+    'Technical Skills': {
+        'python', 'java', 'javascript', 'typescript', 'c++', 'go', 'rust', 'ruby',
+        'react', 'angular', 'vue', 'django', 'flask', 'node', 'sql', 'api', 'rest',
+        'graphql', 'html', 'css', 'docker', 'kubernetes', 'aws', 'azure', 'gcp',
+        'terraform', 'ci/cd', 'git', 'linux', 'mongodb', 'postgresql', 'redis',
+        'elasticsearch', 'spark', 'kafka', 'microservice', 'serverless', 'lambda',
+        'spring', 'express', 'fastapi', 'next.js', 'webpack', 'nginx',
+    },
+    'Data & Analytics': {
+        'data', 'analytics', 'machine learning', 'deep learning', 'ai', 'ml',
+        'nlp', 'model', 'tensorflow', 'pytorch', 'pandas', 'numpy', 'statistics',
+        'visualization', 'tableau', 'power bi', 'etl', 'pipeline', 'bigquery',
+        'snowflake', 'warehouse', 'dashboards', 'metrics', 'kpi', 'reporting',
+    },
+    'Role & Responsibilities': {
+        'design', 'develop', 'build', 'implement', 'manage', 'lead', 'deliver',
+        'maintain', 'deploy', 'optimize', 'architect', 'review', 'collaborate',
+        'mentor', 'support', 'integrate', 'troubleshoot', 'monitor', 'scale',
+        'automate', 'test', 'debug', 'document', 'plan', 'coordinate',
+    },
+    'Domain & Business': {
+        'product', 'business', 'customer', 'user', 'stakeholder', 'revenue',
+        'growth', 'strategy', 'market', 'compliance', 'security', 'performance',
+        'quality', 'reliability', 'scalability', 'availability', 'cost',
+        'efficiency', 'innovation', 'digital', 'platform', 'solution', 'service',
+        'enterprise', 'startup', 'fintech', 'healthcare', 'e-commerce', 'saas',
+    },
+    'Process & Methodology': {
+        'agile', 'scrum', 'kanban', 'sprint', 'ci/cd', 'devops', 'tdd', 'bdd',
+        'code review', 'pair programming', 'release', 'deployment', 'incident',
+        'on-call', 'sla', 'slo', 'production', 'staging', 'lifecycle', 'sdlc',
+        'workflow', 'process', 'best practice', 'standard', 'framework',
+    },
+}
+
+
+def categorize_keywords(keywords: list[dict]) -> dict[str, list[dict]]:
+    """Group extracted keywords into meaningful categories.
+
+    Returns {category_name: [keyword_dicts]} with an 'Other' bucket
+    for uncategorized keywords. Filters out noisy long phrases.
+    """
+    # Pre-filter: skip phrases that are too long (noisy RAKE artefacts)
+    clean_keywords = [kw for kw in keywords if len(kw['phrase'].split()) <= 4]
+
+    categorized: dict[str, list[dict]] = {}
+    used = set()
+
+    for cat_name, cat_terms in KEYWORD_CATEGORIES.items():
+        cat_keywords = []
+        for kw in clean_keywords:
+            phrase = kw['phrase'].lower()
+            # Check if any category term appears in the phrase or vice versa
+            if any(term in phrase or phrase in term for term in cat_terms):
+                if kw['phrase'] not in used:
+                    cat_keywords.append(kw)
+                    used.add(kw['phrase'])
+        if cat_keywords:
+            # Sort by score within category, limit to top 5
+            cat_keywords.sort(key=lambda x: x['score'], reverse=True)
+            categorized[cat_name] = cat_keywords[:5]
+
+    # Collect remaining into 'Other' (skip very generic single words)
+    other = [kw for kw in clean_keywords
+             if kw['phrase'] not in used and len(kw['phrase']) > 3]
+    if other:
+        other.sort(key=lambda x: x['score'], reverse=True)
+        categorized['Other'] = other[:5]
+
+    return categorized
+
+
+# ---------------------------------------------------------------------------
+# Top skills matching (LLM-powered)
+# ---------------------------------------------------------------------------
+
+def match_top_skills(top_skills: list[dict], cv_text: str) -> list[dict]:
+    """Match LLM-identified top JD skills against the CV text.
+
+    Returns the top_skills list enriched with 'found' (bool) and
+    'cv_evidence' (str) keys.
+    """
+    cv_lower = cv_text.lower()
+    enriched = []
+    for skill in top_skills:
+        skill_name = skill.get('skill', '')
+        skill_lower = skill_name.lower()
+
+        # Check if skill appears in CV (with word boundary awareness)
+        if len(skill_lower) <= 2:
+            pattern = r'(?<![a-z])' + re.escape(skill_lower) + r'(?![a-z])'
+        else:
+            pattern = r'\b' + re.escape(skill_lower) + r'\b'
+
+        found = bool(re.search(pattern, cv_lower))
+
+        enriched.append({
+            'skill': skill_name,
+            'category': skill.get('category', 'Other'),
+            'importance': skill.get('importance', 'Must-have'),
+            'found': found,
+        })
+    return enriched
 
 
 # ---------------------------------------------------------------------------

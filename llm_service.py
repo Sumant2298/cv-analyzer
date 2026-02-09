@@ -219,6 +219,75 @@ def generate_llm_insights(cv_text: str, jd_text: str, results: dict) -> dict:
         return {}
 
 
+def extract_jd_top_skills(jd_text: str) -> list[dict]:
+    """Ask the LLM to identify the 6-10 most critical skills from a JD.
+
+    Returns a list of dicts: [{"skill": "Python", "category": "Programming", "importance": "Must-have"}, ...]
+    Returns [] if LLM is unavailable or fails.
+    """
+    if not LLM_ENABLED:
+        return []
+
+    try:
+        jd_truncated = jd_text[:2000]
+        prompt = f"""Analyze this job description and identify the TOP skills a recruiter would screen for.
+
+## Job Description:
+{jd_truncated}
+
+## Return JSON with this exact structure:
+{{
+  "top_skills": [
+    {{
+      "skill": "The skill name (e.g., Python, AWS, Leadership)",
+      "category": "One of: Programming, Frameworks, Databases, Cloud & DevOps, Data & ML, Soft Skills, Tools, Testing, Security, Domain Knowledge",
+      "importance": "Must-have or Nice-to-have"
+    }}
+  ]
+}}
+
+RULES:
+- Return between 6 and 10 skills, ordered by importance (most critical first)
+- Must-have = explicitly required or repeated multiple times in JD
+- Nice-to-have = preferred, bonus, or mentioned once
+- Be specific: "React" not "frontend framework", "AWS" not "cloud"
+- Include both technical AND soft skills if the JD mentions them
+- Focus on what a recruiter would actually screen resumes for
+- Return ONLY valid JSON"""
+
+        client = _get_client()
+        response = client.chat.completions.create(
+            model=GROQ_MODEL,
+            messages=[
+                {'role': 'system', 'content': 'You are a technical recruiter identifying key skills from job descriptions. Return only valid JSON.'},
+                {'role': 'user', 'content': prompt},
+            ],
+            temperature=0.2,
+            max_tokens=800,
+            response_format={'type': 'json_object'},
+            timeout=10.0,
+        )
+        raw = response.choices[0].message.content
+        data = json.loads(raw)
+        skills = data.get('top_skills', [])
+
+        # Validate structure
+        validated = []
+        for s in skills[:10]:
+            if isinstance(s, dict) and s.get('skill'):
+                validated.append({
+                    'skill': s['skill'],
+                    'category': s.get('category', 'Other'),
+                    'importance': s.get('importance', 'Must-have'),
+                })
+        logger.info('LLM extracted %d top JD skills', len(validated))
+        return validated
+
+    except Exception as e:
+        logger.warning('JD top skills extraction failed: %s', e)
+        return []
+
+
 def merge_suggestions(base_suggestions: list, llm_suggestions: list):
     """Replace NLP suggestions with LLM recruiter suggestions.
 
