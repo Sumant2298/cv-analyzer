@@ -101,26 +101,61 @@ def _extract_from_linkedin_url(url: str) -> str:
     except Exception:
         return ''
 
+    # If redirected to login/authwall, public profile is not available
+    if 'authwall' in resp.url or '/login' in resp.url:
+        return ''
+
     soup = BeautifulSoup(resp.text, 'html.parser')
     parts = []
 
-    # Strategy 1: JSON-LD structured data
+    # --- Name and headline from top-card (most reliable) ---
+    name_el = soup.find(class_='top-card-layout__title')
+    if name_el:
+        parts.append(name_el.get_text(strip=True))
+    headline_el = soup.find(class_='top-card-layout__headline')
+    if headline_el:
+        parts.append(headline_el.get_text(strip=True))
+
+    # --- Description from meta tags ---
+    desc_meta = soup.find('meta', attrs={'name': 'description'})
+    if desc_meta and desc_meta.get('content'):
+        parts.append(desc_meta['content'])
+    else:
+        og_desc = soup.find('meta', property='og:description')
+        if og_desc and og_desc.get('content'):
+            parts.append(og_desc['content'])
+
+    # --- Profile meta: first/last name ---
+    first = soup.find('meta', property='profile:first_name')
+    last = soup.find('meta', property='profile:last_name')
+    if first and last and not name_el:
+        parts.append(f"{first.get('content', '')} {last.get('content', '')}")
+
+    # --- JSON-LD structured data (may have Person nested in @graph) ---
     for script in soup.find_all('script', type='application/ld+json'):
         try:
             data = json.loads(script.string or '')
-            if isinstance(data, dict) and data.get('@type') == 'Person':
-                if data.get('name'):
-                    parts.append(data['name'])
-                if data.get('jobTitle'):
-                    parts.append(data['jobTitle'])
-                if data.get('description'):
-                    parts.append(data['description'])
-                if data.get('worksFor'):
-                    org = data['worksFor']
+            persons = []
+            if isinstance(data, dict):
+                if data.get('@type') == 'Person':
+                    persons.append(data)
+                # LinkedIn wraps data in @graph with Article types
+                for item in data.get('@graph', []):
+                    if isinstance(item, dict):
+                        author = item.get('author', {})
+                        if isinstance(author, dict) and author.get('@type') == 'Person':
+                            persons.append(author)
+            for person in persons:
+                if person.get('jobTitle') and person['jobTitle'] not in '\n'.join(parts):
+                    parts.append(person['jobTitle'])
+                if person.get('description') and person['description'] not in '\n'.join(parts):
+                    parts.append(person['description'])
+                if person.get('worksFor'):
+                    org = person['worksFor']
                     if isinstance(org, dict) and org.get('name'):
                         parts.append(f"Works at {org['name']}")
-                if data.get('alumniOf'):
-                    alumni = data['alumniOf']
+                if person.get('alumniOf'):
+                    alumni = person['alumniOf']
                     if isinstance(alumni, list):
                         for school in alumni:
                             if isinstance(school, dict) and school.get('name'):
@@ -128,25 +163,26 @@ def _extract_from_linkedin_url(url: str) -> str:
         except (json.JSONDecodeError, TypeError):
             continue
 
-    # Strategy 2: Open Graph meta tags
+    # --- Experience from profile-section-card elements ---
+    for card in soup.find_all(class_='profile-section-card'):
+        text = card.get_text(separator=' ', strip=True)
+        if text and len(text) > 5:
+            parts.append(text)
+
+    # --- Subline items (location, connections, etc.) ---
+    for el in soup.find_all(class_='top-card__subline-item'):
+        text = el.get_text(strip=True)
+        if text:
+            parts.append(text)
+
+    # --- Fallback: OG title if we got nothing ---
     if not parts:
         og_title = soup.find('meta', property='og:title')
-        og_desc = soup.find('meta', property='og:description')
         if og_title and og_title.get('content'):
             parts.append(og_title['content'])
-        if og_desc and og_desc.get('content'):
-            parts.append(og_desc['content'])
-
-    # Strategy 3: Page title and top-card elements
-    if not parts:
         title = soup.find('title')
         if title and title.string:
             parts.append(title.string.strip())
-        for cls in ['top-card-layout__title', 'top-card-layout__headline',
-                     'top-card-layout__summary', 'top-card__subline-item']:
-            el = soup.find(class_=cls)
-            if el:
-                parts.append(el.get_text(strip=True))
 
     return '\n'.join(parts)
 
