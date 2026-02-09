@@ -535,51 +535,62 @@ def compare_location(cv_loc: str | None, jd_loc: str | None) -> dict:
 
 def generate_suggestions(skill_match: dict, composite_score: float,
                          experience_analysis: dict, jd_text: str = '') -> list[dict]:
-    """Generate actionable improvement suggestions with examples."""
+    """Generate recruiter-style improvement suggestions with examples.
+
+    These serve as the baseline (NLP-only) suggestions. When the LLM is
+    available, its recruiter insights will replace most of these via
+    merge_suggestions() — but these remain as a solid fallback.
+    """
     suggestions = []
 
-    # General score-based advice
+    # General score-based recruiter verdict
     if composite_score < 30:
         suggestions.append({
             'type': 'general',
-            'title': 'Low Overall Relevance',
-            'body': 'Your CV has low overall relevance to this job description. '
-                    'Consider tailoring your CV significantly for this role.',
+            'title': 'Significant Gaps — Major CV Rework Needed',
+            'body': 'As a recruiter, I\'d flag this CV as a weak fit for this role. '
+                    'Your CV doesn\'t speak the same language as the job description. '
+                    'You need to tailor it significantly — rewrite your summary, mirror the JD terminology, '
+                    'and lead with your most relevant experience.',
             'examples': [
-                'Rewrite your summary to directly address the role requirements',
-                'Mirror the exact terminology used in the job description',
-                'Move your most relevant experience to the top of each section',
+                'Rewrite your professional summary to directly address the top 3 requirements in this JD',
+                'Use the exact keywords from the job description — ATS systems look for exact matches',
+                'Move your most role-relevant experience to the top of each section',
             ],
             'priority': 'high',
         })
     elif composite_score < 60:
         suggestions.append({
             'type': 'general',
-            'title': 'Moderate Match — Room for Improvement',
-            'body': 'Your CV has moderate relevance. Focus on incorporating more '
-                    'JD-specific terminology and quantifying your achievements.',
+            'title': 'Borderline Fit — Targeted Improvements Needed',
+            'body': 'You\'re in the "maybe" pile right now. A hiring manager would see potential but '
+                    'wouldn\'t be compelled to reach out. Focus on quantifying achievements and '
+                    'incorporating the JD\'s exact terminology to move into the "yes" pile.',
             'examples': [
-                'Add specific metrics: numbers, percentages, dollar amounts to your bullet points',
-                'Use the same keywords the job description uses instead of synonyms',
+                'Add specific metrics to every bullet: numbers, percentages, or dollar amounts',
+                'Replace generic verbs like "worked on" with strong action verbs from the JD',
             ],
             'priority': 'medium',
         })
 
-    # Missing skills with example bullet points
+    # Missing skills — direct recruiter assessment
     missing = skill_match.get('missing', set())
     if missing:
         missing_sorted = sorted(missing)[:10]
         examples = [_generate_skill_example(s) for s in missing_sorted[:3]]
+        gap_severity = 'critical' if len(missing) > 5 else 'notable'
         suggestions.append({
             'type': 'missing_skills',
-            'title': 'Add Missing Skills to Your CV',
-            'body': f'Your CV is missing {len(missing)} skill(s) mentioned in the JD: '
-                    f'{", ".join(missing_sorted)}. Add them with concrete examples.',
+            'title': f'{len(missing)} Missing Skills the Hiring Manager Expects',
+            'body': f'A recruiter screening this CV would immediately notice you\'re missing: '
+                    f'{", ".join(missing_sorted)}. These are explicitly mentioned in the JD and '
+                    f'their absence is a {gap_severity} gap. If you have any experience with these, '
+                    f'add them with quantified examples. If not, consider relevant projects or certifications.',
             'examples': examples,
             'priority': 'high' if len(missing) > 5 else 'medium',
         })
 
-    # Weak category suggestions
+    # Weak category — recruiter-style
     for category, data in skill_match.get('category_breakdown', {}).items():
         if data['score'] < 50 and data['missing']:
             nice_category = category.replace('_', ' ').title()
@@ -587,58 +598,62 @@ def generate_suggestions(skill_match: dict, composite_score: float,
             examples = [_generate_skill_example(s) for s in cat_missing[:2]]
             suggestions.append({
                 'type': 'weak_category',
-                'title': f'Strengthen {nice_category}',
-                'body': f'You\'re missing {", ".join(cat_missing)} in {nice_category}. '
-                        f'Add relevant experience or projects demonstrating these skills.',
+                'title': f'Weak {nice_category} Coverage — Address This',
+                'body': f'Your {nice_category} section is under-represented. You\'re missing '
+                        f'{", ".join(cat_missing)} which the role specifically requires. '
+                        f'Hiring managers in this space expect to see these on day one.',
                 'examples': examples,
                 'priority': 'high' if data['score'] < 25 else 'medium',
             })
 
-    # Action verb suggestions
+    # Action verb alignment — recruiter coaching
     if experience_analysis.get('verb_alignment', 0) < 40:
         missing_verbs = experience_analysis.get('missing_action_verbs', [])
         if missing_verbs:
             examples = [
-                f'Instead of "Worked on X", write "{verb.capitalize()}d [specific project] '
+                f'Instead of "Worked on X", write "{verb.capitalize()}d [specific project], '
                 f'resulting in [measurable outcome]"'
                 for verb in missing_verbs[:3]
             ]
             suggestions.append({
                 'type': 'missing_verbs',
-                'title': 'Use Stronger Action Verbs',
-                'body': f'Your CV is missing key action verbs from the JD: '
-                        f'{", ".join(missing_verbs[:5])}. Start bullet points with these verbs.',
+                'title': 'Your CV Reads Passively — Use Power Verbs',
+                'body': f'Recruiters scan bullet points in seconds. Yours are missing impactful '
+                        f'verbs that signal ownership and results: {", ".join(missing_verbs[:5])}. '
+                        f'Start every bullet with one of these action verbs followed by a quantified result.',
                 'examples': examples,
                 'priority': 'medium',
             })
 
-    # Low section relevance
+    # Low section relevance — recruiter red flag
     for section in experience_analysis.get('section_relevance', []):
         if section['relevance'] < 20:
             suggestions.append({
                 'type': 'low_relevance',
-                'title': f'Rewrite Your "{section["section"].title()}" Section',
-                'body': f'This section has only {section["relevance"]}% relevance to the JD. '
-                        f'It needs significant rework to align with the role requirements.',
+                'title': f'Your "{section["section"].title()}" Section Won\'t Pass Screening',
+                'body': f'This section scores only {section["relevance"]}% relevance to the role. '
+                        f'A recruiter spending 6 seconds on your CV would skip right past it. '
+                        f'Rewrite it to directly address the JD requirements.',
                 'examples': [
-                    'Add quantifiable metrics: "Reduced API response time by 40% through query optimization"',
-                    'Mirror JD language: use the exact same terminology the job description uses',
-                    'Lead each bullet with a strong action verb followed by a specific achievement',
+                    'Add quantifiable results: "Reduced API response time by 40% through query optimization"',
+                    'Mirror the JD language — use the exact terminology the hiring team uses',
+                    'Lead each bullet with an action verb + specific deliverable + measurable impact',
                 ],
                 'priority': 'high' if section['relevance'] < 10 else 'medium',
             })
 
-    # Positive feedback if no issues
+    # Positive feedback — still recruiter-voiced
     if not suggestions:
         suggestions.append({
             'type': 'positive',
-            'title': 'Great Match!',
-            'body': 'Your CV appears well-aligned with this job description. '
-                    'Focus on polishing the details.',
+            'title': 'Strong Candidate — Polish the Details',
+            'body': 'Your CV is well-aligned with this role. A recruiter would likely advance you to '
+                    'the next round. Focus on fine-tuning to make your application stand out from '
+                    'other strong candidates.',
             'examples': [
-                'Ensure consistent formatting and no typos',
-                'Quantify achievements wherever possible for maximum impact',
-                'Tailor your summary/objective to mention the company by name',
+                'Ensure consistent formatting — mismatched fonts or spacing looks sloppy',
+                'Quantify your top 3 achievements with hard numbers for maximum impact',
+                'Add a tailored summary that mentions the company or role by name',
             ],
             'priority': 'low',
         })

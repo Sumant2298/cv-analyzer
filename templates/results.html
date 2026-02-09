@@ -37,16 +37,16 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 -mt-5 relative z-10 space-y-5 pb-4">
 
-    <!-- AI Profile Summary -->
+    <!-- Recruiter Assessment -->
     {% if results.llm_insights and results.llm_insights.profile_summary %}
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
         <div class="flex items-center gap-2 mb-3">
             <div class="w-8 h-8 bg-gradient-to-br from-purple-100 to-brand-100 rounded-lg flex items-center justify-center">
-                <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+                <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
             </div>
             <div>
-                <h3 class="font-semibold text-slate-800 text-sm">AI Profile Summary</h3>
-                <p class="text-[10px] text-slate-400">Personalized analysis powered by AI</p>
+                <h3 class="font-semibold text-slate-800 text-sm">Recruiter Assessment</h3>
+                <p class="text-[10px] text-slate-400">AI-powered evaluation from a hiring perspective</p>
             </div>
         </div>
         <p class="text-sm text-slate-600 leading-relaxed">{{ results.llm_insights.profile_summary }}</p>
@@ -379,40 +379,53 @@
         </div>
     </div>
 
-    <!-- Improvement Suggestions -->
+    <!-- Improvement Suggestions (Compact) -->
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-        <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+        <h3 class="text-lg font-bold text-slate-800 mb-3 flex items-center gap-2">
             <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+            {% if results.llm_insights and results.llm_insights.enhanced_suggestions %}
+            Recruiter Recommendations
+            {% else %}
             Improvement Suggestions
+            {% endif %}
         </h3>
-        <div class="space-y-4">
+        {% if results.llm_insights and results.llm_insights.enhanced_suggestions %}
+        <p class="text-xs text-slate-400 mb-3 -mt-1">Prioritized by hiring impact — what matters most to get you to the next round</p>
+        {% endif %}
+        <div class="space-y-2">
             {% for suggestion in results.suggestions %}
-            <div class="rounded-xl p-4 border
-                {% if suggestion.priority == 'high' %}bg-gradient-to-r from-red-50 to-orange-50 border-red-200
-                {% elif suggestion.priority == 'medium' %}bg-gradient-to-r from-amber-50 to-orange-50 border-amber-200
-                {% else %}bg-gradient-to-r from-slate-50 to-slate-100 border-slate-200{% endif %}">
-                <div class="flex items-start gap-3">
-                    <span class="flex-shrink-0 w-6 h-6
+            <details class="group rounded-xl border transition-all
+                {% if suggestion.priority == 'high' %}bg-gradient-to-r from-red-50 to-orange-50 border-red-200 hover:border-red-300
+                {% elif suggestion.priority == 'medium' %}bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-200 hover:border-amber-300
+                {% else %}bg-slate-50 border-slate-200 hover:border-slate-300{% endif %}"
+                {% if loop.index <= 2 %}open{% endif %}>
+                <summary class="flex items-center gap-3 px-4 py-3 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden">
+                    <span class="flex-shrink-0 w-5 h-5
                         {% if suggestion.priority == 'high' %}bg-red-500
                         {% elif suggestion.priority == 'medium' %}bg-amber-500
                         {% else %}bg-slate-400{% endif %}
-                        text-white rounded-full flex items-center justify-center text-[10px] font-bold mt-0.5">{{ loop.index }}</span>
-                    <div class="flex-1 min-w-0">
-                        <h4 class="font-bold text-slate-800 text-sm mb-1">{{ suggestion.title }}</h4>
-                        <p class="text-sm text-slate-600 leading-relaxed">{{ suggestion.body }}</p>
-                        {% if suggestion.examples %}
-                        <div class="mt-3 space-y-2">
-                            {% for example in suggestion.examples %}
-                            <div class="flex items-start gap-2 bg-white/80 rounded-lg p-2.5 border border-slate-200/60 shadow-sm">
-                                <svg class="w-3.5 h-3.5 text-brand-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                                <p class="text-xs text-slate-700 leading-relaxed font-mono">{{ example }}</p>
-                            </div>
-                            {% endfor %}
+                        text-white rounded-full flex items-center justify-center text-[10px] font-bold">{{ loop.index }}</span>
+                    <h4 class="font-semibold text-slate-800 text-sm flex-1">{{ suggestion.title }}</h4>
+                    <span class="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded
+                        {% if suggestion.priority == 'high' %}text-red-600 bg-red-100
+                        {% elif suggestion.priority == 'medium' %}text-amber-600 bg-amber-100
+                        {% else %}text-slate-500 bg-slate-200{% endif %}">{{ suggestion.priority }}</span>
+                    <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </summary>
+                <div class="px-4 pb-3 pt-0">
+                    <p class="text-sm text-slate-600 leading-relaxed ml-8">{{ suggestion.body }}</p>
+                    {% if suggestion.examples %}
+                    <div class="mt-2 ml-8 space-y-1.5">
+                        {% for example in suggestion.examples %}
+                        <div class="flex items-start gap-2 bg-white/70 rounded-lg px-3 py-2 border border-slate-200/50">
+                            <svg class="w-3 h-3 text-brand-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                            <p class="text-xs text-slate-700 leading-relaxed">{{ example }}</p>
                         </div>
-                        {% endif %}
+                        {% endfor %}
                     </div>
+                    {% endif %}
                 </div>
-            </div>
+            </details>
             {% endfor %}
         </div>
     </div>
