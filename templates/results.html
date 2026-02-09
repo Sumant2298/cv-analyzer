@@ -37,6 +37,22 @@
 
 <div class="max-w-7xl mx-auto px-4 sm:px-6 -mt-5 relative z-10 space-y-5 pb-4">
 
+    <!-- AI Profile Summary -->
+    {% if results.llm_insights and results.llm_insights.profile_summary %}
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-gradient-to-br from-purple-100 to-brand-100 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+            </div>
+            <div>
+                <h3 class="font-semibold text-slate-800 text-sm">AI Profile Summary</h3>
+                <p class="text-[10px] text-slate-400">Personalized analysis powered by AI</p>
+            </div>
+        </div>
+        <p class="text-sm text-slate-600 leading-relaxed">{{ results.llm_insights.profile_summary }}</p>
+    </div>
+    {% endif %}
+
     <!-- Quick Match Summary Bar -->
     {% if results.quick_match %}
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-4 anim-fade-up-1">
@@ -58,6 +74,9 @@
                     {% endif %}
                     {{ results.quick_match.experience.match_quality }}
                 </span>
+                {% if results.llm_insights and results.llm_insights.quick_match_insights and results.llm_insights.quick_match_insights.experience %}
+                <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">{{ results.llm_insights.quick_match_insights.experience }}</p>
+                {% endif %}
             </div>
             <!-- Education -->
             <div class="flex flex-col items-center px-3 py-2 text-center">
@@ -76,6 +95,9 @@
                     {% endif %}
                     {{ results.quick_match.education.match_quality }}
                 </span>
+                {% if results.llm_insights and results.llm_insights.quick_match_insights and results.llm_insights.quick_match_insights.education %}
+                <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">{{ results.llm_insights.quick_match_insights.education }}</p>
+                {% endif %}
             </div>
             <!-- Skills -->
             <div class="flex flex-col items-center px-3 py-2 text-center">
@@ -94,6 +116,9 @@
                     {% endif %}
                     {{ results.quick_match.skills.match_quality }}
                 </span>
+                {% if results.llm_insights and results.llm_insights.quick_match_insights and results.llm_insights.quick_match_insights.skills %}
+                <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">{{ results.llm_insights.quick_match_insights.skills }}</p>
+                {% endif %}
             </div>
             <!-- Location -->
             <div class="flex flex-col items-center px-3 py-2 text-center">
@@ -112,6 +137,9 @@
                     {% endif %}
                     {{ results.quick_match.location.match_quality }}
                 </span>
+                {% if results.llm_insights and results.llm_insights.quick_match_insights and results.llm_insights.quick_match_insights.location %}
+                <p class="text-[10px] text-slate-500 mt-1.5 leading-snug">{{ results.llm_insights.quick_match_insights.location }}</p>
+                {% endif %}
             </div>
         </div>
     </div>
@@ -193,6 +221,20 @@
                 {% endfor %}
             </div>
             {% else %}<p class="text-slate-400 text-sm">No gaps — you cover all JD skills!</p>{% endif %}
+            {% if results.llm_insights and results.llm_insights.skill_gap_tips %}
+            <div class="mt-4 pt-3 border-t border-slate-100 space-y-2">
+                <div class="flex items-center gap-1.5 mb-1">
+                    <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+                    <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">AI Quick Tips</p>
+                </div>
+                {% for skill, tip in results.llm_insights.skill_gap_tips.items() %}
+                <div class="flex items-start gap-2">
+                    <span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">{{ skill }}</span>
+                    <p class="text-xs text-slate-600 leading-relaxed">{{ tip }}</p>
+                </div>
+                {% endfor %}
+            </div>
+            {% endif %}
         </div>
 
         <!-- Your Additional Skills -->

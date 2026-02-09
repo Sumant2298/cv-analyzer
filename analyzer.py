@@ -8,6 +8,7 @@ from rake_nltk import Rake
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics.pairwise import cosine_similarity
 
+from llm_service import generate_llm_insights, merge_suggestions
 from skills_data import SKILL_CATEGORIES
 
 # ---------------------------------------------------------------------------
@@ -146,7 +147,7 @@ def analyze_cv_against_jd(cv_text: str, jd_text: str) -> dict:
         'location': compare_location(cv_loc, jd_loc),
     }
 
-    return {
+    results = {
         'composite_score': composite,
         'tfidf_score': tfidf_score,
         'jd_keywords': jd_keywords,
@@ -158,6 +159,14 @@ def analyze_cv_against_jd(cv_text: str, jd_text: str) -> dict:
         'suggestions': suggestions,
         'quick_match': quick_match,
     }
+
+    # LLM-enhanced insights (non-blocking: empty dict on failure)
+    llm_insights = generate_llm_insights(cv_text, jd_text, results)
+    results['llm_insights'] = llm_insights
+    if llm_insights.get('enhanced_suggestions'):
+        merge_suggestions(results['suggestions'], llm_insights['enhanced_suggestions'])
+
+    return results
 
 
 # ---------------------------------------------------------------------------
