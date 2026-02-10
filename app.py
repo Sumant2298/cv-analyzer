@@ -187,6 +187,7 @@ def _text_to_pdf(text: str, output_path: str):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font('Helvetica', size=10)
+
     # Sanitize text: replace unicode chars that Helvetica (Latin-1) can't render
     clean = text
     clean = clean.replace('\u2018', "'").replace('\u2019', "'")   # smart quotes
@@ -197,8 +198,28 @@ def _text_to_pdf(text: str, output_path: str):
     clean = clean.replace('\u00a0', ' ')                          # non-breaking space
     # Strip any remaining non-latin1 characters
     clean = clean.encode('latin-1', errors='replace').decode('latin-1')
+
+    # Calculate usable width (page width minus left+right margins)
+    usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+
     for line in clean.split('\n'):
-        pdf.multi_cell(0, 5, line)
+        if not line.strip():
+            # Empty lines: just add vertical space (multi_cell with empty string
+            # breaks FPDF2's X position tracking and crashes subsequent calls)
+            pdf.ln(5)
+            continue
+        try:
+            pdf.multi_cell(usable_w, 5, line)
+        except Exception:
+            try:
+                # Fallback: truncate very long lines
+                pdf.multi_cell(usable_w, 5, line[:500])
+            except Exception:
+                # Last resort: skip this line
+                pdf.ln(5)
+        # Reset X to left margin (multi_cell can leave X at right edge)
+        pdf.x = pdf.l_margin
+
     pdf.output(output_path)
 
 
