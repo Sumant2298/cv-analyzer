@@ -25,6 +25,8 @@ TIERS = {
 }
 
 CREDITS_PER_REWRITE = 5
+CREDITS_PER_ANALYSIS = 2
+FREE_ANALYSIS_LIMIT = 5
 
 _razorpay_client = None
 

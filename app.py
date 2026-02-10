@@ -18,6 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
+from drive_service import upload_cv_to_drive, is_drive_configured
 from models import db, User, Transaction, CreditUsage
 
 # Configure logging for debugging on Render
@@ -409,10 +410,24 @@ def _extract_from_jd_url(url: str) -> str:
 # ---------------------------------------------------------------------------
 
 def _process_input(file_field: str, text_field: str, url_field: str = None,
-                   save_cv: bool = False, url_extractor=None) -> str:
-    """Handle file upload, URL, or text paste. Priority: file > URL > text."""
+                   save_cv: bool = False, url_extractor=None,
+                   user_email: str = None) -> str:
+    """Handle file upload, URL, or text paste. Priority: file > URL > text.
+
+    If save_cv=True and Google Drive is configured, uploads to Drive.
+    Otherwise falls back to local CV_STORAGE folder.
+    """
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     file = request.files.get(file_field)
+
+    def _save_cv_file(src_path):
+        """Save CV to Google Drive (preferred) or local storage (fallback)."""
+        if is_drive_configured() and user_email:
+            upload_cv_to_drive(src_path, user_email)
+        else:
+            ext = src_path.rsplit('.', 1)[-1] if '.' in src_path else 'pdf'
+            save_name = f'cv_{timestamp}.{ext}'
+            shutil.copy2(src_path, os.path.join(CV_STORAGE, save_name))
 
     # --- 1. File upload (highest priority) ---
     if file and file.filename and allowed_file(file.filename):
@@ -423,8 +438,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
         try:
             text = extract_text_from_file(temp_path)
             if save_cv:
-                save_name = f'cv_{timestamp}.{ext}'
-                shutil.copy2(temp_path, os.path.join(CV_STORAGE, save_name))
+                _save_cv_file(temp_path)
         finally:
             os.remove(temp_path)
         return text
@@ -459,7 +473,13 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
             if text:
                 if save_cv:
                     save_name = f'cv_{timestamp}.pdf'
-                    _text_to_pdf(text, os.path.join(CV_STORAGE, save_name))
+                    temp_pdf = os.path.join(app.config['UPLOAD_FOLDER'], save_name)
+                    _text_to_pdf(text, temp_pdf)
+                    try:
+                        _save_cv_file(temp_pdf)
+                    finally:
+                        if os.path.exists(temp_pdf):
+                            os.remove(temp_pdf)
                 return text
             else:
                 flash('Could not extract content from the URL. Please paste text instead.', 'warning')
@@ -469,8 +489,37 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
     text = request.form.get(text_field, '').strip()
     if text and save_cv:
         save_name = f'cv_{timestamp}.pdf'
-        _text_to_pdf(text, os.path.join(CV_STORAGE, save_name))
+        temp_pdf = os.path.join(app.config['UPLOAD_FOLDER'], save_name)
+        _text_to_pdf(text, temp_pdf)
+        try:
+            _save_cv_file(temp_pdf)
+        finally:
+            if os.path.exists(temp_pdf):
+                os.remove(temp_pdf)
     return text
+
+
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _refund_analysis_credits(user_id: int, credits: int):
+    """Refund credits when analysis fails after deduction."""
+    try:
+        user = User.query.get(user_id)
+        if user:
+            user.credits += credits
+            from models import CreditUsage
+            refund = CreditUsage(
+                user_id=user_id,
+                credits_used=-credits,
+                action='refund_cv_analysis',
+            )
+            db.session.add(refund)
+            db.session.commit()
+            logger.info('Refunded %d credits to user %d (analysis failed)', credits, user_id)
+    except Exception as e:
+        logger.error('Failed to refund credits to user %d: %s', user_id, e)
 
 
 # ---------------------------------------------------------------------------
@@ -479,7 +528,18 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
 
 @app.route('/')
 def index():
-    return render_template('index.html')
+    # Pass user info to template for credit/analysis display
+    user_data = None
+    if _oauth_enabled and session.get('user_id'):
+        user = User.query.get(session['user_id'])
+        if user:
+            from payments import FREE_ANALYSIS_LIMIT
+            user_data = {
+                'analysis_count': user.analysis_count,
+                'credits': user.credits,
+                'free_remaining': max(0, FREE_ANALYSIS_LIMIT - user.analysis_count),
+            }
+    return render_template('index.html', user_data=user_data)
 
 
 # ---------------------------------------------------------------------------
@@ -537,20 +597,58 @@ def logout():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
+    # ---- Login gate: require sign-in ----
+    if not _oauth_enabled or not session.get('user_id'):
+        session['_login_next'] = url_for('index')
+        flash('Please sign in to analyze your CV. Get 5 free analyses on signup!', 'warning')
+        return redirect(url_for('login_page'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    # ---- Credit check: first 5 free, then 2 credits each ----
+    from payments import CREDITS_PER_ANALYSIS, FREE_ANALYSIS_LIMIT
+    credits_charged = False
+
+    if user.analysis_count >= FREE_ANALYSIS_LIMIT:
+        if user.credits < CREDITS_PER_ANALYSIS:
+            flash(f'You need {CREDITS_PER_ANALYSIS} credits to analyze. '
+                  f'You have {user.credits}. Your 5 free analyses are used up.', 'warning')
+            return redirect(url_for('buy_credits'))
+
+        from payments import deduct_credits
+        if not deduct_credits(user_id, CREDITS_PER_ANALYSIS, action='cv_analysis'):
+            flash(f'Insufficient credits. You need {CREDITS_PER_ANALYSIS} credits.', 'warning')
+            return redirect(url_for('buy_credits'))
+        credits_charged = True
+        # Refresh session credit balance
+        user = User.query.get(user_id)
+        session['user_credits'] = user.credits
+
     consent_given = request.form.get('cv_consent') == 'yes'
 
     try:
         cv_text = _process_input(
             'cv_file', 'cv_text', url_field='cv_url',
-            save_cv=consent_given, url_extractor=_extract_from_linkedin_url)
+            save_cv=consent_given, url_extractor=_extract_from_linkedin_url,
+            user_email=user.email if consent_given else None)
         jd_text = _process_input(
             'jd_file', 'jd_text', url_field='jd_url',
             save_cv=False, url_extractor=_extract_from_jd_url)
     except Exception as e:
+        # Refund credits if input processing failed
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_ANALYSIS)
         flash(f'Error reading input: {e}', 'error')
         return redirect(url_for('index'))
 
     if not cv_text or not jd_text:
+        # Refund credits if no valid input
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_ANALYSIS)
         if not cv_text and not jd_text:
             flash('Please provide both a CV and a Job Description.', 'error')
         elif not cv_text:
@@ -565,6 +663,9 @@ def analyze():
     try:
         results = analyze_cv_against_jd(cv_text, jd_text)
     except Exception as e:
+        # Refund credits if LLM analysis failed
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_ANALYSIS)
         logger.error('Analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
@@ -583,12 +684,12 @@ def analyze():
     }
     session['_data_token'] = _save_session_data(analysis_data)
 
-    # Track usage for signed-in users
-    if _oauth_enabled and session.get('user_id'):
-        try:
-            track_analysis(session['user_id'])
-        except Exception:
-            pass  # non-critical
+    # Track usage (increments analysis_count)
+    try:
+        track_analysis(user_id)
+        session['user_credits'] = User.query.get(user_id).credits
+    except Exception:
+        pass  # non-critical
 
     return render_template('results.html', results=results)
 
