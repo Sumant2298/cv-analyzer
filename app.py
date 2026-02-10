@@ -12,10 +12,11 @@ load_dotenv()  # Load .env file (GROQ_API_KEY, etc.)
 import requests as http_requests
 from bs4 import BeautifulSoup
 from flask import (Flask, flash, jsonify, redirect, render_template, request,
-                   send_file, url_for)
+                   send_file, session, url_for)
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
+from models import db, User
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -26,6 +27,28 @@ app = Flask(__name__)
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
+
+# ---------------------------------------------------------------------------
+# Database (optional — only if DATABASE_URL is set)
+# ---------------------------------------------------------------------------
+database_url = os.environ.get('DATABASE_URL', '')
+if database_url:
+    # Railway Postgres URLs start with postgres:// but SQLAlchemy needs postgresql://
+    if database_url.startswith('postgres://'):
+        database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    app.config['SQLALCHEMY_DATABASE_URI'] = database_url
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    db.init_app(app)
+    with app.app_context():
+        db.create_all()
+
+# ---------------------------------------------------------------------------
+# Google OAuth (optional — only if credentials are set)
+# ---------------------------------------------------------------------------
+_oauth_enabled = bool(os.environ.get('GOOGLE_CLIENT_ID'))
+if _oauth_enabled:
+    from auth import init_oauth, get_or_create_user, track_analysis, current_user, oauth
+    init_oauth(app)
 
 # Folder to store consented CVs
 CV_STORAGE = os.environ.get('CV_STORAGE_PATH',
@@ -353,6 +376,50 @@ def index():
     return render_template('index.html')
 
 
+# ---------------------------------------------------------------------------
+# Auth routes (only active when OAuth credentials are configured)
+# ---------------------------------------------------------------------------
+
+@app.route('/login')
+def login_page():
+    if not _oauth_enabled:
+        flash('Sign-in is not configured yet.', 'warning')
+        return redirect(url_for('index'))
+    return render_template('login.html')
+
+
+@app.route('/auth/google')
+def google_login():
+    if not _oauth_enabled:
+        return redirect(url_for('index'))
+    redirect_uri = url_for('google_callback', _external=True)
+    return oauth.google.authorize_redirect(redirect_uri)
+
+
+@app.route('/auth/callback')
+def google_callback():
+    if not _oauth_enabled:
+        return redirect(url_for('index'))
+    try:
+        token = oauth.google.authorize_access_token()
+        userinfo = token.get('userinfo') or oauth.google.userinfo()
+        user = get_or_create_user(userinfo)
+        session['user_id'] = user.id
+        session['user_name'] = user.name
+        session['user_picture'] = user.picture
+        flash(f'Welcome, {user.name}!', 'success')
+    except Exception as e:
+        logger.error('OAuth callback error: %s', e)
+        flash('Sign-in failed. Please try again.', 'error')
+    return redirect(url_for('index'))
+
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    return redirect(url_for('index'))
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     consent_given = request.form.get('cv_consent') == 'yes'
@@ -385,6 +452,13 @@ def analyze():
     except Exception as e:
         flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
+
+    # Track usage for signed-in users
+    if _oauth_enabled and session.get('user_id'):
+        try:
+            track_analysis(session['user_id'])
+        except Exception:
+            pass  # non-critical
 
     return render_template('results.html', results=results)
 

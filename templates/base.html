@@ -58,7 +58,19 @@
                 </div>
                 <span class="text-xl font-bold tracking-tight">LevelUpX</span>
             </a>
-            <span class="text-white/60 text-xs font-medium tracking-wide uppercase hidden sm:block">Beat the ATS. Land the Interview.</span>
+            <div class="flex items-center gap-4">
+                <span class="text-white/60 text-xs font-medium tracking-wide uppercase hidden sm:block">Beat the ATS. Land the Interview.</span>
+                {% if session.get('user_id') %}
+                <div class="flex items-center gap-2">
+                    {% if session.get('user_picture') %}
+                    <img src="{{ session.user_picture }}" alt="" class="w-7 h-7 rounded-full ring-2 ring-white/30">
+                    {% endif %}
+                    <a href="/logout" class="text-xs text-white/70 hover:text-white transition">Sign out</a>
+                </div>
+                {% else %}
+                <a href="/login" class="text-xs bg-white/15 hover:bg-white/25 backdrop-blur-sm px-3 py-1.5 rounded-lg transition font-medium">Sign in</a>
+                {% endif %}
+            </div>
         </div>
     </nav>
 
@@ -66,7 +78,12 @@
     {% if messages %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 mt-4 anim-slide-down">
         {% for category, msg in messages %}
-        {% if category == 'warning' %}
+        {% if category == 'success' %}
+        <div class="flex items-start gap-3 bg-emerald-50 border border-emerald-200 text-emerald-800 px-4 py-3 rounded-xl mb-2">
+            <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+            <p class="text-sm">{{ msg }}</p>
+        </div>
+        {% elif category == 'warning' %}
         <div class="flex items-start gap-3 bg-amber-50 border border-amber-200 text-amber-800 px-4 py-3 rounded-xl mb-2">
             <svg class="w-5 h-5 mt-0.5 flex-shrink-0 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
             <p class="text-sm">{{ msg }}</p>
