@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import tempfile
+import uuid
 from datetime import datetime
 
 from dotenv import load_dotenv
@@ -31,6 +32,46 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
+
+# ---------------------------------------------------------------------------
+# Server-side session data (large data that won't fit in cookie sessions)
+# ---------------------------------------------------------------------------
+_SESSION_DATA_DIR = os.path.join(tempfile.gettempdir(), 'levelupx_sessions')
+os.makedirs(_SESSION_DATA_DIR, exist_ok=True)
+
+
+def _save_session_data(data: dict) -> str:
+    """Save large data server-side. Returns a token stored in the cookie session."""
+    token = str(uuid.uuid4())
+    path = os.path.join(_SESSION_DATA_DIR, f'{token}.json')
+    with open(path, 'w', encoding='utf-8') as f:
+        json.dump(data, f)
+    return token
+
+
+def _load_session_data(token: str) -> dict:
+    """Load data saved by _save_session_data. Returns {} if not found."""
+    if not token:
+        return {}
+    path = os.path.join(_SESSION_DATA_DIR, f'{token}.json')
+    try:
+        with open(path, 'r', encoding='utf-8') as f:
+            return json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return {}
+
+
+def _update_session_data(token: str, updates: dict) -> str:
+    """Update existing session data or create new. Returns token."""
+    data = _load_session_data(token) if token else {}
+    data.update(updates)
+    if token:
+        path = os.path.join(_SESSION_DATA_DIR, f'{token}.json')
+        with open(path, 'w', encoding='utf-8') as f:
+            json.dump(data, f)
+        return token
+    return _save_session_data(data)
+
 
 # ---------------------------------------------------------------------------
 # Database — always initialised (Postgres via DATABASE_URL, else SQLite)
@@ -497,16 +538,19 @@ def analyze():
         flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
 
-    # Store CV text + JD text + key analysis data in session for download/rewrite
-    session['_cv_text'] = cv_text[:20000]
-    session['_jd_text'] = jd_text[:15000]
-    session['_analysis_results'] = {
-        'ats_score': results.get('ats_score', 0),
-        'matched': results.get('skill_match', {}).get('matched', [])[:20],
-        'missing': results.get('skill_match', {}).get('missing', [])[:20],
-        'missing_verbs': results.get('experience_analysis', {}).get('missing_action_verbs', [])[:10],
-        'skill_score': results.get('skill_match', {}).get('skill_score', 0),
+    # Store CV text + JD text + analysis data server-side (too large for cookie session)
+    analysis_data = {
+        'cv_text': cv_text[:20000],
+        'jd_text': jd_text[:15000],
+        'analysis_results': {
+            'ats_score': results.get('ats_score', 0),
+            'matched': results.get('skill_match', {}).get('matched', [])[:20],
+            'missing': results.get('skill_match', {}).get('missing', [])[:20],
+            'missing_verbs': results.get('experience_analysis', {}).get('missing_action_verbs', [])[:10],
+            'skill_score': results.get('skill_match', {}).get('skill_score', 0),
+        },
     }
+    session['_data_token'] = _save_session_data(analysis_data)
 
     # Track usage for signed-in users
     if _oauth_enabled and session.get('user_id'):
@@ -525,7 +569,8 @@ def analyze():
 @app.route('/download-cv')
 def download_cv_text():
     """Download the most recently analysed CV as a PDF."""
-    cv_text = session.get('_cv_text')
+    data = _load_session_data(session.get('_data_token', ''))
+    cv_text = data.get('cv_text', '')
     if not cv_text:
         flash('No CV available to download. Please run an analysis first.', 'warning')
         return redirect(url_for('index'))
@@ -542,8 +587,9 @@ def download_cv_text():
 @app.route('/rewrite-cv')
 def rewrite_cv_page():
     """Confirmation page before performing rewrite."""
-    # Check if we have analysis data
-    if not session.get('_cv_text') or not session.get('_jd_text'):
+    # Check if we have analysis data (stored server-side)
+    data = _load_session_data(session.get('_data_token', ''))
+    if not data.get('cv_text') or not data.get('jd_text'):
         flash('Please run a CV analysis first before requesting a rewrite.', 'warning')
         return redirect(url_for('index'))
 
@@ -564,7 +610,7 @@ def rewrite_cv_page():
         flash(f'You need {CREDITS_PER_REWRITE} credits to rewrite your CV. You have {user.credits}.', 'warning')
         return redirect(url_for('buy_credits'))
 
-    analysis = session.get('_analysis_results', {})
+    analysis = data.get('analysis_results', {})
     return render_template('rewrite_confirm.html',
                            user=user,
                            credits_needed=CREDITS_PER_REWRITE,
@@ -578,7 +624,9 @@ def rewrite_cv_action():
     """Perform the rewrite — deduct credits, call LLM, show results."""
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
-    if not session.get('_cv_text') or not session.get('_jd_text'):
+
+    data = _load_session_data(session.get('_data_token', ''))
+    if not data.get('cv_text') or not data.get('jd_text'):
         flash('No analysis data found. Please run analysis first.', 'warning')
         return redirect(url_for('index'))
 
@@ -595,12 +643,12 @@ def rewrite_cv_action():
         session['user_credits'] = user.credits
 
     # Call LLM for rewrite
-    analysis = session.get('_analysis_results', {})
+    analysis = data.get('analysis_results', {})
     try:
         from llm_service import rewrite_cv
         rewrite_result = rewrite_cv(
-            cv_text=session['_cv_text'],
-            jd_text=session['_jd_text'],
+            cv_text=data['cv_text'],
+            jd_text=data['jd_text'],
             matched=analysis.get('matched', []),
             missing=analysis.get('missing', []),
             missing_verbs=analysis.get('missing_verbs', []),
@@ -619,8 +667,11 @@ def rewrite_cv_action():
         flash(f'Rewrite failed: {e}. Your credits have been refunded.', 'error')
         return redirect(url_for('index'))
 
-    # Store rewritten CV in session for download
-    session['_rewritten_cv'] = rewrite_result['rewritten_cv']
+    # Store rewritten CV server-side for download
+    token = session.get('_data_token', '')
+    session['_data_token'] = _update_session_data(token, {
+        'rewritten_cv': rewrite_result['rewritten_cv'],
+    })
 
     return render_template('rewrite_results.html',
                            rewrite=rewrite_result,
@@ -631,7 +682,8 @@ def rewrite_cv_action():
 @app.route('/download-rewritten-cv')
 def download_rewritten_cv():
     """Download the rewritten CV as a PDF."""
-    rewritten_text = session.get('_rewritten_cv')
+    data = _load_session_data(session.get('_data_token', ''))
+    rewritten_text = data.get('rewritten_cv', '')
     if not rewritten_text:
         flash('No rewritten CV available. Please perform a rewrite first.', 'warning')
         return redirect(url_for('index'))
