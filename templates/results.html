@@ -22,33 +22,41 @@
                     <span class="text-[10px] text-white/60 font-medium">ATS Score</span>
                 </div>
             </div>
-            <!-- Info + Inline Quick Match -->
+            <!-- Info + Quick Match Dimensions -->
             <div class="anim-fade-up-1 flex-1 min-w-0">
-                <h1 class="text-xl sm:text-2xl font-bold mb-2">Analysis Complete</h1>
-                <div class="flex flex-wrap gap-2 mb-3">
-                    <span class="bg-white/15 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-medium">Text Similarity: {{ results.tfidf_score }}%</span>
-                    <span class="bg-white/15 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-medium">Skill Match: {{ results.skill_match.skill_score }}%</span>
-                    <span class="bg-white/15 backdrop-blur-sm px-2.5 py-1 rounded-full text-xs font-medium">Verb Alignment: {{ results.experience_analysis.verb_alignment }}%</span>
-                </div>
-                <!-- Compact Quick Match — Inline -->
+                <h1 class="text-xl sm:text-2xl font-bold mb-3">Analysis Complete</h1>
+                <!-- Full Quick Match with symbols -->
                 {% if results.quick_match %}
-                <div class="flex flex-wrap gap-x-4 gap-y-1.5">
-                    {% set dims = [('experience','Exp'), ('education','Edu'), ('skills','Skills'), ('location','Loc')] %}
-                    {% for key, label in dims %}
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
+                    {% set dims = [('experience','Experience','briefcase'), ('education','Education','academic-cap'), ('skills','Skills','code'), ('location','Location','map-pin')] %}
+                    {% for key, label, icon in dims %}
                     {% set dim = results.quick_match[key] %}
-                    <div class="flex items-center gap-1.5">
-                        <span class="text-[10px] text-white/50 font-semibold uppercase">{{ label }}</span>
-                        <span class="text-[11px] font-bold px-2 py-0.5 rounded-full
-                            {% if 'Strong' in dim.match_quality %}bg-green-400/25 text-green-200
-                            {% elif 'Good' in dim.match_quality %}bg-green-400/15 text-green-300
-                            {% elif 'Weak' in dim.match_quality %}bg-amber-400/25 text-amber-200
-                            {% else %}bg-red-400/25 text-red-200{% endif %}">
-                            {{ dim.cv_value }}
-                        </span>
+                    <div class="bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
+                        <div class="flex items-center gap-1.5 mb-1">
+                            <span class="text-[10px] text-white/50 font-semibold uppercase">{{ label }}</span>
+                            {% if 'Strong' in dim.match_quality %}
+                            <span class="text-green-300" title="Strong Match">✓✓</span>
+                            {% elif 'Good' in dim.match_quality %}
+                            <span class="text-green-300" title="Good Match">✓</span>
+                            {% elif 'Weak' in dim.match_quality %}
+                            <span class="text-amber-300" title="Weak Match">~</span>
+                            {% else %}
+                            <span class="text-red-300" title="Not a Match">✗</span>
+                            {% endif %}
+                        </div>
+                        <p class="text-xs font-semibold text-white/90 leading-tight truncate" title="{{ dim.cv_value }}">{{ dim.cv_value }}</p>
                     </div>
                     {% endfor %}
                 </div>
                 {% endif %}
+                <!-- Sub-scores — smaller -->
+                <div class="flex flex-wrap gap-2">
+                    <span class="text-[10px] text-white/40 font-medium">Text Similarity: {{ results.tfidf_score }}%</span>
+                    <span class="text-[10px] text-white/40">•</span>
+                    <span class="text-[10px] text-white/40 font-medium">Skill Match: {{ results.skill_match.skill_score }}%</span>
+                    <span class="text-[10px] text-white/40">•</span>
+                    <span class="text-[10px] text-white/40 font-medium">Verb Alignment: {{ results.experience_analysis.verb_alignment }}%</span>
+                </div>
             </div>
         </div>
     </div>
@@ -65,7 +73,7 @@
             </div>
             <div>
                 <h3 class="font-semibold text-slate-800 text-sm">Recruiter Assessment</h3>
-                <p class="text-[10px] text-slate-400">AI-powered evaluation from a hiring perspective</p>
+                <p class="text-[10px] text-slate-400">AI-powered evaluation — what a hiring manager thinks about your profile</p>
             </div>
         </div>
         <p class="text-sm text-slate-600 leading-relaxed">{{ results.llm_insights.profile_summary }}</p>
@@ -114,6 +122,31 @@
             </ul>
         </div>
         {% endif %}
+    </div>
+    {% endif %}
+
+    <!-- How to Close the Gaps — Prominent Card -->
+    {% if results.llm_insights and results.llm_insights.skill_gap_tips %}
+    <div class="bg-gradient-to-br from-amber-50 to-orange-50 rounded-2xl shadow-lg border border-amber-200 p-5 anim-fade-up">
+        <div class="flex items-center gap-2 mb-4">
+            <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
+            </div>
+            <div>
+                <h3 class="font-semibold text-slate-800 text-sm">How to Close the Gaps</h3>
+                <p class="text-[10px] text-slate-500">Actionable tips to bridge your skill gaps for this role</p>
+            </div>
+        </div>
+        <div class="space-y-3">
+            {% for tip in results.llm_insights.skill_gap_tips.values() %}
+            <div class="flex items-start gap-3 bg-white/70 rounded-xl px-4 py-3 border border-amber-100">
+                <div class="w-5 h-5 bg-amber-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span class="text-[10px] font-bold text-amber-700">{{ loop.index }}</span>
+                </div>
+                <p class="text-sm text-slate-700 leading-relaxed">{{ tip }}</p>
+            </div>
+            {% endfor %}
+        </div>
     </div>
     {% endif %}
 
@@ -172,25 +205,10 @@
             </div>
             {% endfor %}
         </div>
-
-        {% if results.llm_insights and results.llm_insights.skill_gap_tips %}
-        <div class="mt-4 pt-3 border-t border-slate-100 space-y-2">
-            <div class="flex items-center gap-1.5 mb-1">
-                <svg class="w-3.5 h-3.5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
-                <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">How to Close the Gaps</p>
-            </div>
-            {% for skill, tip in results.llm_insights.skill_gap_tips.items() %}
-            <div class="flex items-start gap-2">
-                <span class="bg-amber-100 text-amber-700 text-[10px] font-bold px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">{{ skill }}</span>
-                <p class="text-xs text-slate-600 leading-relaxed">{{ tip }}</p>
-            </div>
-            {% endfor %}
-        </div>
-        {% endif %}
     </div>
     {% endif %}
 
-    <!-- Skills Grid — Matched / Missing / Extra -->
+    <!-- Skills Grid — Matched Skills / Missing Skills / Bonus Skills -->
     <div class="grid grid-cols-1 md:grid-cols-3 gap-5 anim-fade-up-2">
         <!-- Matched Skills -->
         <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
@@ -198,7 +216,7 @@
                 <div class="w-7 h-7 bg-green-100 rounded-lg flex items-center justify-center">
                     <svg class="w-3.5 h-3.5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
                 </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Matched <span class="text-green-600">({{ results.skill_match.matched|length }})</span></h3>
+                <h3 class="font-semibold text-slate-800 text-sm">Matched Skills <span class="text-green-600">({{ results.skill_match.matched|length }})</span></h3>
             </div>
             {% if results.skill_match.matched_by_category %}
             <div class="space-y-2.5">
@@ -222,7 +240,7 @@
                 <div class="w-7 h-7 bg-red-100 rounded-lg flex items-center justify-center">
                     <svg class="w-3.5 h-3.5 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
                 </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Missing <span class="text-red-600">({{ results.skill_match.missing|length }})</span></h3>
+                <h3 class="font-semibold text-slate-800 text-sm">Missing Skills <span class="text-red-600">({{ results.skill_match.missing|length }})</span></h3>
             </div>
             {% if results.skill_match.missing_by_category %}
             <div class="space-y-2.5">
@@ -265,14 +283,14 @@
         </div>
     </div>
 
-    <!-- Category Breakdown -->
+    <!-- Skills Match by Category -->
     {% if results.skill_match.category_breakdown %}
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-3">
         <h3 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
             <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
-            Skill Match by Category
+            Skills Match by Category
         </h3>
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {% for category, data in results.skill_match.category_breakdown.items() %}
             <div class="bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition">
                 <div class="flex justify-between items-center mb-2">

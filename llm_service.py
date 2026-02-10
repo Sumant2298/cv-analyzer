@@ -113,7 +113,7 @@ Missing Action Verbs: {missing_verbs}
 
 ## Return this exact JSON structure:
 {{
-  "profile_summary": "Write 3-5 sentences as a recruiter debrief. Start with your overall hiring recommendation (e.g., 'This is a strong/borderline/weak candidate for this role.'). Then explain WHY — reference specific things from their CV. End with the single most important thing they should do. Be direct and specific, not generic.",
+  "profile_summary": "Write 3-5 sentences addressing the candidate directly in 2nd person (you/your). Start with your overall assessment (e.g., 'You are a strong/borderline/weak candidate for this role.'). Then explain WHY — reference specific things from their CV. End with the single most important thing they should do. Be direct and specific, not generic.",
 
   "quick_match_insights": {{
     "experience": "One specific, recruiter-style sentence about their experience fit. Reference actual years/roles from the CV.",
@@ -271,8 +271,8 @@ def extract_jd_top_skills(jd_text: str) -> list[dict]:
 }}
 
 RULES:
-- Return 4-7 skill groups, ordered by importance (most critical first)
-- Each group should have 1-4 specific skills inside it
+- Return 6-8 skill groups, ordered by importance (most critical first)
+- Each group should have 2-5 specific skills inside it
 - ALWAYS group related skills together:
   * All programming languages (Python, Java, C++, Go) → one "Programming Languages" group
   * All soft skills (Leadership, Communication, Collaboration, Teamwork) → one "Soft Skills" group
@@ -304,9 +304,9 @@ RULES:
 
         # Validate structure
         validated = []
-        for g in groups[:7]:
+        for g in groups[:8]:
             if isinstance(g, dict) and g.get('category') and isinstance(g.get('skills'), list):
-                skills = [s for s in g['skills'] if isinstance(s, str) and s.strip()][:4]
+                skills = [s for s in g['skills'] if isinstance(s, str) and s.strip()][:5]
                 if skills:
                     validated.append({
                         'category': g['category'],
