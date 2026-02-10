@@ -842,6 +842,19 @@ def download_all_cvs():
                      download_name='collected_cvs.zip')
 
 
+@app.route('/admin/users')
+def admin_list_users():
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return jsonify({'error': 'Unauthorized'}), 401
+    users = User.query.all()
+    return jsonify({'users': [
+        {'id': u.id, 'email': u.email, 'name': u.name, 'credits': u.credits,
+         'analysis_count': u.analysis_count}
+        for u in users
+    ]})
+
+
 @app.route('/api/cvs')
 def api_list_cvs():
     token = request.args.get('token', '')
