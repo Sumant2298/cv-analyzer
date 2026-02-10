@@ -1,0 +1,108 @@
+{% extends "base.html" %}
+{% block title %}Rewritten CV — LevelUpX{% endblock %}
+{% block content %}
+
+<!-- Hero -->
+<section class="bg-gradient-to-br from-amber-500 via-orange-500 to-red-400 text-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div class="flex items-center gap-6">
+            <div class="flex-shrink-0">
+                <div class="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
+                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                </div>
+            </div>
+            <div>
+                <h1 class="text-2xl font-extrabold mb-1">CV Rewrite Complete</h1>
+                <p class="text-sm text-white/80">Your CV has been optimized for the target role</p>
+                <div class="flex items-center gap-4 mt-2">
+                    <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                        <span class="text-xs text-white/60">Original ATS</span>
+                        <span class="text-sm font-bold ml-1">{{ original_ats }}%</span>
+                    </div>
+                    <svg class="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                    <div class="bg-white/25 backdrop-blur-sm rounded-lg px-3 py-1.5">
+                        <span class="text-xs text-white/60">Expected</span>
+                        <span class="text-sm font-bold ml-1">~{{ original_ats + rewrite.expected_ats_improvement }}%</span>
+                        <span class="text-xs text-green-200 ml-1">+{{ rewrite.expected_ats_improvement }}</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="max-w-5xl mx-auto px-4 sm:px-6 -mt-5 relative z-10 space-y-5 pb-8">
+
+    <!-- Changes Summary -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
+            </div>
+            <div>
+                <h3 class="font-semibold text-slate-800 text-sm">What Changed</h3>
+                <p class="text-[10px] text-slate-400">{{ rewrite.changes_summary|length }} improvements made to your CV</p>
+            </div>
+        </div>
+        <ul class="space-y-2">
+            {% for change in rewrite.changes_summary %}
+            <li class="flex items-start gap-2">
+                <svg class="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                <span class="text-sm text-slate-600 leading-relaxed">{{ change }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Rewritten CV -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-1">
+        <div class="flex items-center justify-between mb-4">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Your Optimized CV</h3>
+            </div>
+            <button onclick="copyCV()" id="copyBtn" class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Copy Text
+            </button>
+        </div>
+        <div id="cvContent" class="prose prose-sm max-w-none text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-5 border border-slate-200 max-h-[600px] overflow-y-auto whitespace-pre-wrap">{{ rewrite.rewritten_cv }}</div>
+    </div>
+
+    <!-- Action buttons -->
+    <div class="flex flex-wrap justify-center gap-4 py-3 no-print">
+        <a href="{{ url_for('download_rewritten_cv') }}" class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            Download Rewritten CV (PDF)
+        </a>
+        <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Analyse Another CV
+        </a>
+        <button onclick="window.print()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Print
+        </button>
+    </div>
+
+    <div class="text-center text-xs text-slate-400">
+        <p>Credits remaining: <span class="font-semibold text-slate-600">{{ credits_remaining }}</span></p>
+    </div>
+</div>
+
+<script>
+function copyCV() {
+    const text = document.getElementById('cvContent').innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const btn = document.getElementById('copyBtn');
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Copied!';
+        setTimeout(() => {
+            btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy Text';
+        }, 2000);
+    });
+}
+</script>
+
+{% endblock %}

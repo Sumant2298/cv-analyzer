@@ -73,7 +73,15 @@ def _build_skills_prompt(cv_text: str, jd_text: str) -> str:
 
 Return this JSON:
 {{
-  "ats_score": 45,
+  "ats_breakdown": {{
+    "skill_coverage": {{"score": 55, "rationale": "Covers 8/12 required skills but missing critical ones like Kubernetes and Terraform"}},
+    "experience_alignment": {{"score": 60, "rationale": "5 years experience meets the 3+ requirement; senior-level project work aligns well"}},
+    "keyword_optimization": {{"score": 40, "rationale": "CV uses generic terms; missing JD-specific phrases like 'CI/CD pipeline' and 'microservices'"}},
+    "education_match": {{"score": 80, "rationale": "BS Computer Science matches the required Bachelors in CS or related field"}},
+    "action_verb_quality": {{"score": 45, "rationale": "Uses basic verbs like 'managed' and 'worked on'; missing impact verbs like 'architected' and 'scaled'"}},
+    "section_structure": {{"score": 70, "rationale": "Has standard sections but summary is missing; bullet points are well-formatted"}},
+    "overall_relevance": {{"score": 50, "rationale": "Moderate fit — strong backend skills but weak on the DevOps/cloud focus of this role"}}
+  }},
   "quick_match": {{
     "experience": {{"cv_value": "5 years", "jd_value": "3+ years", "match_quality": "Strong Match"}},
     "education": {{"cv_value": "Bachelors", "jd_value": "Bachelors", "match_quality": "Strong Match"}},
@@ -115,7 +123,14 @@ Return this JSON:
 }}
 
 Instructions:
-- ats_score: 0-100, realistic ATS pass likelihood
+- ats_breakdown: Score each of the 7 components 0-100. Be REALISTIC — most unoptimized CVs score 30-50 per component. Each rationale must be 1 sentence referencing specific CV/JD content.
+  - skill_coverage (weight 30%): % of required JD skills found in CV
+  - experience_alignment (weight 20%): years + seniority + domain fit
+  - keyword_optimization (weight 15%): JD term density, placement, exact phrasing
+  - education_match (weight 10%): degree, field, certifications alignment
+  - action_verb_quality (weight 10%): achievement-oriented language vs passive/generic
+  - section_structure (weight 10%): ATS-parsable format, standard sections, readability
+  - overall_relevance (weight 5%): holistic fit — would a recruiter shortlist this candidate?
 - quick_match: Extract REAL values. match_quality: "Strong Match"/"Good Match"/"Weak Match"
 - skill_match: ALL skills from JD classified as matched/missing. ALL extra CV skills. Group by category. skill_score = matched/total*100
 - top_skill_groups: 6-8 groups from JD, ordered by importance. Mark each skill found/not-found in CV
@@ -182,6 +197,61 @@ Instructions:
 
 
 # ---------------------------------------------------------------------------
+# ATS Score Computation
+# ---------------------------------------------------------------------------
+
+_ATS_WEIGHTS = {
+    'skill_coverage': 0.30,
+    'experience_alignment': 0.20,
+    'keyword_optimization': 0.15,
+    'education_match': 0.10,
+    'action_verb_quality': 0.10,
+    'section_structure': 0.10,
+    'overall_relevance': 0.05,
+}
+
+_ATS_LABELS = {
+    'skill_coverage': 'Skill Coverage',
+    'experience_alignment': 'Experience Alignment',
+    'keyword_optimization': 'Keyword Optimization',
+    'education_match': 'Education Match',
+    'action_verb_quality': 'Action Verb Quality',
+    'section_structure': 'Section Structure',
+    'overall_relevance': 'Overall Relevance',
+}
+
+
+def compute_ats_score(breakdown: dict) -> tuple:
+    """Compute weighted ATS score from 7-component breakdown.
+
+    Returns (composite_score: int, detailed_breakdown: list[dict]).
+    Each item in detailed_breakdown has: key, label, score, weight, weighted,
+    rationale.
+    """
+    detailed = []
+    total_weighted = 0.0
+
+    for key, weight in _ATS_WEIGHTS.items():
+        component = breakdown.get(key, {})
+        raw_score = _ensure_float(component.get('score', 0)) if isinstance(component, dict) else 0.0
+        raw_score = min(100.0, max(0.0, raw_score))
+        rationale = str(component.get('rationale', '')) if isinstance(component, dict) else ''
+        weighted = round(raw_score * weight, 1)
+        total_weighted += weighted
+        detailed.append({
+            'key': key,
+            'label': _ATS_LABELS.get(key, key),
+            'score': round(raw_score),
+            'weight': round(weight * 100),
+            'weighted': weighted,
+            'rationale': rationale,
+        })
+
+    composite = min(100, max(0, round(total_weighted)))
+    return composite, detailed
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -193,13 +263,22 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     # --- Call 1: Skills & Scoring ---
     skills_prompt = _build_skills_prompt(cv_text, jd_text)
     logger.info('LLM call 1: skills & scoring (%d chars)', len(skills_prompt))
-    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=3000, timeout=25.0)
+    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=3500, timeout=30.0)
 
     # --- Build results from call 1 ---
     results = {}
 
-    ats = skills_data.get('ats_score', 40)
-    results['ats_score'] = min(100, max(0, int(ats))) if isinstance(ats, (int, float)) else 40
+    # ATS Breakdown — compute weighted composite from 7 sub-scores
+    raw_breakdown = skills_data.get('ats_breakdown', {})
+    if isinstance(raw_breakdown, dict) and raw_breakdown:
+        ats_composite, ats_detailed = compute_ats_score(raw_breakdown)
+        results['ats_score'] = ats_composite
+        results['ats_breakdown'] = ats_detailed
+    else:
+        # Fallback: use single ats_score if breakdown missing
+        ats = skills_data.get('ats_score', 40)
+        results['ats_score'] = min(100, max(0, int(ats))) if isinstance(ats, (int, float)) else 40
+        results['ats_breakdown'] = []
 
     qm = skills_data.get('quick_match', {})
     results['quick_match'] = {}
@@ -242,9 +321,7 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     skill_score = results['skill_match']['skill_score']
     verb_score = results['experience_analysis']['verb_alignment']
     results['tfidf_score'] = results['ats_score']
-    results['composite_score'] = round(
-        results['ats_score'] * 0.5 + skill_score * 0.3 + verb_score * 0.2, 1
-    )
+    results['composite_score'] = results['ats_score']  # ATS breakdown IS the composite now
 
     jd_kw = skills_data.get('jd_keywords', [])
     cv_kw = skills_data.get('cv_keywords', [])
@@ -314,6 +391,94 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
                 len(results['skill_match']['matched']),
                 len(results['skill_match']['matched']) + len(results['skill_match']['missing']))
     return results
+
+
+# ---------------------------------------------------------------------------
+# Call 3: CV Rewrite (on-demand, paid feature)
+# ---------------------------------------------------------------------------
+
+_REWRITE_SYSTEM = """You are an expert CV writer and ATS optimization specialist. You rewrite CVs to maximize ATS scores and recruiter appeal for a specific job description.
+
+RULES:
+- Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
+- NEVER fabricate experience, degrees, or skills the candidate doesn't have.
+- ONLY reorganize, reword, and optimize what already exists.
+- Naturally weave in JD keywords where truthful.
+- Use strong action verbs and quantify achievements where possible.
+- Keep the same overall structure but improve every section.
+- Address the candidate in 2nd person in the changes_summary."""
+
+_REWRITE_PROMPT = """Rewrite this CV to be optimized for the target role below.
+
+Matched skills: {matched}
+Missing skills (DO NOT fabricate — suggest where the candidate could mention related experience): {missing}
+Missing action verbs to incorporate: {missing_verbs}
+Current ATS score: {ats_score}%
+
+<JD>
+{jd_text}
+</JD>
+
+<ORIGINAL_CV>
+{cv_text}
+</ORIGINAL_CV>
+
+Return this JSON:
+{{
+  "rewritten_cv": "The complete rewritten CV text in clean markdown format. Use ## for section headings, **bold** for company names, bullet points for experience items. Preserve all factual information.",
+  "changes_summary": [
+    "Specific change 1 — what was improved and why",
+    "Specific change 2 — what was improved and why"
+  ],
+  "expected_ats_improvement": 15
+}}
+
+Instructions:
+- rewritten_cv: Full CV text in markdown. Keep ALL real experience, education, contact info. Improve wording, add JD keywords naturally, use strong action verbs. DO NOT invent anything.
+- changes_summary: 4-8 bullet points explaining what you changed and why. Be specific (e.g., "Replaced 'worked on database' with 'Architected and optimized PostgreSQL database serving 2M+ queries/day'").
+- expected_ats_improvement: Estimated point increase (0-40) from original score. Be realistic.
+- NEVER echo the JD. Return ONLY the JSON."""
+
+
+def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
+               missing_verbs: list, ats_score: int) -> dict:
+    """Rewrite a CV optimized for the target JD. Returns dict with
+    'rewritten_cv', 'changes_summary', 'expected_ats_improvement'.
+
+    This is the 3rd LLM call (separate from analysis, only on user action).
+    """
+    if not LLM_ENABLED:
+        raise RuntimeError('LLM is not configured (GROQ_API_KEY not set)')
+
+    prompt = _REWRITE_PROMPT.format(
+        matched=', '.join(matched[:15]) or 'None',
+        missing=', '.join(missing[:15]) or 'None',
+        missing_verbs=', '.join(missing_verbs[:10]) or 'None',
+        ats_score=ats_score,
+        jd_text=jd_text[:2000],
+        cv_text=cv_text[:4000],
+    )
+
+    logger.info('LLM call 3: CV rewrite (%d chars)', len(prompt))
+    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=4000, timeout=45.0)
+
+    result = {
+        'rewritten_cv': str(data.get('rewritten_cv', '')),
+        'changes_summary': [str(s) for s in data.get('changes_summary', []) if isinstance(s, str)],
+        'expected_ats_improvement': min(40, max(0, int(data.get('expected_ats_improvement', 10)))),
+    }
+
+    if not result['rewritten_cv']:
+        raise RuntimeError('LLM returned empty rewritten CV')
+
+    if not result['changes_summary']:
+        result['changes_summary'] = ['CV has been optimized for the target role.']
+
+    logger.info('CV rewrite complete: %d chars, %d changes, +%d ATS est.',
+                len(result['rewritten_cv']),
+                len(result['changes_summary']),
+                result['expected_ats_improvement'])
+    return result
 
 
 # ---------------------------------------------------------------------------

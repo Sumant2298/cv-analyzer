@@ -1,11 +1,16 @@
 """Google OAuth helpers for LevelUpX using Authlib."""
 
+import logging
 import os
 
 from authlib.integrations.flask_client import OAuth
 from flask import session
 
-from models import User, db
+from models import User, CreditUsage, db
+
+logger = logging.getLogger(__name__)
+
+FREE_SIGNUP_CREDITS = 5
 
 oauth = OAuth()
 
@@ -38,9 +43,20 @@ def get_or_create_user(userinfo: dict) -> User:
         email=userinfo['email'],
         name=userinfo.get('name', ''),
         picture=userinfo.get('picture', ''),
+        credits=FREE_SIGNUP_CREDITS,
     )
     db.session.add(user)
+    db.session.flush()  # Get user.id for CreditUsage record
+
+    # Record the signup bonus
+    bonus = CreditUsage(
+        user_id=user.id,
+        credits_used=-FREE_SIGNUP_CREDITS,  # Negative = credits added
+        action='bonus_signup',
+    )
+    db.session.add(bonus)
     db.session.commit()
+    logger.info('New user %s gets %d free credits', user.email, FREE_SIGNUP_CREDITS)
     return user
 
 

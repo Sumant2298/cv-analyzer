@@ -17,7 +17,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from models import db, User
+from models import db, User, Transaction, CreditUsage
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -49,6 +49,18 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db.init_app(app)
 with app.app_context():
     db.create_all()
+    # Migration: add 'credits' column to existing users table if missing
+    try:
+        from sqlalchemy import text, inspect
+        inspector = inspect(db.engine)
+        columns = [c['name'] for c in inspector.get_columns('users')]
+        if 'credits' not in columns:
+            db.session.execute(text('ALTER TABLE users ADD COLUMN credits INTEGER DEFAULT 0 NOT NULL'))
+            db.session.commit()
+            logger.info('Migration: added credits column to users table')
+    except Exception as e:
+        logger.info('Migration check: %s', e)
+        db.session.rollback()
 
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — only if credentials are set)
@@ -57,6 +69,20 @@ _oauth_enabled = bool(os.environ.get('GOOGLE_CLIENT_ID'))
 if _oauth_enabled:
     from auth import init_oauth, get_or_create_user, track_analysis, current_user, oauth
     init_oauth(app)
+
+# ---------------------------------------------------------------------------
+# Context processor — keep credit balance fresh in session
+# ---------------------------------------------------------------------------
+@app.before_request
+def _refresh_user_credits():
+    """Refresh user credits from DB into session on every request."""
+    if session.get('user_id'):
+        try:
+            user = User.query.get(session['user_id'])
+            if user:
+                session['user_credits'] = user.credits
+        except Exception:
+            pass
 
 # Folder to store consented CVs
 CV_STORAGE = os.environ.get('CV_STORAGE_PATH',
@@ -421,11 +447,14 @@ def google_callback():
         session['user_id'] = user.id
         session['user_name'] = user.name
         session['user_picture'] = user.picture
+        session['user_credits'] = user.credits
         flash(f'Welcome, {user.name}!', 'success')
     except Exception as e:
         logger.error('OAuth callback error: %s', e, exc_info=True)
         flash('Sign-in failed. Please try again.', 'error')
-    return redirect(url_for('index'))
+    # Redirect to the page user was trying to visit before login
+    next_url = session.pop('_login_next', None)
+    return redirect(next_url or url_for('index'))
 
 
 @app.route('/logout')
@@ -468,8 +497,16 @@ def analyze():
         flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
 
-    # Store CV text in session for download
+    # Store CV text + JD text + key analysis data in session for download/rewrite
     session['_cv_text'] = cv_text[:20000]
+    session['_jd_text'] = jd_text[:15000]
+    session['_analysis_results'] = {
+        'ats_score': results.get('ats_score', 0),
+        'matched': results.get('skill_match', {}).get('matched', [])[:20],
+        'missing': results.get('skill_match', {}).get('missing', [])[:20],
+        'missing_verbs': results.get('experience_analysis', {}).get('missing_action_verbs', [])[:10],
+        'skill_score': results.get('skill_match', {}).get('skill_score', 0),
+    }
 
     # Track usage for signed-in users
     if _oauth_enabled and session.get('user_id'):
@@ -496,6 +533,185 @@ def download_cv_text():
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cv_download.pdf')
     _text_to_pdf(cv_text, pdf_path)
     return send_file(pdf_path, as_attachment=True, download_name='my_cv.pdf')
+
+
+# ---------------------------------------------------------------------------
+# CV Rewrite (paid feature)
+# ---------------------------------------------------------------------------
+
+@app.route('/rewrite-cv')
+def rewrite_cv_page():
+    """Confirmation page before performing rewrite."""
+    # Check if we have analysis data
+    if not session.get('_cv_text') or not session.get('_jd_text'):
+        flash('Please run a CV analysis first before requesting a rewrite.', 'warning')
+        return redirect(url_for('index'))
+
+    # Must be logged in
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('rewrite_cv_page')
+        flash('Please sign in to rewrite your CV.', 'warning')
+        return redirect(url_for('login_page'))
+
+    from payments import CREDITS_PER_REWRITE
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    # Check credits
+    if user.credits < CREDITS_PER_REWRITE:
+        flash(f'You need {CREDITS_PER_REWRITE} credits to rewrite your CV. You have {user.credits}.', 'warning')
+        return redirect(url_for('buy_credits'))
+
+    analysis = session.get('_analysis_results', {})
+    return render_template('rewrite_confirm.html',
+                           user=user,
+                           credits_needed=CREDITS_PER_REWRITE,
+                           ats_score=analysis.get('ats_score', 0),
+                           matched_count=len(analysis.get('matched', [])),
+                           missing_count=len(analysis.get('missing', [])))
+
+
+@app.route('/rewrite-cv', methods=['POST'])
+def rewrite_cv_action():
+    """Perform the rewrite — deduct credits, call LLM, show results."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    if not session.get('_cv_text') or not session.get('_jd_text'):
+        flash('No analysis data found. Please run analysis first.', 'warning')
+        return redirect(url_for('index'))
+
+    from payments import deduct_credits, CREDITS_PER_REWRITE
+
+    # Deduct credits atomically
+    if not deduct_credits(session['user_id'], CREDITS_PER_REWRITE):
+        flash(f'Insufficient credits. You need {CREDITS_PER_REWRITE} credits.', 'warning')
+        return redirect(url_for('buy_credits'))
+
+    # Refresh session credits
+    user = User.query.get(session['user_id'])
+    if user:
+        session['user_credits'] = user.credits
+
+    # Call LLM for rewrite
+    analysis = session.get('_analysis_results', {})
+    try:
+        from llm_service import rewrite_cv
+        rewrite_result = rewrite_cv(
+            cv_text=session['_cv_text'],
+            jd_text=session['_jd_text'],
+            matched=analysis.get('matched', []),
+            missing=analysis.get('missing', []),
+            missing_verbs=analysis.get('missing_verbs', []),
+            ats_score=analysis.get('ats_score', 0),
+        )
+    except Exception as e:
+        # Refund credits on LLM failure
+        logger.error('CV rewrite LLM error: %s', e, exc_info=True)
+        try:
+            if user:
+                user.credits += CREDITS_PER_REWRITE
+                db.session.commit()
+                session['user_credits'] = user.credits
+        except Exception:
+            pass
+        flash(f'Rewrite failed: {e}. Your credits have been refunded.', 'error')
+        return redirect(url_for('index'))
+
+    # Store rewritten CV in session for download
+    session['_rewritten_cv'] = rewrite_result['rewritten_cv']
+
+    return render_template('rewrite_results.html',
+                           rewrite=rewrite_result,
+                           original_ats=analysis.get('ats_score', 0),
+                           credits_remaining=user.credits if user else 0)
+
+
+@app.route('/download-rewritten-cv')
+def download_rewritten_cv():
+    """Download the rewritten CV as a PDF."""
+    rewritten_text = session.get('_rewritten_cv')
+    if not rewritten_text:
+        flash('No rewritten CV available. Please perform a rewrite first.', 'warning')
+        return redirect(url_for('index'))
+
+    # Convert markdown to plain text for PDF (strip markdown formatting)
+    import re as regex
+    clean_text = rewritten_text
+    clean_text = regex.sub(r'^##\s+', '', clean_text, flags=regex.MULTILINE)  # ## headers → plain
+    clean_text = regex.sub(r'\*\*(.+?)\*\*', r'\1', clean_text)  # **bold** → plain
+    clean_text = regex.sub(r'^\-\s+', '  - ', clean_text, flags=regex.MULTILINE)  # - bullets → indented
+
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'rewritten_cv.pdf')
+    _text_to_pdf(clean_text, pdf_path)
+    return send_file(pdf_path, as_attachment=True, download_name='rewritten_cv.pdf')
+
+
+# ---------------------------------------------------------------------------
+# Credit purchase & payment routes
+# ---------------------------------------------------------------------------
+
+@app.route('/buy-credits')
+def buy_credits():
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('buy_credits')
+        flash('Please sign in to buy credits.', 'warning')
+        return redirect(url_for('login_page'))
+
+    from payments import TIERS, PAYMENTS_ENABLED, RAZORPAY_KEY_ID
+    user = User.query.get(session['user_id'])
+    return render_template('buy_credits.html',
+                           tiers=TIERS,
+                           payments_enabled=PAYMENTS_ENABLED,
+                           razorpay_key=RAZORPAY_KEY_ID,
+                           user=user)
+
+
+@app.route('/payment/create', methods=['POST'])
+def payment_create():
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    tier = request.json.get('tier', '')
+    try:
+        from payments import create_order
+        result = create_order(session['user_id'], tier)
+        return jsonify(result)
+    except Exception as e:
+        logger.error('Payment create error: %s', e)
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/payment/verify', methods=['POST'])
+def payment_verify():
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    data = request.json or {}
+    try:
+        from payments import verify_payment
+        result = verify_payment(
+            data.get('order_id', ''),
+            data.get('payment_id', ''),
+            data.get('signature', ''),
+        )
+        # Update session credits
+        session['user_credits'] = result.get('new_balance', 0)
+        return jsonify(result)
+    except Exception as e:
+        logger.error('Payment verify error: %s', e)
+        return jsonify({'error': str(e)}), 400
+
+
+@app.route('/payment/webhook', methods=['POST'])
+def payment_webhook():
+    try:
+        from payments import handle_webhook
+        sig = request.headers.get('X-Razorpay-Signature', '')
+        handled = handle_webhook(request.json or {}, sig)
+        return jsonify({'status': 'ok', 'handled': handled})
+    except Exception as e:
+        logger.error('Webhook error: %s', e)
+        return jsonify({'status': 'error'}), 400
 
 
 # ---------------------------------------------------------------------------
