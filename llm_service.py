@@ -223,7 +223,11 @@ Return this JSON:
     "missing_action_verbs": ["architect", "scale"],
     "section_relevance": [
       {{"section": "Experience", "relevance": 65.0}},
-      {{"section": "Education", "relevance": 40.0}}
+      {{"section": "Summary", "relevance": 50.0}},
+      {{"section": "Education", "relevance": 40.0}},
+      {{"section": "Skills", "relevance": 70.0}},
+      {{"section": "Soft Skills", "relevance": 35.0}},
+      {{"section": "Future-Ready Skills", "relevance": 25.0}}
     ]
   }},
   "jd_keywords": ["keyword1", "keyword2"],
@@ -242,7 +246,7 @@ Instructions:
 - quick_match: Extract REAL values. match_quality: "Strong Match"/"Good Match"/"Weak Match"
 - skill_match: ALL skills from JD classified as matched/missing. ALL extra CV skills. Group by category. skill_score = matched/total*100
 - top_skill_groups: 6-8 groups from JD, ordered by importance. Mark each skill found/not-found in CV
-- experience_analysis: verb_alignment 0-100, list common and missing action verbs, section relevance 0-100
+- experience_analysis: verb_alignment 0-100, list common and missing action verbs. section_relevance MUST have exactly 6 sections: Experience, Summary, Education, Skills, Soft Skills, Future-Ready Skills — each scored 0-100 for relevance to the JD
 - jd_keywords/cv_keywords: Top 15 important keywords each
 - NEVER echo back the CV or JD text. Return ONLY the JSON."""
 
@@ -299,7 +303,7 @@ Instructions:
 - profile_summary: 3-5 sentences, 2nd person, specific, honest
 - working_well: 3-5 genuine strengths for THIS role
 - needs_improvement: 3-5 real gaps, be direct
-- suggestions: 3-5 items, first 2 "high" priority, rest "medium"
+- suggestions: EXACTLY 5-7 items. First 2 "high" priority, next 2 "medium" priority, rest "low" priority. Each must be specific and actionable.
 - skill_gap_tips: Top 3-5 missing skills only, one sentence each
 - NEVER echo the CV or JD. Return ONLY the JSON."""
 
