@@ -18,7 +18,6 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from drive_service import upload_cv_to_drive, is_drive_configured
 from models import db, User, Transaction, CreditUsage
 
 # Configure logging for debugging on Render
@@ -127,8 +126,12 @@ def _refresh_user_credits():
             pass
 
 # Folder to store consented CVs
-CV_STORAGE = os.environ.get('CV_STORAGE_PATH',
-                            os.path.join(os.path.dirname(os.path.abspath(__file__)), 'collected_cvs'))
+# Default: ~/Downloads/LevelUpX_CVs/ locally, or collected_cvs/ on Railway
+_default_cv_path = os.path.join(os.path.expanduser('~'), 'Downloads', 'LevelUpX_CVs')
+if not os.path.isdir(os.path.join(os.path.expanduser('~'), 'Downloads')):
+    # On Railway / Linux server, fall back to app-local folder
+    _default_cv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'collected_cvs')
+CV_STORAGE = os.environ.get('CV_STORAGE_PATH', _default_cv_path)
 os.makedirs(CV_STORAGE, exist_ok=True)
 
 # Admin token for accessing stored CVs (set via env var on Render)
@@ -414,20 +417,18 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
                    user_email: str = None) -> str:
     """Handle file upload, URL, or text paste. Priority: file > URL > text.
 
-    If save_cv=True and Google Drive is configured, uploads to Drive.
-    Otherwise falls back to local CV_STORAGE folder.
+    If save_cv=True, saves to CV_STORAGE folder with user email in filename.
     """
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    email_prefix = user_email.split('@')[0] if user_email else 'unknown'
     file = request.files.get(file_field)
 
     def _save_cv_file(src_path):
-        """Save CV to Google Drive (preferred) or local storage (fallback)."""
-        if is_drive_configured() and user_email:
-            upload_cv_to_drive(src_path, user_email)
-        else:
-            ext = src_path.rsplit('.', 1)[-1] if '.' in src_path else 'pdf'
-            save_name = f'cv_{timestamp}.{ext}'
-            shutil.copy2(src_path, os.path.join(CV_STORAGE, save_name))
+        """Save CV to local CV_STORAGE folder (~/Downloads/LevelUpX_CVs/ or collected_cvs/)."""
+        ext = src_path.rsplit('.', 1)[-1] if '.' in src_path else 'pdf'
+        save_name = f'cv_{timestamp}_{email_prefix}.{ext}'
+        shutil.copy2(src_path, os.path.join(CV_STORAGE, save_name))
+        logger.info('CV saved: %s (user=%s)', save_name, user_email)
 
     # --- 1. File upload (highest priority) ---
     if file and file.filename and allowed_file(file.filename):
@@ -472,7 +473,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
 
             if text:
                 if save_cv:
-                    save_name = f'cv_{timestamp}.pdf'
+                    save_name = f'cv_{timestamp}_{email_prefix}.pdf'
                     temp_pdf = os.path.join(app.config['UPLOAD_FOLDER'], save_name)
                     _text_to_pdf(text, temp_pdf)
                     try:
@@ -488,7 +489,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
     # --- 3. Pasted text (lowest priority) ---
     text = request.form.get(text_field, '').strip()
     if text and save_cv:
-        save_name = f'cv_{timestamp}.pdf'
+        save_name = f'cv_{timestamp}_{email_prefix}.pdf'
         temp_pdf = os.path.join(app.config['UPLOAD_FOLDER'], save_name)
         _text_to_pdf(text, temp_pdf)
         try:
