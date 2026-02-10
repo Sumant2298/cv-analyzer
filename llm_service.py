@@ -55,17 +55,10 @@ def _get_client():
     from openai import OpenAI
 
     if _BACKEND == 'local':
-        # Ollama exposes an OpenAI-compatible API at /v1
-        base_url = LOCAL_LLM_URL
-        if not base_url.endswith('/v1'):
-            base_url = base_url + '/v1'
-        # ngrok-skip-browser-warning bypasses ngrok's free-tier interstitial page
-        _client = OpenAI(
-            base_url=base_url,
-            api_key='ollama',  # Ollama ignores api_key
-            default_headers={'ngrok-skip-browser-warning': 'true'},
-        )
-        logger.info('Initialised local LLM client: %s', base_url)
+        # For local LLM we use raw httpx to avoid ngrok interstitial issues
+        # Client is not used; _call_llm_local() handles requests directly
+        _client = 'local_httpx'
+        logger.info('Using direct HTTP for local LLM: %s', LOCAL_LLM_URL)
     elif _BACKEND == 'groq':
         _client = OpenAI(
             base_url='https://api.groq.com/openai/v1',
@@ -85,37 +78,73 @@ def _get_model() -> str:
     return GROQ_MODEL
 
 
-def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
-              temperature: float = 0.3, timeout: float = 120.0) -> dict:
-    """Call LLM via OpenAI-compatible API and parse JSON response.
+def _call_llm_local(system: str, prompt: str, max_tokens: int,
+                     temperature: float, timeout: float) -> str:
+    """Call local Ollama via direct HTTP POST (bypasses ngrok interstitial)."""
+    import httpx
 
-    For local models the timeout is much longer (they're slower than cloud).
-    """
-    client = _get_client()
-    model = _get_model()
+    base_url = LOCAL_LLM_URL.rstrip('/')
+    url = f'{base_url}/api/chat'
 
-    # Local models are slower — give them more time
-    if _BACKEND == 'local':
-        timeout = max(timeout, 180.0)
-
-    response = client.chat.completions.create(
-        model=model,
-        messages=[
+    payload = {
+        'model': LOCAL_LLM_MODEL,
+        'messages': [
             {'role': 'system', 'content': system},
             {'role': 'user', 'content': prompt},
         ],
-        temperature=temperature,
-        max_tokens=max_tokens,
-        response_format={'type': 'json_object'},
-        timeout=timeout,
-    )
-    raw = response.choices[0].message.content
+        'stream': False,
+        'format': 'json',
+        'options': {
+            'temperature': temperature,
+            'num_predict': max_tokens,
+        },
+    }
+
+    headers = {
+        'Content-Type': 'application/json',
+        'User-Agent': 'LevelUpX/1.0',
+        'ngrok-skip-browser-warning': 'true',
+    }
+
+    logger.info('Local LLM request: %s (model=%s)', url, LOCAL_LLM_MODEL)
+    resp = httpx.post(url, json=payload, headers=headers, timeout=timeout)
+    resp.raise_for_status()
+    data = resp.json()
+    return data.get('message', {}).get('content', '')
+
+
+def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
+              temperature: float = 0.3, timeout: float = 120.0) -> dict:
+    """Call LLM and parse JSON response.
+
+    Uses Ollama native API for local backend (avoids ngrok 403),
+    OpenAI-compatible API for Groq.
+    """
+    _get_client()  # ensure initialised
+
+    if _BACKEND == 'local':
+        timeout = max(timeout, 180.0)
+        raw = _call_llm_local(system, prompt, max_tokens, temperature, timeout)
+    else:
+        model = _get_model()
+        response = _client.chat.completions.create(
+            model=model,
+            messages=[
+                {'role': 'system', 'content': system},
+                {'role': 'user', 'content': prompt},
+            ],
+            temperature=temperature,
+            max_tokens=max_tokens,
+            response_format={'type': 'json_object'},
+            timeout=timeout,
+        )
+        raw = response.choices[0].message.content
+
     logger.info('LLM response (%s): %d chars', _BACKEND, len(raw))
 
     # Try to parse JSON — sometimes local models wrap it in markdown code blocks
     raw = raw.strip()
     if raw.startswith('```'):
-        # Strip ```json ... ``` wrapper
         lines = raw.split('\n')
         if lines[0].startswith('```'):
             lines = lines[1:]
