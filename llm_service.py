@@ -114,72 +114,99 @@ def _call_llm_local(system: str, prompt: str, max_tokens: int,
 
 
 def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
-              temperature: float = 0.3, timeout: float = 120.0) -> dict:
-    """Call LLM and parse JSON response.
+              temperature: float = 0.3, timeout: float = 120.0,
+              _retries: int = 2) -> dict:
+    """Call LLM and parse JSON response. Retries on json_validate_failed.
 
     Uses Ollama native API for local backend (avoids ngrok 403),
     OpenAI-compatible API for Groq.
     """
     _get_client()  # ensure initialised
 
-    if _BACKEND == 'local':
-        timeout = max(timeout, 180.0)
-        raw = _call_llm_local(system, prompt, max_tokens, temperature, timeout)
-    else:
-        model = _get_model()
-        response = _client.chat.completions.create(
-            model=model,
-            messages=[
-                {'role': 'system', 'content': system},
-                {'role': 'user', 'content': prompt},
-            ],
-            temperature=temperature,
-            max_tokens=max_tokens,
-            response_format={'type': 'json_object'},
-            timeout=timeout,
-        )
-        raw = response.choices[0].message.content
+    last_error = None
+    for attempt in range(_retries + 1):
+        try:
+            if _BACKEND == 'local':
+                t = max(timeout, 180.0)
+                raw = _call_llm_local(system, prompt, max_tokens, temperature, t)
+            else:
+                model = _get_model()
+                # On retry: bump temperature slightly and prepend reminder
+                retry_temp = min(temperature + 0.1 * attempt, 0.7)
+                retry_system = system
+                if attempt > 0:
+                    retry_system = system + '\n\nREMINDER: Output ONLY a valid JSON object. Do NOT output any CV or JD text.'
+                    logger.info('LLM retry %d/%d (temp=%.1f)', attempt, _retries, retry_temp)
 
-    logger.info('LLM response (%s): %d chars', _BACKEND, len(raw))
+                response = _client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {'role': 'system', 'content': retry_system},
+                        {'role': 'user', 'content': prompt},
+                    ],
+                    temperature=retry_temp,
+                    max_tokens=max_tokens,
+                    response_format={'type': 'json_object'},
+                    timeout=timeout,
+                )
+                raw = response.choices[0].message.content
 
-    # Try to parse JSON — sometimes local models wrap it in markdown code blocks
-    raw = raw.strip()
-    if raw.startswith('```'):
-        lines = raw.split('\n')
-        if lines[0].startswith('```'):
-            lines = lines[1:]
-        if lines and lines[-1].strip() == '```':
-            lines = lines[:-1]
-        raw = '\n'.join(lines).strip()
+            logger.info('LLM response (%s, attempt %d): %d chars', _BACKEND, attempt, len(raw))
 
-    return json.loads(raw)
+            # Try to parse JSON — sometimes local models wrap it in markdown code blocks
+            raw = raw.strip()
+            if raw.startswith('```'):
+                lines = raw.split('\n')
+                if lines[0].startswith('```'):
+                    lines = lines[1:]
+                if lines and lines[-1].strip() == '```':
+                    lines = lines[:-1]
+                raw = '\n'.join(lines).strip()
+
+            return json.loads(raw)
+
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+            # Retry on JSON validation failures from the API
+            if 'json_validate_failed' in error_str or 'failed_generation' in error_str:
+                logger.warning('LLM JSON validation failed (attempt %d/%d): %s',
+                               attempt + 1, _retries + 1, error_str[:200])
+                if attempt < _retries:
+                    continue
+            # Don't retry other errors
+            raise
+
+    raise last_error
 
 
 # ---------------------------------------------------------------------------
 # Call 1: Skills & Scoring
 # ---------------------------------------------------------------------------
 
-_SKILLS_SYSTEM = """You are an ATS (Applicant Tracking System) that analyses CVs against job descriptions. You extract skills, score matches, and identify gaps.
+_SKILLS_SYSTEM = """You are an ATS (Applicant Tracking System) JSON API. You analyse CVs against job descriptions and return ONLY structured JSON.
 
-RULES:
-- Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
-- Do NOT echo or repeat the CV or JD content.
+CRITICAL RULES:
+- Your response must be a single valid JSON object. Nothing else.
+- NEVER output any text from the CV or JD in your response — only structured analysis.
+- NEVER echo, quote, or reproduce the CV content. Only reference it in short rationale strings.
+- If you start writing CV text instead of JSON, STOP and restart with the JSON object.
 - Be thorough: check aliases (JS=JavaScript, K8s=Kubernetes, etc.)
 - Be realistic with scores — most unoptimized CVs score 30-50 ATS."""
 
 
 def _build_skills_prompt(cv_text: str, jd_text: str) -> str:
-    return f"""Analyse this CV against the JD. Return ONLY the JSON below.
+    return f"""I will give you a CV and JD to analyse. Read them, then respond with ONLY the JSON structure specified below. Do NOT repeat or echo any CV/JD content.
 
-<JD>
+--- BEGIN JD ---
 {jd_text[:2500]}
-</JD>
+--- END JD ---
 
-<CV>
+--- BEGIN CV ---
 {cv_text[:3000]}
-</CV>
+--- END CV ---
 
-Return this JSON:
+Now analyse the above and return ONLY this JSON (replace example values with real analysis):
 {{
   "ats_breakdown": {{
     "skill_coverage": {{"score": 55, "rationale": "Covers 8/12 required skills but missing critical ones like Kubernetes and Terraform"}},
