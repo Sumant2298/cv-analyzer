@@ -59,7 +59,12 @@ def _get_client():
         base_url = LOCAL_LLM_URL
         if not base_url.endswith('/v1'):
             base_url = base_url + '/v1'
-        _client = OpenAI(base_url=base_url, api_key='ollama')  # Ollama ignores api_key
+        # ngrok-skip-browser-warning bypasses ngrok's free-tier interstitial page
+        _client = OpenAI(
+            base_url=base_url,
+            api_key='ollama',  # Ollama ignores api_key
+            default_headers={'ngrok-skip-browser-warning': 'true'},
+        )
         logger.info('Initialised local LLM client: %s', base_url)
     elif _BACKEND == 'groq':
         _client = OpenAI(
