@@ -1,12 +1,9 @@
 """LLM-powered CV analysis using Groq.
 
-This module performs ALL analysis via the LLM — no NLP libraries needed.
-A single comprehensive LLM call extracts skills, scores, matches, and
-generates recruiter insights.
-
-Graceful degradation:
-- If GROQ_API_KEY is not set, returns empty results.
-- If the API call fails, the app shows an error message.
+All analysis is performed via LLM — no NLP libraries needed.
+Two focused LLM calls:
+  1. Skills & scoring (structured extraction)
+  2. Recruiter insights (narrative feedback)
 """
 
 import json
@@ -14,10 +11,6 @@ import logging
 import os
 
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Configuration
-# ---------------------------------------------------------------------------
 
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')
@@ -27,7 +20,6 @@ _groq_client = None
 
 
 def _get_client():
-    """Lazy-initialise the Groq client."""
     global _groq_client
     if _groq_client is None:
         from groq import Groq
@@ -35,212 +27,14 @@ def _get_client():
     return _groq_client
 
 
-# ---------------------------------------------------------------------------
-# System prompt
-# ---------------------------------------------------------------------------
-
-SYSTEM_PROMPT = """You are a senior technical recruiter with 15+ years of hiring experience at top-tier companies (Google, Meta, Amazon, startups). You evaluate candidates the way a real hiring manager would — direct, specific, and focused on what actually moves the needle in a hiring decision.
-
-Your evaluation style:
-- You speak like a recruiter in a debrief meeting: confident, specific, no fluff
-- You flag real red flags and genuine strengths — not vague platitudes
-- You think about ATS compatibility, hiring manager first impressions, and interview readiness
-- You give the candidate honest advice they can act on TODAY
-- You reference specific things from their CV, not generic templates
-- You address the candidate directly using "you/your"
-
-GUARDRAILS:
-1. NEVER fabricate skills, experience, or qualifications the candidate doesn't have
-2. NEVER suggest lying or misrepresenting background
-3. ALWAYS base feedback on actual CV content and real JD requirements
-4. Focus on PRESENTATION improvements: how to better describe what they already have
-5. If skills are genuinely missing, suggest learning paths, not resume tricks
-6. Be encouraging but honest — a weak fit is a weak fit, say so diplomatically
-7. Return ONLY valid JSON with no markdown formatting"""
-
-
-# ---------------------------------------------------------------------------
-# Comprehensive analysis prompt
-# ---------------------------------------------------------------------------
-
-def _build_analysis_prompt(cv_text: str, jd_text: str) -> str:
-    """Build the single comprehensive analysis prompt."""
-    cv_truncated = cv_text[:4000]
-    jd_truncated = jd_text[:3000]
-
-    return f"""You are performing a COMPLETE analysis of a candidate's CV against a job description. You must extract ALL information and provide ALL scoring in a single response.
-
-## Job Description:
-{jd_truncated}
-
-## Candidate's CV:
-{cv_truncated}
-
-## Return this EXACT JSON structure (every field is required):
-{{
-  "ats_score": 45,
-
-  "quick_match": {{
-    "experience": {{
-      "cv_value": "5 years",
-      "jd_value": "3+ years",
-      "match_quality": "Strong Match"
-    }},
-    "education": {{
-      "cv_value": "Bachelors",
-      "jd_value": "Bachelors",
-      "match_quality": "Strong Match"
-    }},
-    "skills": {{
-      "cv_value": "12/17 key skills",
-      "jd_value": "17 required",
-      "match_quality": "Good Match"
-    }},
-    "location": {{
-      "cv_value": "Remote",
-      "jd_value": "Remote",
-      "match_quality": "Strong Match"
-    }}
-  }},
-
-  "skill_match": {{
-    "matched": ["Python", "React", "AWS"],
-    "missing": ["Kubernetes", "Terraform"],
-    "extra": ["Vue.js", "Redis"],
-    "skill_score": 70.5,
-    "matched_by_category": {{
-      "Programming Languages": ["Python", "JavaScript"],
-      "Cloud & DevOps": ["AWS", "Docker"]
-    }},
-    "missing_by_category": {{
-      "Cloud & DevOps": ["Kubernetes", "Terraform"]
-    }},
-    "extra_by_category": {{
-      "Databases": ["Redis"]
-    }},
-    "category_breakdown": {{
-      "Programming Languages": {{
-        "matched": ["Python", "JavaScript"],
-        "missing": ["Go"],
-        "score": 66.7
-      }},
-      "Cloud & DevOps": {{
-        "matched": ["AWS", "Docker"],
-        "missing": ["Kubernetes", "Terraform"],
-        "score": 50.0
-      }}
-    }}
-  }},
-
-  "top_skill_groups": [
-    {{
-      "category": "Programming Languages",
-      "importance": "Must-have",
-      "skills": [
-        {{"skill": "Python", "found": true}},
-        {{"skill": "Go", "found": false}}
-      ],
-      "matched": 1,
-      "total": 2
-    }}
-  ],
-
-  "experience_analysis": {{
-    "verb_alignment": 55.0,
-    "common_action_verbs": ["develop", "manage", "implement", "design"],
-    "missing_action_verbs": ["architect", "scale", "optimize"],
-    "section_relevance": [
-      {{"section": "Professional Experience", "relevance": 65.0}},
-      {{"section": "Education", "relevance": 40.0}}
-    ]
-  }},
-
-  "profile_summary": "You are a strong/borderline/weak candidate for this role. (3-5 sentences in 2nd person addressing the candidate directly.)",
-
-  "working_well": [
-    "Specific strength referencing actual CV content"
-  ],
-
-  "needs_improvement": [
-    "Specific gap referencing actual missing skills/experience"
-  ],
-
-  "suggestions": [
-    {{
-      "type": "recruiter_insight",
-      "title": "Short recruiter-style title (5-8 words)",
-      "body": "Specific coaching advice referencing their CV",
-      "examples": ["Specific rewritten bullet point example"],
-      "priority": "high"
-    }}
-  ],
-
-  "skill_gap_tips": {{
-    "Kubernetes": "Take the CKA certification — it's the fastest way to demonstrate K8s competence to hiring managers."
-  }},
-
-  "jd_keywords": ["keyword1", "keyword2", "keyword3"],
-  "cv_keywords": ["keyword1", "keyword2", "keyword3"]
-}}
-
-## DETAILED INSTRUCTIONS FOR EACH FIELD:
-
-**ats_score** (0-100): How likely this CV passes an ATS for this JD. Consider keyword matches, skill coverage, formatting clarity, action verbs. Be realistic — most unoptimized CVs score 30-50.
-
-**quick_match**: Extract REAL values from the CV and JD:
-- experience: Extract actual years from CV (look for "X years of experience" or count date ranges). Extract requirements from JD. match_quality: "Strong Match" if CV >= JD, "Good Match" if close, "Weak Match" if significantly under, "Not specified" if can't determine.
-- education: Extract highest degree from CV and required degree from JD. Same match_quality logic.
-- skills: Count how many JD-required skills appear in CV. Format cv_value as "X/Y key skills".
-- location: Extract location/remote info from both. "Strong Match" for remote jobs or matching locations.
-
-**skill_match**: Thoroughly scan BOTH documents:
-- matched: Skills that appear in BOTH CV and JD (be thorough — check aliases like "JS"/"JavaScript", "K8s"/"Kubernetes")
-- missing: Skills in JD but NOT in CV
-- extra: Skills in CV but NOT in JD
-- skill_score: (matched count / total JD skills) * 100
-- Group all skills by category (Programming Languages, Frameworks, Databases, Cloud & DevOps, Data & ML, Testing, Soft Skills, Tools, etc.)
-- category_breakdown: For each category, list matched and missing skills with percentage score
-
-**top_skill_groups**: 6-8 skill categories from the JD, ordered by importance. For each skill, indicate whether it was found in the CV. Group related skills (all languages together, all cloud tools together, etc.)
-
-**experience_analysis**:
-- verb_alignment: Estimate what % of JD action verbs (develop, manage, lead, etc.) appear in CV
-- common_action_verbs: Verbs found in both CV and JD
-- missing_action_verbs: Important verbs in JD but not in CV
-- section_relevance: For each CV section (Experience, Education, Skills, Projects, etc.), estimate 0-100 how relevant it is to this JD
-
-**profile_summary**: 3-5 sentences in 2nd person (you/your). Start with overall assessment, explain WHY with specific CV references, end with the single most important thing to do.
-
-**working_well**: 3-5 genuine strengths for THIS specific role. Be specific, reference actual CV content.
-
-**needs_improvement**: 3-5 real weaknesses or gaps. Be honest and direct. Reference actual missing skills/experience.
-
-**suggestions**: 3-5 prioritized improvement suggestions. First 2 should be "high" priority, rest "medium". Each must have specific examples referencing the candidate's actual background.
-
-**skill_gap_tips**: For top 3-5 missing skills ONLY. One actionable sentence each — certifications, projects, or how to frame existing experience.
-
-**jd_keywords**: Top 15-20 important keywords/phrases from the JD (technical terms, tools, methodologies).
-**cv_keywords**: Top 15-20 important keywords/phrases from the CV.
-
-CRITICAL:
-- Be THOROUGH when scanning for skills — check the ENTIRE CV and JD
-- Use realistic scores — don't inflate
-- Every piece of feedback must reference actual content from the CV or JD
-- Return ONLY valid JSON, no markdown"""
-
-
-# ---------------------------------------------------------------------------
-# LLM call
-# ---------------------------------------------------------------------------
-
-def _call_llm(prompt: str, system: str = None, max_tokens: int = 4000,
-              temperature: float = 0.3, timeout: float = 30.0) -> dict:
+def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
+              temperature: float = 0.3, timeout: float = 25.0) -> dict:
     """Call Groq API and parse JSON response."""
     client = _get_client()
     response = client.chat.completions.create(
         model=GROQ_MODEL,
         messages=[
-            {'role': 'system', 'content': system or SYSTEM_PROMPT},
+            {'role': 'system', 'content': system},
             {'role': 'user', 'content': prompt},
         ],
         temperature=temperature,
@@ -249,8 +43,142 @@ def _call_llm(prompt: str, system: str = None, max_tokens: int = 4000,
         timeout=timeout,
     )
     raw = response.choices[0].message.content
-    logger.info('LLM response received: %d chars', len(raw))
+    logger.info('LLM response: %d chars', len(raw))
     return json.loads(raw)
+
+
+# ---------------------------------------------------------------------------
+# Call 1: Skills & Scoring
+# ---------------------------------------------------------------------------
+
+_SKILLS_SYSTEM = """You are an ATS (Applicant Tracking System) that analyses CVs against job descriptions. You extract skills, score matches, and identify gaps.
+
+RULES:
+- Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
+- Do NOT echo or repeat the CV or JD content.
+- Be thorough: check aliases (JS=JavaScript, K8s=Kubernetes, etc.)
+- Be realistic with scores — most unoptimized CVs score 30-50 ATS."""
+
+
+def _build_skills_prompt(cv_text: str, jd_text: str) -> str:
+    return f"""Analyse this CV against the JD. Return ONLY the JSON below.
+
+<JD>
+{jd_text[:2500]}
+</JD>
+
+<CV>
+{cv_text[:3000]}
+</CV>
+
+Return this JSON:
+{{
+  "ats_score": 45,
+  "quick_match": {{
+    "experience": {{"cv_value": "5 years", "jd_value": "3+ years", "match_quality": "Strong Match"}},
+    "education": {{"cv_value": "Bachelors", "jd_value": "Bachelors", "match_quality": "Strong Match"}},
+    "skills": {{"cv_value": "8/12 key skills", "jd_value": "12 required", "match_quality": "Good Match"}},
+    "location": {{"cv_value": "Remote", "jd_value": "Remote", "match_quality": "Strong Match"}}
+  }},
+  "skill_match": {{
+    "matched": ["Python", "AWS"],
+    "missing": ["Kubernetes"],
+    "extra": ["Vue.js"],
+    "skill_score": 66.7,
+    "matched_by_category": {{"Programming Languages": ["Python"]}},
+    "missing_by_category": {{"Cloud & DevOps": ["Kubernetes"]}},
+    "extra_by_category": {{"Frameworks": ["Vue.js"]}},
+    "category_breakdown": {{
+      "Programming Languages": {{"matched": ["Python"], "missing": ["Go"], "score": 50.0}}
+    }}
+  }},
+  "top_skill_groups": [
+    {{
+      "category": "Programming Languages",
+      "importance": "Must-have",
+      "skills": [{{"skill": "Python", "found": true}}, {{"skill": "Go", "found": false}}],
+      "matched": 1,
+      "total": 2
+    }}
+  ],
+  "experience_analysis": {{
+    "verb_alignment": 55.0,
+    "common_action_verbs": ["develop", "manage"],
+    "missing_action_verbs": ["architect", "scale"],
+    "section_relevance": [
+      {{"section": "Experience", "relevance": 65.0}},
+      {{"section": "Education", "relevance": 40.0}}
+    ]
+  }},
+  "jd_keywords": ["keyword1", "keyword2"],
+  "cv_keywords": ["keyword1", "keyword2"]
+}}
+
+Instructions:
+- ats_score: 0-100, realistic ATS pass likelihood
+- quick_match: Extract REAL values. match_quality: "Strong Match"/"Good Match"/"Weak Match"
+- skill_match: ALL skills from JD classified as matched/missing. ALL extra CV skills. Group by category. skill_score = matched/total*100
+- top_skill_groups: 6-8 groups from JD, ordered by importance. Mark each skill found/not-found in CV
+- experience_analysis: verb_alignment 0-100, list common and missing action verbs, section relevance 0-100
+- jd_keywords/cv_keywords: Top 15 important keywords each
+- NEVER echo back the CV or JD text. Return ONLY the JSON."""
+
+
+# ---------------------------------------------------------------------------
+# Call 2: Recruiter Insights
+# ---------------------------------------------------------------------------
+
+_RECRUITER_SYSTEM = """You are a senior technical recruiter with 15+ years of hiring experience. You evaluate candidates directly and specifically — no fluff. Address the candidate in 2nd person (you/your).
+
+RULES:
+- Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
+- Do NOT echo or repeat the CV or JD content.
+- Reference specific items from the CV, not generic advice.
+- Be honest: a weak fit is a weak fit."""
+
+
+def _build_recruiter_prompt(cv_text: str, jd_text: str,
+                            ats_score: int, matched: list, missing: list,
+                            skill_score: float) -> str:
+    matched_str = ', '.join(matched[:15]) or 'None'
+    missing_str = ', '.join(missing[:15]) or 'None'
+
+    return f"""Evaluate this candidate. ATS Score: {ats_score}%. Skill Match: {skill_score:.0f}%. Matched: {matched_str}. Missing: {missing_str}.
+
+<JD>
+{jd_text[:1500]}
+</JD>
+
+<CV>
+{cv_text[:2500]}
+</CV>
+
+Return this JSON:
+{{
+  "profile_summary": "3-5 sentences in 2nd person. Start with overall verdict, reference specific CV content, end with top action item.",
+  "working_well": ["Strength 1 referencing CV content", "Strength 2"],
+  "needs_improvement": ["Gap 1 referencing missing skill/experience", "Gap 2"],
+  "suggestions": [
+    {{
+      "type": "recruiter_insight",
+      "title": "5-8 word title",
+      "body": "Specific advice referencing their CV",
+      "examples": ["Rewritten bullet point example"],
+      "priority": "high"
+    }}
+  ],
+  "skill_gap_tips": {{
+    "SkillName": "One actionable sentence to demonstrate this skill."
+  }}
+}}
+
+Instructions:
+- profile_summary: 3-5 sentences, 2nd person, specific, honest
+- working_well: 3-5 genuine strengths for THIS role
+- needs_improvement: 3-5 real gaps, be direct
+- suggestions: 3-5 items, first 2 "high" priority, rest "medium"
+- skill_gap_tips: Top 3-5 missing skills only, one sentence each
+- NEVER echo the CV or JD. Return ONLY the JSON."""
 
 
 # ---------------------------------------------------------------------------
@@ -258,31 +186,22 @@ def _call_llm(prompt: str, system: str = None, max_tokens: int = 4000,
 # ---------------------------------------------------------------------------
 
 def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
-    """Run the full CV-vs-JD analysis using a single LLM call.
-
-    Returns a fully structured results dict ready for the template,
-    or raises an exception on failure.
-    """
+    """Run full analysis via two LLM calls. Returns template-ready dict."""
     if not LLM_ENABLED:
         raise RuntimeError('LLM is not configured (GROQ_API_KEY not set)')
 
-    prompt = _build_analysis_prompt(cv_text, jd_text)
-    logger.info('Calling Groq LLM for full analysis (prompt: %d chars, model: %s)',
-                len(prompt), GROQ_MODEL)
+    # --- Call 1: Skills & Scoring ---
+    skills_prompt = _build_skills_prompt(cv_text, jd_text)
+    logger.info('LLM call 1: skills & scoring (%d chars)', len(skills_prompt))
+    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=3000, timeout=25.0)
 
-    llm_data = _call_llm(prompt, max_tokens=4000, temperature=0.3, timeout=30.0)
-
-    # ---------------------------------------------------------------------------
-    # Validate and normalise the response
-    # ---------------------------------------------------------------------------
+    # --- Build results from call 1 ---
     results = {}
 
-    # ATS score
-    ats = llm_data.get('ats_score', 40)
+    ats = skills_data.get('ats_score', 40)
     results['ats_score'] = min(100, max(0, int(ats))) if isinstance(ats, (int, float)) else 40
 
-    # Quick match
-    qm = llm_data.get('quick_match', {})
+    qm = skills_data.get('quick_match', {})
     results['quick_match'] = {}
     for key in ('experience', 'education', 'skills', 'location'):
         dim = qm.get(key, {})
@@ -292,8 +211,7 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
             'match_quality': str(dim.get('match_quality', 'Good Match')),
         }
 
-    # Skill match
-    sm = llm_data.get('skill_match', {})
+    sm = skills_data.get('skill_match', {})
     results['skill_match'] = {
         'matched': _ensure_list(sm.get('matched', [])),
         'missing': _ensure_list(sm.get('missing', [])),
@@ -305,18 +223,15 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         'category_breakdown': _normalise_category_breakdown(sm.get('category_breakdown', {})),
     }
 
-    # Top skill groups
-    tsg = llm_data.get('top_skill_groups', [])
+    tsg = skills_data.get('top_skill_groups', [])
     results['top_skill_groups'] = _normalise_top_skill_groups(tsg)
 
-    # Update quick match skills display from top skill groups
     if results['top_skill_groups']:
         total = sum(g['total'] for g in results['top_skill_groups'])
         found = sum(g['matched'] for g in results['top_skill_groups'])
         results['quick_match']['skills']['cv_value'] = f'{found}/{total} key skills'
 
-    # Experience analysis
-    ea = llm_data.get('experience_analysis', {})
+    ea = skills_data.get('experience_analysis', {})
     results['experience_analysis'] = {
         'verb_alignment': _ensure_float(ea.get('verb_alignment', 0)),
         'common_action_verbs': _ensure_list(ea.get('common_action_verbs', [])),
@@ -324,67 +239,85 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         'section_relevance': _normalise_section_relevance(ea.get('section_relevance', [])),
     }
 
-    # Composite / TF-IDF placeholders (template expects these)
     skill_score = results['skill_match']['skill_score']
     verb_score = results['experience_analysis']['verb_alignment']
-    results['tfidf_score'] = results['ats_score']  # Use ATS as similarity proxy
+    results['tfidf_score'] = results['ats_score']
     results['composite_score'] = round(
         results['ats_score'] * 0.5 + skill_score * 0.3 + verb_score * 0.2, 1
     )
 
-    # LLM insights (profile summary, working well, needs improvement, etc.)
-    results['llm_insights'] = {}
-    if isinstance(llm_data.get('profile_summary'), str):
-        results['llm_insights']['profile_summary'] = llm_data['profile_summary']
-    if isinstance(llm_data.get('working_well'), list):
-        results['llm_insights']['working_well'] = [s for s in llm_data['working_well'] if isinstance(s, str)]
-    if isinstance(llm_data.get('needs_improvement'), list):
-        results['llm_insights']['needs_improvement'] = [s for s in llm_data['needs_improvement'] if isinstance(s, str)]
-    if isinstance(llm_data.get('skill_gap_tips'), dict):
-        results['llm_insights']['skill_gap_tips'] = llm_data['skill_gap_tips']
-    results['llm_insights']['ats_score'] = results['ats_score']
-
-    # Suggestions
-    raw_suggestions = llm_data.get('suggestions', [])
-    results['suggestions'] = []
-    for i, s in enumerate(raw_suggestions):
-        if isinstance(s, dict) and s.get('title'):
-            results['suggestions'].append({
-                'type': s.get('type', 'recruiter_insight'),
-                'title': s['title'],
-                'body': s.get('body', ''),
-                'examples': _ensure_list(s.get('examples', [])),
-                'priority': s.get('priority', 'high' if i < 2 else 'medium'),
-            })
-
-    # Keywords (simple lists for template)
-    jd_kw = llm_data.get('jd_keywords', [])
-    cv_kw = llm_data.get('cv_keywords', [])
+    jd_kw = skills_data.get('jd_keywords', [])
+    cv_kw = skills_data.get('cv_keywords', [])
     results['jd_keywords'] = [{'phrase': k, 'score': 1.0} for k in jd_kw if isinstance(k, str)]
     results['cv_keywords'] = [{'phrase': k, 'score': 1.0} for k in cv_kw if isinstance(k, str)]
-
-    # Categorized keywords for template
-    results['jd_keywords_categorized'] = _categorize_keywords_from_skills(
+    results['jd_keywords_categorized'] = _categorize_keywords(
         results['jd_keywords'], results['skill_match'].get('matched_by_category', {}),
         results['skill_match'].get('missing_by_category', {}))
-    results['cv_keywords_categorized'] = _categorize_keywords_from_skills(
+    results['cv_keywords_categorized'] = _categorize_keywords(
         results['cv_keywords'], results['skill_match'].get('matched_by_category', {}),
         results['skill_match'].get('extra_by_category', {}))
-
-    # Legacy fields the template might reference
     results['jd_skills'] = results['skill_match'].get('matched_by_category', {})
     results['cv_skills'] = results['skill_match'].get('matched_by_category', {})
 
-    logger.info('Full LLM analysis complete: ATS=%d, skills=%d/%d',
+    # --- Call 2: Recruiter Insights ---
+    try:
+        recruiter_prompt = _build_recruiter_prompt(
+            cv_text, jd_text,
+            results['ats_score'],
+            results['skill_match']['matched'],
+            results['skill_match']['missing'],
+            skill_score,
+        )
+        logger.info('LLM call 2: recruiter insights (%d chars)', len(recruiter_prompt))
+        recruiter_data = _call_llm(_RECRUITER_SYSTEM, recruiter_prompt,
+                                    max_tokens=2000, timeout=20.0)
+
+        results['llm_insights'] = {}
+        if isinstance(recruiter_data.get('profile_summary'), str):
+            results['llm_insights']['profile_summary'] = recruiter_data['profile_summary']
+        if isinstance(recruiter_data.get('working_well'), list):
+            results['llm_insights']['working_well'] = [s for s in recruiter_data['working_well'] if isinstance(s, str)]
+        if isinstance(recruiter_data.get('needs_improvement'), list):
+            results['llm_insights']['needs_improvement'] = [s for s in recruiter_data['needs_improvement'] if isinstance(s, str)]
+        if isinstance(recruiter_data.get('skill_gap_tips'), dict):
+            results['llm_insights']['skill_gap_tips'] = recruiter_data['skill_gap_tips']
+        results['llm_insights']['ats_score'] = results['ats_score']
+
+        raw_suggestions = recruiter_data.get('suggestions', [])
+        results['suggestions'] = []
+        for i, s in enumerate(raw_suggestions):
+            if isinstance(s, dict) and s.get('title'):
+                results['suggestions'].append({
+                    'type': s.get('type', 'recruiter_insight'),
+                    'title': s['title'],
+                    'body': s.get('body', ''),
+                    'examples': _ensure_list(s.get('examples', [])),
+                    'priority': s.get('priority', 'high' if i < 2 else 'medium'),
+                })
+    except Exception as e:
+        logger.warning('Recruiter insights call failed: %s', e)
+        results['llm_insights'] = {}
+        results['suggestions'] = []
+
+    # Ensure suggestions is never empty
+    if not results['suggestions']:
+        results['suggestions'] = [{
+            'type': 'recruiter_insight',
+            'title': 'Tailor Your CV to This Role',
+            'body': 'Review the job description and ensure your CV mirrors its key terminology and requirements.',
+            'examples': ['Use exact keywords from the JD in your experience bullets'],
+            'priority': 'high',
+        }]
+
+    logger.info('Analysis complete: ATS=%d, skills=%d/%d',
                 results['ats_score'],
                 len(results['skill_match']['matched']),
                 len(results['skill_match']['matched']) + len(results['skill_match']['missing']))
-
     return results
 
 
 # ---------------------------------------------------------------------------
-# Validation / normalisation helpers
+# Helpers
 # ---------------------------------------------------------------------------
 
 def _ensure_list(val) -> list:
@@ -432,10 +365,7 @@ def _normalise_top_skill_groups(raw: list) -> list:
         skills = []
         for s in skills_raw:
             if isinstance(s, dict) and 'skill' in s:
-                skills.append({
-                    'skill': str(s['skill']),
-                    'found': bool(s.get('found', False)),
-                })
+                skills.append({'skill': str(s['skill']), 'found': bool(s.get('found', False))})
             elif isinstance(s, str):
                 skills.append({'skill': s, 'found': False})
         if skills:
@@ -453,41 +383,30 @@ def _normalise_top_skill_groups(raw: list) -> list:
 def _normalise_section_relevance(raw: list) -> list:
     if not isinstance(raw, list):
         return []
-    sections = []
-    for s in raw:
-        if isinstance(s, dict) and s.get('section'):
-            sections.append({
-                'section': str(s['section']),
-                'relevance': _ensure_float(s.get('relevance', 0)),
-            })
-    return sections
+    return [
+        {'section': str(s['section']), 'relevance': _ensure_float(s.get('relevance', 0))}
+        for s in raw if isinstance(s, dict) and s.get('section')
+    ]
 
 
-def _categorize_keywords_from_skills(keywords: list, *category_dicts) -> dict:
-    """Group flat keyword list into categories using skill match data."""
+def _categorize_keywords(keywords: list, *category_dicts) -> dict:
     if not keywords:
         return {}
-
-    # Build lookup: skill → category
     skill_to_cat = {}
     for cat_dict in category_dicts:
         if isinstance(cat_dict, dict):
             for cat, skills in cat_dict.items():
                 for skill in (skills if isinstance(skills, list) else []):
                     skill_to_cat[skill.lower()] = cat
-
     categorized = {}
     other = []
     for kw in keywords:
         phrase = kw.get('phrase', '') if isinstance(kw, dict) else str(kw)
-        phrase_lower = phrase.lower()
-        cat = skill_to_cat.get(phrase_lower)
+        cat = skill_to_cat.get(phrase.lower())
         if cat:
             categorized.setdefault(cat, []).append(kw)
         else:
             other.append(kw)
-
     if other:
         categorized['Other'] = other[:10]
-
     return categorized
