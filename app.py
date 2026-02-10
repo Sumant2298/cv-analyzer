@@ -13,6 +13,7 @@ import requests as http_requests
 from bs4 import BeautifulSoup
 from flask import (Flask, flash, jsonify, redirect, render_template, request,
                    send_file, session, url_for)
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
@@ -24,12 +25,15 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
+# Trust Railway's reverse proxy headers so url_for() generates https:// URLs
+app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
 
 # ---------------------------------------------------------------------------
-# Database (optional — only if DATABASE_URL is set)
+# Database — always initialised (Postgres via DATABASE_URL, else SQLite)
 # ---------------------------------------------------------------------------
 database_url = os.environ.get('DATABASE_URL', '')
 if database_url:
@@ -37,10 +41,14 @@ if database_url:
     if database_url.startswith('postgres://'):
         database_url = database_url.replace('postgres://', 'postgresql://', 1)
     app.config['SQLALCHEMY_DATABASE_URI'] = database_url
-    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-    db.init_app(app)
-    with app.app_context():
-        db.create_all()
+else:
+    # Fallback to SQLite (good enough for Railway single-instance deploys)
+    _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.db')
+    app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_path}'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+db.init_app(app)
+with app.app_context():
+    db.create_all()
 
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — only if credentials are set)
@@ -393,6 +401,10 @@ def google_login():
     if not _oauth_enabled:
         return redirect(url_for('index'))
     redirect_uri = url_for('google_callback', _external=True)
+    # Ensure https in production (Railway reverse proxy)
+    if redirect_uri.startswith('http://') and 'railway.app' in redirect_uri:
+        redirect_uri = redirect_uri.replace('http://', 'https://', 1)
+    logger.info('OAuth redirect_uri: %s', redirect_uri)
     return oauth.google.authorize_redirect(redirect_uri)
 
 
@@ -402,14 +414,16 @@ def google_callback():
         return redirect(url_for('index'))
     try:
         token = oauth.google.authorize_access_token()
+        logger.info('OAuth token received, extracting userinfo')
         userinfo = token.get('userinfo') or oauth.google.userinfo()
+        logger.info('OAuth userinfo: email=%s', userinfo.get('email', 'unknown'))
         user = get_or_create_user(userinfo)
         session['user_id'] = user.id
         session['user_name'] = user.name
         session['user_picture'] = user.picture
         flash(f'Welcome, {user.name}!', 'success')
     except Exception as e:
-        logger.error('OAuth callback error: %s', e)
+        logger.error('OAuth callback error: %s', e, exc_info=True)
         flash('Sign-in failed. Please try again.', 'error')
     return redirect(url_for('index'))
 
