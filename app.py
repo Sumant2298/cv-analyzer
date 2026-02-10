@@ -464,8 +464,12 @@ def analyze():
     try:
         results = analyze_cv_against_jd(cv_text, jd_text)
     except Exception as e:
+        logger.error('Analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
+
+    # Store CV text in session for download
+    session['_cv_text'] = cv_text[:20000]
 
     # Track usage for signed-in users
     if _oauth_enabled and session.get('user_id'):
@@ -475,6 +479,23 @@ def analyze():
             pass  # non-critical
 
     return render_template('results.html', results=results)
+
+
+# ---------------------------------------------------------------------------
+# CV download
+# ---------------------------------------------------------------------------
+
+@app.route('/download-cv')
+def download_cv_text():
+    """Download the most recently analysed CV as a PDF."""
+    cv_text = session.get('_cv_text')
+    if not cv_text:
+        flash('No CV available to download. Please run an analysis first.', 'warning')
+        return redirect(url_for('index'))
+
+    pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cv_download.pdf')
+    _text_to_pdf(cv_text, pdf_path)
+    return send_file(pdf_path, as_attachment=True, download_name='my_cv.pdf')
 
 
 # ---------------------------------------------------------------------------
