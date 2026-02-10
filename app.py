@@ -1028,6 +1028,25 @@ def api_list_cvs():
     return jsonify({'files': files})
 
 
+@app.route('/admin/llm-status')
+def admin_llm_status():
+    """Show LLM waterfall provider status."""
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return jsonify({'error': 'Unauthorized'}), 401
+    from llm_service import LLM_ENABLED, _PROVIDERS, LOCAL_LLM_URL
+    return jsonify({
+        'llm_enabled': LLM_ENABLED,
+        'local_llm': LOCAL_LLM_URL or None,
+        'waterfall': [
+            {'name': p['name'], 'model': p['model'], 'base_url': p['base_url'],
+             'max_context': p['max_context']}
+            for p in _PROVIDERS
+        ],
+        'provider_count': len(_PROVIDERS),
+    })
+
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5050))
     app.run(debug=True, port=port)

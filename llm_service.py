@@ -1,8 +1,13 @@
-"""LLM-powered CV analysis — supports Ollama (local) and Groq (cloud).
+"""LLM-powered CV analysis — waterfall multi-provider support.
 
-Backend priority:
-  1. LOCAL_LLM_URL set → use Ollama / any OpenAI-compatible local server
-  2. GROQ_API_KEY set → use Groq cloud API
+Provider waterfall (tries each until one succeeds):
+  1. Groq      — fastest, best JSON mode, ~1K req/day free
+  2. Cerebras  — 1M tokens/day free, very fast, 8K context
+  3. Together  — Llama 3.3 70B free endpoint, ~36 req/hr
+  4. OpenRouter — 18+ free models, auto-routes
+
+Also supports:
+  - LOCAL_LLM_URL → Ollama / any local server (highest priority if set)
 
 All analysis is performed via LLM — no NLP libraries needed.
 Three focused LLM calls:
@@ -14,68 +19,101 @@ Three focused LLM calls:
 import json
 import logging
 import os
+import time
 
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# LLM Backend Configuration
+# LLM Waterfall Configuration
 # ---------------------------------------------------------------------------
 
-# Option 1: Local LLM (Ollama, LM Studio, llama.cpp, etc.)
+# Local LLM (highest priority if configured)
 LOCAL_LLM_URL = os.environ.get('LOCAL_LLM_URL', '').rstrip('/')
 LOCAL_LLM_MODEL = os.environ.get('LOCAL_LLM_MODEL', 'llama3:8b')
 
-# Option 2: Groq cloud
+# Cloud providers — waterfall order
+_PROVIDERS = []
+
+# Provider 1: Groq (fastest, best structured JSON)
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')
+if GROQ_API_KEY:
+    _PROVIDERS.append({
+        'name': 'groq',
+        'base_url': 'https://api.groq.com/openai/v1',
+        'api_key': GROQ_API_KEY,
+        'model': GROQ_MODEL,
+        'max_context': 128000,
+    })
 
-# Determine which backend to use
+# Provider 2: Cerebras (1M tokens/day free, very fast, 8K context on free)
+CEREBRAS_API_KEY = os.environ.get('CEREBRAS_API_KEY', '')
+CEREBRAS_MODEL = os.environ.get('CEREBRAS_MODEL', 'llama-3.3-70b')
+if CEREBRAS_API_KEY:
+    _PROVIDERS.append({
+        'name': 'cerebras',
+        'base_url': 'https://api.cerebras.ai/v1',
+        'api_key': CEREBRAS_API_KEY,
+        'model': CEREBRAS_MODEL,
+        'max_context': 8192,
+    })
+
+# Provider 3: Together AI (free Llama 3.3 70B endpoint)
+TOGETHER_API_KEY = os.environ.get('TOGETHER_API_KEY', '')
+TOGETHER_MODEL = os.environ.get('TOGETHER_MODEL',
+                                 'meta-llama/Llama-3.3-70B-Instruct-Turbo-Free')
+if TOGETHER_API_KEY:
+    _PROVIDERS.append({
+        'name': 'together',
+        'base_url': 'https://api.together.xyz/v1',
+        'api_key': TOGETHER_API_KEY,
+        'model': TOGETHER_MODEL,
+        'max_context': 128000,
+    })
+
+# Provider 4: OpenRouter (18+ free models, auto-routes)
+OPENROUTER_API_KEY = os.environ.get('OPENROUTER_API_KEY', '')
+OPENROUTER_MODEL = os.environ.get('OPENROUTER_MODEL',
+                                   'meta-llama/llama-3.3-70b-instruct:free')
+if OPENROUTER_API_KEY:
+    _PROVIDERS.append({
+        'name': 'openrouter',
+        'base_url': 'https://openrouter.ai/api/v1',
+        'api_key': OPENROUTER_API_KEY,
+        'model': OPENROUTER_MODEL,
+        'max_context': 128000,
+    })
+
+# Determine if any backend is available
+LLM_ENABLED = bool(LOCAL_LLM_URL) or bool(_PROVIDERS)
+
 if LOCAL_LLM_URL:
-    _BACKEND = 'local'
-    LLM_ENABLED = True
     logger.info('LLM backend: LOCAL (%s, model=%s)', LOCAL_LLM_URL, LOCAL_LLM_MODEL)
-elif GROQ_API_KEY:
-    _BACKEND = 'groq'
-    LLM_ENABLED = True
-    logger.info('LLM backend: GROQ (model=%s)', GROQ_MODEL)
-else:
-    _BACKEND = None
-    LLM_ENABLED = False
-    logger.warning('No LLM backend configured — set LOCAL_LLM_URL or GROQ_API_KEY')
+if _PROVIDERS:
+    names = [p['name'] for p in _PROVIDERS]
+    logger.info('LLM waterfall: %s (%d providers)', ' → '.join(names), len(names))
+if not LLM_ENABLED:
+    logger.warning('No LLM backend configured — set at least one API key '
+                   '(GROQ_API_KEY, CEREBRAS_API_KEY, TOGETHER_API_KEY, OPENROUTER_API_KEY)')
 
-_client = None
+# Cache OpenAI clients per provider (lazy init)
+_clients = {}
 
 
-def _get_client():
-    """Lazy-initialise the OpenAI-compatible client for whichever backend."""
-    global _client
-    if _client is not None:
-        return _client
+def _get_provider_client(provider: dict):
+    """Lazy-initialise an OpenAI-compatible client for a provider."""
+    name = provider['name']
+    if name in _clients:
+        return _clients[name]
 
     from openai import OpenAI
-
-    if _BACKEND == 'local':
-        # For local LLM we use raw httpx to avoid ngrok interstitial issues
-        # Client is not used; _call_llm_local() handles requests directly
-        _client = 'local_httpx'
-        logger.info('Using direct HTTP for local LLM: %s', LOCAL_LLM_URL)
-    elif _BACKEND == 'groq':
-        _client = OpenAI(
-            base_url='https://api.groq.com/openai/v1',
-            api_key=GROQ_API_KEY,
-        )
-        logger.info('Initialised Groq client')
-    else:
-        raise RuntimeError('No LLM backend configured')
-
-    return _client
-
-
-def _get_model() -> str:
-    """Return the model name for the active backend."""
-    if _BACKEND == 'local':
-        return LOCAL_LLM_MODEL
-    return GROQ_MODEL
+    client = OpenAI(
+        base_url=provider['base_url'],
+        api_key=provider['api_key'],
+    )
+    _clients[name] = client
+    logger.info('Initialised %s client', name)
+    return client
 
 
 def _call_llm_local(system: str, prompt: str, max_tokens: int,
@@ -113,71 +151,150 @@ def _call_llm_local(system: str, prompt: str, max_tokens: int,
     return data.get('message', {}).get('content', '')
 
 
+def _is_rate_limit_error(error) -> bool:
+    """Check if an error is a rate limit / quota exceeded error."""
+    err_str = str(error).lower()
+    return any(keyword in err_str for keyword in [
+        'rate_limit', 'rate limit', '429', 'quota', 'too many requests',
+        'tokens per minute', 'requests per minute', 'requests per day',
+        'resource_exhausted', 'capacity', 'overloaded', 'server_error',
+        'service_unavailable', '503', '502', 'timeout', 'timed out',
+    ])
+
+
+def _parse_raw_json(raw: str) -> dict:
+    """Strip markdown fences if present, then parse JSON."""
+    raw = raw.strip()
+    if raw.startswith('```'):
+        lines = raw.split('\n')
+        if lines[0].startswith('```'):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == '```':
+            lines = lines[:-1]
+        raw = '\n'.join(lines).strip()
+    return json.loads(raw)
+
+
+def _call_provider(provider: dict, system: str, prompt: str,
+                   max_tokens: int, temperature: float, timeout: float) -> str:
+    """Call a single cloud provider and return raw response text."""
+    client = _get_provider_client(provider)
+    name = provider['name']
+
+    # Build extra headers for OpenRouter
+    extra_kwargs = {}
+    if name == 'openrouter':
+        extra_kwargs['extra_headers'] = {
+            'HTTP-Referer': 'https://levelupx.app',
+            'X-Title': 'LevelUpX CV Analyzer',
+        }
+
+    response = client.chat.completions.create(
+        model=provider['model'],
+        messages=[
+            {'role': 'system', 'content': system},
+            {'role': 'user', 'content': prompt},
+        ],
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={'type': 'json_object'},
+        timeout=timeout,
+        **extra_kwargs,
+    )
+    return response.choices[0].message.content
+
+
 def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
               temperature: float = 0.3, timeout: float = 120.0,
               _retries: int = 2) -> dict:
-    """Call LLM and parse JSON response. Retries on json_validate_failed.
+    """Call LLM with waterfall failover across providers.
 
-    Uses Ollama native API for local backend (avoids ngrok 403),
-    OpenAI-compatible API for Groq.
+    Tries each provider in order. Within each provider, retries up to
+    _retries times on JSON validation failures. On rate limit / server
+    errors, falls through to the next provider.
+
+    For local backend, uses Ollama native API directly.
     """
-    _get_client()  # ensure initialised
+    errors_by_provider = {}
 
-    last_error = None
-    for attempt in range(_retries + 1):
+    # --- Local LLM first (if configured) ---
+    if LOCAL_LLM_URL:
         try:
-            if _BACKEND == 'local':
-                t = max(timeout, 180.0)
-                raw = _call_llm_local(system, prompt, max_tokens, temperature, t)
-            else:
-                model = _get_model()
-                # On retry: bump temperature slightly and prepend reminder
+            t = max(timeout, 180.0)
+            raw = _call_llm_local(system, prompt, max_tokens, temperature, t)
+            logger.info('LLM response (local): %d chars', len(raw))
+            return _parse_raw_json(raw)
+        except Exception as e:
+            logger.warning('Local LLM failed: %s', e)
+            errors_by_provider['local'] = e
+            if not _PROVIDERS:
+                raise
+
+    # --- Waterfall through cloud providers ---
+    if not _PROVIDERS:
+        raise RuntimeError('No LLM backend configured — set at least one API key')
+
+    for provider in _PROVIDERS:
+        name = provider['name']
+        last_error = None
+
+        for attempt in range(_retries + 1):
+            try:
                 retry_temp = min(temperature + 0.1 * attempt, 0.7)
                 retry_system = system
                 if attempt > 0:
-                    retry_system = system + '\n\nREMINDER: Output ONLY a valid JSON object. Do NOT output any CV or JD text.'
-                    logger.info('LLM retry %d/%d (temp=%.1f)', attempt, _retries, retry_temp)
+                    retry_system = (system +
+                        '\n\nREMINDER: Output ONLY a valid JSON object. '
+                        'Do NOT output any CV or JD text.')
+                    logger.info('[%s] retry %d/%d (temp=%.1f)',
+                                name, attempt, _retries, retry_temp)
 
-                response = _client.chat.completions.create(
-                    model=model,
-                    messages=[
-                        {'role': 'system', 'content': retry_system},
-                        {'role': 'user', 'content': prompt},
-                    ],
-                    temperature=retry_temp,
-                    max_tokens=max_tokens,
-                    response_format={'type': 'json_object'},
-                    timeout=timeout,
-                )
-                raw = response.choices[0].message.content
+                t0 = time.time()
+                raw = _call_provider(provider, retry_system, prompt,
+                                     max_tokens, retry_temp, timeout)
+                elapsed = time.time() - t0
 
-            logger.info('LLM response (%s, attempt %d): %d chars', _BACKEND, attempt, len(raw))
+                logger.info('[%s] response in %.1fs: %d chars (attempt %d)',
+                            name, elapsed, len(raw), attempt)
 
-            # Try to parse JSON — sometimes local models wrap it in markdown code blocks
-            raw = raw.strip()
-            if raw.startswith('```'):
-                lines = raw.split('\n')
-                if lines[0].startswith('```'):
-                    lines = lines[1:]
-                if lines and lines[-1].strip() == '```':
-                    lines = lines[:-1]
-                raw = '\n'.join(lines).strip()
+                result = _parse_raw_json(raw)
+                if attempt > 0 or provider != _PROVIDERS[0]:
+                    logger.info('[%s] succeeded (waterfall position: %d)',
+                                name, _PROVIDERS.index(provider) + 1)
+                return result
 
-            return json.loads(raw)
+            except Exception as e:
+                last_error = e
+                error_str = str(e)
 
-        except Exception as e:
-            last_error = e
-            error_str = str(e)
-            # Retry on JSON validation failures from the API
-            if 'json_validate_failed' in error_str or 'failed_generation' in error_str:
-                logger.warning('LLM JSON validation failed (attempt %d/%d): %s',
-                               attempt + 1, _retries + 1, error_str[:200])
-                if attempt < _retries:
-                    continue
-            # Don't retry other errors
-            raise
+                # JSON validation failure → retry same provider
+                if ('json_validate_failed' in error_str or
+                        'failed_generation' in error_str):
+                    logger.warning('[%s] JSON validation failed (attempt %d/%d): %s',
+                                   name, attempt + 1, _retries + 1, error_str[:200])
+                    if attempt < _retries:
+                        continue
+                    # Exhausted retries for this provider — fall through
+                    break
 
-    raise last_error
+                # Rate limit / server error → fall through to next provider
+                if _is_rate_limit_error(e):
+                    logger.warning('[%s] rate limited / unavailable: %s — trying next provider',
+                                   name, error_str[:200])
+                    break
+
+                # Other error (auth, invalid model, etc.) → fall through
+                logger.warning('[%s] error: %s — trying next provider',
+                               name, error_str[:200])
+                break
+
+        errors_by_provider[name] = last_error
+
+    # All providers failed
+    provider_summary = '; '.join(f'{n}: {str(e)[:80]}' for n, e in errors_by_provider.items())
+    raise RuntimeError(
+        f'All LLM providers failed. Tried: {provider_summary}'
+    )
 
 
 # ---------------------------------------------------------------------------
