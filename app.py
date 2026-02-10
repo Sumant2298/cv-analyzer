@@ -596,6 +596,46 @@ def logout():
     return redirect(url_for('index'))
 
 
+@app.route('/account')
+def account():
+    """User account dashboard — stats, credits, usage history."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('account')
+        flash('Please sign in to view your account.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('User not found. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    from payments import FREE_ANALYSIS_LIMIT, CREDITS_PER_ANALYSIS, CREDITS_PER_REWRITE
+
+    # Credit usage history (most recent 20)
+    usage_history = CreditUsage.query.filter_by(user_id=user.id)\
+        .order_by(CreditUsage.created_at.desc()).limit(20).all()
+
+    # Transaction history (purchases)
+    transactions = Transaction.query.filter_by(user_id=user.id, status='paid')\
+        .order_by(Transaction.completed_at.desc()).limit(10).all()
+
+    # Stats
+    free_remaining = max(0, FREE_ANALYSIS_LIMIT - user.analysis_count)
+    total_credits_purchased = sum(t.credits_purchased for t in transactions)
+    total_credits_used = sum(u.credits_used for u in usage_history if u.credits_used > 0)
+
+    return render_template('account.html',
+                           user=user,
+                           free_remaining=free_remaining,
+                           free_limit=FREE_ANALYSIS_LIMIT,
+                           credits_per_analysis=CREDITS_PER_ANALYSIS,
+                           credits_per_rewrite=CREDITS_PER_REWRITE,
+                           usage_history=usage_history,
+                           transactions=transactions,
+                           total_credits_purchased=total_credits_purchased,
+                           total_credits_used=total_credits_used)
+
+
 @app.route('/analyze', methods=['POST'])
 def analyze():
     # ---- Login gate: require sign-in ----

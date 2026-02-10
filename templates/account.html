@@ -1,0 +1,190 @@
+{% extends "base.html" %}
+{% block title %}My Account — LevelUpX{% endblock %}
+{% block content %}
+
+<div class="max-w-5xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+
+    <!-- ===================== PROFILE HEADER ===================== -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up">
+        <div class="bg-gradient-to-r from-brand-700 via-brand-600 to-emerald-500 px-6 py-6">
+            <div class="flex items-center gap-4">
+                {% if user.picture %}
+                <img src="{{ user.picture }}" alt="" class="w-16 h-16 rounded-full ring-4 ring-white/30 shadow-lg">
+                {% else %}
+                <div class="w-16 h-16 rounded-full bg-white/20 flex items-center justify-center">
+                    <svg class="w-8 h-8 text-white/70" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+                </div>
+                {% endif %}
+                <div>
+                    <h1 class="text-2xl font-bold text-white">{{ user.name or 'LevelUpX User' }}</h1>
+                    <p class="text-sm text-white/60">{{ user.email }}</p>
+                    <p class="text-xs text-white/40 mt-1">Member since {{ user.created_at.strftime('%B %Y') }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================== STATS CARDS ===================== -->
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 anim-fade-up-1">
+        <!-- Credits Balance -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 text-center">
+            <div class="w-10 h-10 mx-auto mb-2 bg-amber-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029c-.472.786-.96.979-1.264.979-.304 0-.792-.193-1.264-.979a5.389 5.389 0 01-.421-.821h2.382a1 1 0 000-2H7.653a7.357 7.357 0 010-1h3.044a1 1 0 000-2H8.315c.134-.29.268-.545.421-.821z"/></svg>
+            </div>
+            <p class="text-3xl font-extrabold text-slate-800">{{ user.credits }}</p>
+            <p class="text-xs text-slate-400 font-medium">Credits Available</p>
+        </div>
+
+        <!-- Analyses Done -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 text-center">
+            <div class="w-10 h-10 mx-auto mb-2 bg-brand-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+            </div>
+            <p class="text-3xl font-extrabold text-slate-800">{{ user.analysis_count }}</p>
+            <p class="text-xs text-slate-400 font-medium">Analyses Done</p>
+        </div>
+
+        <!-- Free Remaining -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 text-center">
+            <div class="w-10 h-10 mx-auto mb-2 bg-green-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-green-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5zm4.707 3.707a1 1 0 00-1.414-1.414l-3 3a1 1 0 000 1.414l3 3a1 1 0 001.414-1.414L8.414 9H10a3 3 0 013 3v1a1 1 0 102 0v-1a5 5 0 00-5-5H8.414l1.293-1.293z" clip-rule="evenodd"/></svg>
+            </div>
+            <p class="text-3xl font-extrabold {{ 'text-green-600' if free_remaining > 0 else 'text-slate-400' }}">{{ free_remaining }}</p>
+            <p class="text-xs text-slate-400 font-medium">Free Analyses Left</p>
+        </div>
+
+        <!-- Total Purchased -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 text-center">
+            <div class="w-10 h-10 mx-auto mb-2 bg-emerald-100 rounded-xl flex items-center justify-center">
+                <svg class="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <p class="text-3xl font-extrabold text-slate-800">{{ total_credits_purchased }}</p>
+            <p class="text-xs text-slate-400 font-medium">Credits Purchased</p>
+        </div>
+    </div>
+
+    <!-- ===================== PRICING INFO ===================== -->
+    <div class="bg-gradient-to-r from-brand-50 to-emerald-50 rounded-2xl border border-brand-200 p-5 anim-fade-up-2">
+        <div class="flex items-center justify-between flex-wrap gap-4">
+            <div>
+                <h3 class="text-base font-bold text-slate-800 mb-1">Credit Pricing</h3>
+                <div class="flex flex-wrap items-center gap-4 text-sm text-slate-600">
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 bg-brand-500 rounded-full"></span>
+                        CV Analysis: <strong>{{ credits_per_analysis }} credits</strong>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 bg-amber-500 rounded-full"></span>
+                        CV Rewrite: <strong>{{ credits_per_rewrite }} credits</strong>
+                    </span>
+                    <span class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 bg-green-500 rounded-full"></span>
+                        First {{ free_limit }} analyses: <strong>Free</strong>
+                    </span>
+                </div>
+            </div>
+            <a href="{{ url_for('buy_credits') }}" class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg transition-all text-sm">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                Buy Credits
+            </a>
+        </div>
+    </div>
+
+    <!-- ===================== USAGE HISTORY ===================== -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-3">
+        <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+            <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Recent Activity
+        </h3>
+
+        {% if usage_history %}
+        <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead>
+                    <tr class="border-b border-slate-200">
+                        <th class="text-left py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Action</th>
+                        <th class="text-center py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Credits</th>
+                        <th class="text-right py-2 px-3 text-xs font-semibold text-slate-500 uppercase">Date</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for usage in usage_history %}
+                    <tr class="hover:bg-slate-50 transition">
+                        <td class="py-2.5 px-3">
+                            <div class="flex items-center gap-2">
+                                {% if 'purchase' in usage.action or 'webhook' in usage.action %}
+                                <span class="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3 h-3 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+                                </span>
+                                <span class="text-slate-700 font-medium">Credit Purchase</span>
+                                {% elif 'bonus' in usage.action %}
+                                <span class="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3 h-3 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5 2a2 2 0 00-2 2v14l3.5-2 3.5 2 3.5-2 3.5 2V4a2 2 0 00-2-2H5z" clip-rule="evenodd"/></svg>
+                                </span>
+                                <span class="text-slate-700 font-medium">Signup Bonus</span>
+                                {% elif 'rewrite' in usage.action %}
+                                <span class="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3 h-3 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+                                </span>
+                                <span class="text-slate-700 font-medium">CV Rewrite</span>
+                                {% elif 'analysis' in usage.action %}
+                                <span class="w-6 h-6 bg-brand-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3 h-3 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2z"/></svg>
+                                </span>
+                                <span class="text-slate-700 font-medium">CV Analysis</span>
+                                {% elif 'refund' in usage.action %}
+                                <span class="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3 h-3 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/></svg>
+                                </span>
+                                <span class="text-slate-700 font-medium">Credit Refund</span>
+                                {% else %}
+                                <span class="w-6 h-6 bg-slate-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-3 h-3 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                                </span>
+                                <span class="text-slate-700 font-medium">{{ usage.action }}</span>
+                                {% endif %}
+                            </div>
+                        </td>
+                        <td class="py-2.5 px-3 text-center">
+                            {% if usage.credits_used < 0 %}
+                            <span class="text-green-600 font-bold">+{{ -usage.credits_used }}</span>
+                            {% else %}
+                            <span class="text-red-500 font-bold">-{{ usage.credits_used }}</span>
+                            {% endif %}
+                        </td>
+                        <td class="py-2.5 px-3 text-right text-xs text-slate-400">
+                            {{ usage.created_at.strftime('%d %b %Y, %H:%M') }}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-8">
+            <div class="w-12 h-12 mx-auto mb-3 bg-slate-100 rounded-full flex items-center justify-center">
+                <svg class="w-6 h-6 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            </div>
+            <p class="text-sm text-slate-500">No activity yet. Start by analyzing a CV!</p>
+            <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 mt-3 text-sm text-brand-600 font-semibold hover:text-brand-700 transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+                Analyze your first CV
+            </a>
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- ===================== ACTION BUTTONS ===================== -->
+    <div class="flex flex-wrap justify-center gap-4 py-2">
+        <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
+            Analyze a CV
+        </a>
+        <a href="{{ url_for('buy_credits') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            Buy Credits
+        </a>
+    </div>
+</div>
+
+{% endblock %}

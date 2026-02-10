@@ -486,15 +486,15 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         )
         logger.info('LLM call 2: recruiter insights (%d chars)', len(recruiter_prompt))
         recruiter_data = _call_llm(_RECRUITER_SYSTEM, recruiter_prompt,
-                                    max_tokens=2000, timeout=20.0)
+                                    max_tokens=2500, timeout=45.0)
 
         results['llm_insights'] = {}
-        if isinstance(recruiter_data.get('profile_summary'), str):
+        if isinstance(recruiter_data.get('profile_summary'), str) and recruiter_data['profile_summary'].strip():
             results['llm_insights']['profile_summary'] = recruiter_data['profile_summary']
         if isinstance(recruiter_data.get('working_well'), list):
-            results['llm_insights']['working_well'] = [s for s in recruiter_data['working_well'] if isinstance(s, str)]
+            results['llm_insights']['working_well'] = [s for s in recruiter_data['working_well'] if isinstance(s, str) and s.strip()]
         if isinstance(recruiter_data.get('needs_improvement'), list):
-            results['llm_insights']['needs_improvement'] = [s for s in recruiter_data['needs_improvement'] if isinstance(s, str)]
+            results['llm_insights']['needs_improvement'] = [s for s in recruiter_data['needs_improvement'] if isinstance(s, str) and s.strip()]
         if isinstance(recruiter_data.get('skill_gap_tips'), dict):
             results['llm_insights']['skill_gap_tips'] = recruiter_data['skill_gap_tips']
         results['llm_insights']['ats_score'] = results['ats_score']
@@ -510,20 +510,60 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
                     'examples': _ensure_list(s.get('examples', [])),
                     'priority': s.get('priority', 'high' if i < 2 else 'medium'),
                 })
+
+        # Mark that we have enhanced (LLM-powered) suggestions
+        if results['suggestions']:
+            results['llm_insights']['enhanced_suggestions'] = True
+
     except Exception as e:
-        logger.warning('Recruiter insights call failed: %s', e)
+        logger.error('Recruiter insights call failed: %s', e, exc_info=True)
         results['llm_insights'] = {}
         results['suggestions'] = []
 
-    # Ensure suggestions is never empty
-    if not results['suggestions']:
-        results['suggestions'] = [{
-            'type': 'recruiter_insight',
-            'title': 'Tailor Your CV to This Role',
-            'body': 'Review the job description and ensure your CV mirrors its key terminology and requirements.',
-            'examples': ['Use exact keywords from the JD in your experience bullets'],
-            'priority': 'high',
-        }]
+    # Fallback: ensure profile_summary is never missing
+    if not results.get('llm_insights', {}).get('profile_summary'):
+        score = results['ats_score']
+        matched = len(results['skill_match']['matched'])
+        total = matched + len(results['skill_match']['missing'])
+        if score >= 70:
+            verdict = f'Your CV is a strong match for this role with an ATS score of {score}%.'
+        elif score >= 40:
+            verdict = f'Your CV shows moderate alignment with this role (ATS score: {score}%). There are clear areas for improvement.'
+        else:
+            verdict = f'Your CV needs significant optimization for this role (ATS score: {score}%). Key skill gaps need to be addressed.'
+        results.setdefault('llm_insights', {})['profile_summary'] = (
+            f'{verdict} You match {matched} out of {total} key skills the role requires. '
+            f'Review the detailed breakdown below to understand where your CV stands and how to improve it.'
+        )
+
+    # Ensure suggestions has at least 5 items
+    _default_suggestions = [
+        {'type': 'recruiter_insight', 'title': 'Tailor Your CV to This Role',
+         'body': 'Review the job description and ensure your CV mirrors its key terminology and requirements.',
+         'examples': ['Use exact keywords from the JD in your experience bullets'], 'priority': 'high'},
+        {'type': 'recruiter_insight', 'title': 'Quantify Your Achievements',
+         'body': 'Replace vague statements with specific numbers, percentages, and measurable outcomes.',
+         'examples': ['Instead of "improved performance", write "Improved API response time by 40%, reducing P95 latency from 800ms to 480ms"'], 'priority': 'high'},
+        {'type': 'recruiter_insight', 'title': 'Add Missing Keywords Naturally',
+         'body': 'Incorporate the missing skills from the ATS breakdown into your experience bullets where truthful.',
+         'examples': ['Add relevant technologies to project descriptions where you actually used them'], 'priority': 'medium'},
+        {'type': 'recruiter_insight', 'title': 'Strengthen Your Action Verbs',
+         'body': 'Replace weak verbs like "worked on", "helped with", "responsible for" with strong action verbs.',
+         'examples': ['"Responsible for database" → "Architected and optimized PostgreSQL database serving 2M+ daily queries"'], 'priority': 'medium'},
+        {'type': 'recruiter_insight', 'title': 'Optimize Your CV Structure',
+         'body': 'Ensure your CV has clear, ATS-parsable sections: Summary, Experience, Skills, Education, Certifications.',
+         'examples': ['Add a professional summary at the top that mirrors the JD language'], 'priority': 'low'},
+    ]
+    if not results.get('suggestions'):
+        results['suggestions'] = _default_suggestions
+    elif len(results['suggestions']) < 5:
+        # Pad with defaults that aren't already present
+        existing_titles = {s['title'].lower() for s in results['suggestions']}
+        for ds in _default_suggestions:
+            if len(results['suggestions']) >= 5:
+                break
+            if ds['title'].lower() not in existing_titles:
+                results['suggestions'].append(ds)
 
     logger.info('Analysis complete: ATS=%d, skills=%d/%d',
                 results['ats_score'],
