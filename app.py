@@ -187,7 +187,17 @@ def _text_to_pdf(text: str, output_path: str):
     pdf.add_page()
     pdf.set_auto_page_break(auto=True, margin=15)
     pdf.set_font('Helvetica', size=10)
-    for line in text.split('\n'):
+    # Sanitize text: replace unicode chars that Helvetica (Latin-1) can't render
+    clean = text
+    clean = clean.replace('\u2018', "'").replace('\u2019', "'")   # smart quotes
+    clean = clean.replace('\u201c', '"').replace('\u201d', '"')   # smart double quotes
+    clean = clean.replace('\u2013', '-').replace('\u2014', '--')  # en/em dash
+    clean = clean.replace('\u2022', '-').replace('\u2023', '>')   # bullets
+    clean = clean.replace('\u2026', '...')                        # ellipsis
+    clean = clean.replace('\u00a0', ' ')                          # non-breaking space
+    # Strip any remaining non-latin1 characters
+    clean = clean.encode('latin-1', errors='replace').decode('latin-1')
+    for line in clean.split('\n'):
         pdf.multi_cell(0, 5, line)
     pdf.output(output_path)
 
@@ -769,6 +779,27 @@ def payment_webhook():
 # ---------------------------------------------------------------------------
 # Admin endpoints — protected by ADMIN_TOKEN
 # ---------------------------------------------------------------------------
+
+@app.route('/admin/grant-credits')
+def admin_grant_credits():
+    """Grant credits to a user. Usage: /admin/grant-credits?token=...&email=...&credits=20"""
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return 'Unauthorized', 401
+    email = request.args.get('email', '')
+    credits_to_add = int(request.args.get('credits', 0))
+    if not email or credits_to_add <= 0:
+        return jsonify({'error': 'Provide ?email=...&credits=N'}), 400
+    user = User.query.filter_by(email=email).first()
+    if not user:
+        return jsonify({'error': f'User {email} not found'}), 404
+    user.credits += credits_to_add
+    usage = CreditUsage(user_id=user.id, credits_used=-credits_to_add, action='admin_grant')
+    db.session.add(usage)
+    db.session.commit()
+    return jsonify({'success': True, 'email': email, 'credits_added': credits_to_add,
+                    'new_balance': user.credits})
+
 
 @app.route('/admin/cvs')
 def list_cvs():
