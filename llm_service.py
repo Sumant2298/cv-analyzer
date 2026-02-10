@@ -1,9 +1,14 @@
-"""LLM-powered CV analysis using Groq.
+"""LLM-powered CV analysis — supports Ollama (local) and Groq (cloud).
+
+Backend priority:
+  1. LOCAL_LLM_URL set → use Ollama / any OpenAI-compatible local server
+  2. GROQ_API_KEY set → use Groq cloud API
 
 All analysis is performed via LLM — no NLP libraries needed.
-Two focused LLM calls:
+Three focused LLM calls:
   1. Skills & scoring (structured extraction)
   2. Recruiter insights (narrative feedback)
+  3. CV rewrite (on-demand, paid)
 """
 
 import json
@@ -12,27 +17,84 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# ---------------------------------------------------------------------------
+# LLM Backend Configuration
+# ---------------------------------------------------------------------------
+
+# Option 1: Local LLM (Ollama, LM Studio, llama.cpp, etc.)
+LOCAL_LLM_URL = os.environ.get('LOCAL_LLM_URL', '').rstrip('/')
+LOCAL_LLM_MODEL = os.environ.get('LOCAL_LLM_MODEL', 'llama3:8b')
+
+# Option 2: Groq cloud
 GROQ_API_KEY = os.environ.get('GROQ_API_KEY', '')
 GROQ_MODEL = os.environ.get('GROQ_MODEL', 'llama-3.3-70b-versatile')
-LLM_ENABLED = bool(GROQ_API_KEY)
 
-_groq_client = None
+# Determine which backend to use
+if LOCAL_LLM_URL:
+    _BACKEND = 'local'
+    LLM_ENABLED = True
+    logger.info('LLM backend: LOCAL (%s, model=%s)', LOCAL_LLM_URL, LOCAL_LLM_MODEL)
+elif GROQ_API_KEY:
+    _BACKEND = 'groq'
+    LLM_ENABLED = True
+    logger.info('LLM backend: GROQ (model=%s)', GROQ_MODEL)
+else:
+    _BACKEND = None
+    LLM_ENABLED = False
+    logger.warning('No LLM backend configured — set LOCAL_LLM_URL or GROQ_API_KEY')
+
+_client = None
 
 
 def _get_client():
-    global _groq_client
-    if _groq_client is None:
-        from groq import Groq
-        _groq_client = Groq(api_key=GROQ_API_KEY)
-    return _groq_client
+    """Lazy-initialise the OpenAI-compatible client for whichever backend."""
+    global _client
+    if _client is not None:
+        return _client
+
+    from openai import OpenAI
+
+    if _BACKEND == 'local':
+        # Ollama exposes an OpenAI-compatible API at /v1
+        base_url = LOCAL_LLM_URL
+        if not base_url.endswith('/v1'):
+            base_url = base_url + '/v1'
+        _client = OpenAI(base_url=base_url, api_key='ollama')  # Ollama ignores api_key
+        logger.info('Initialised local LLM client: %s', base_url)
+    elif _BACKEND == 'groq':
+        _client = OpenAI(
+            base_url='https://api.groq.com/openai/v1',
+            api_key=GROQ_API_KEY,
+        )
+        logger.info('Initialised Groq client')
+    else:
+        raise RuntimeError('No LLM backend configured')
+
+    return _client
+
+
+def _get_model() -> str:
+    """Return the model name for the active backend."""
+    if _BACKEND == 'local':
+        return LOCAL_LLM_MODEL
+    return GROQ_MODEL
 
 
 def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
-              temperature: float = 0.3, timeout: float = 25.0) -> dict:
-    """Call Groq API and parse JSON response."""
+              temperature: float = 0.3, timeout: float = 120.0) -> dict:
+    """Call LLM via OpenAI-compatible API and parse JSON response.
+
+    For local models the timeout is much longer (they're slower than cloud).
+    """
     client = _get_client()
+    model = _get_model()
+
+    # Local models are slower — give them more time
+    if _BACKEND == 'local':
+        timeout = max(timeout, 180.0)
+
     response = client.chat.completions.create(
-        model=GROQ_MODEL,
+        model=model,
         messages=[
             {'role': 'system', 'content': system},
             {'role': 'user', 'content': prompt},
@@ -43,7 +105,19 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
         timeout=timeout,
     )
     raw = response.choices[0].message.content
-    logger.info('LLM response: %d chars', len(raw))
+    logger.info('LLM response (%s): %d chars', _BACKEND, len(raw))
+
+    # Try to parse JSON — sometimes local models wrap it in markdown code blocks
+    raw = raw.strip()
+    if raw.startswith('```'):
+        # Strip ```json ... ``` wrapper
+        lines = raw.split('\n')
+        if lines[0].startswith('```'):
+            lines = lines[1:]
+        if lines and lines[-1].strip() == '```':
+            lines = lines[:-1]
+        raw = '\n'.join(lines).strip()
+
     return json.loads(raw)
 
 
@@ -258,7 +332,7 @@ def compute_ats_score(breakdown: dict) -> tuple:
 def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     """Run full analysis via two LLM calls. Returns template-ready dict."""
     if not LLM_ENABLED:
-        raise RuntimeError('LLM is not configured (GROQ_API_KEY not set)')
+        raise RuntimeError('LLM is not configured (set LOCAL_LLM_URL or GROQ_API_KEY)')
 
     # --- Call 1: Skills & Scoring ---
     skills_prompt = _build_skills_prompt(cv_text, jd_text)
@@ -448,7 +522,7 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
     This is the 3rd LLM call (separate from analysis, only on user action).
     """
     if not LLM_ENABLED:
-        raise RuntimeError('LLM is not configured (GROQ_API_KEY not set)')
+        raise RuntimeError('LLM is not configured (set LOCAL_LLM_URL or GROQ_API_KEY)')
 
     prompt = _REWRITE_PROMPT.format(
         matched=', '.join(matched[:15]) or 'None',
@@ -460,7 +534,7 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
     )
 
     logger.info('LLM call 3: CV rewrite (%d chars)', len(prompt))
-    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=4000, timeout=45.0)
+    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=4000, timeout=120.0)
 
     result = {
         'rewritten_cv': str(data.get('rewritten_cv', '')),
