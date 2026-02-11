@@ -560,8 +560,8 @@ def google_login():
     if not _oauth_enabled:
         return redirect(url_for('index'))
     redirect_uri = url_for('google_callback', _external=True)
-    # Ensure https in production (Railway reverse proxy)
-    if redirect_uri.startswith('http://') and 'railway.app' in redirect_uri:
+    # Ensure https in production (behind reverse proxy: Railway / Cloudflare)
+    if redirect_uri.startswith('http://') and not redirect_uri.startswith('http://localhost'):
         redirect_uri = redirect_uri.replace('http://', 'https://', 1)
     logger.info('OAuth redirect_uri: %s', redirect_uri)
     return oauth.google.authorize_redirect(redirect_uri)
