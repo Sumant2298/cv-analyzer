@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import time
+import urllib.parse
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +241,8 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
 
         for attempt in range(_retries + 1):
             try:
-                retry_temp = min(temperature + 0.1 * attempt, 0.7)
+                # [7c] Decrease temperature on retry for more deterministic JSON
+                retry_temp = max(temperature - 0.1 * attempt, 0.1)
                 retry_system = system
                 if attempt > 0:
                     retry_system = (system +
@@ -301,14 +303,24 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
 # Call 1: Skills & Scoring
 # ---------------------------------------------------------------------------
 
+# [7h] Stronger JSON enforcement + [7e] alias mappings
 _SKILLS_SYSTEM = """You are an ATS (Applicant Tracking System) JSON API. You analyse CVs against job descriptions and return ONLY structured JSON.
 
 CRITICAL RULES:
 - Your response must be a single valid JSON object. Nothing else.
+- Your output must parse with json.loads(). No trailing commas, no comments, no extra text.
+- All numeric scores must be integers (not strings). Example: "score": 55, NOT "score": "55".
+- All string values must be properly escaped. No literal newlines inside strings.
 - NEVER output any text from the CV or JD in your response — only structured analysis.
 - NEVER echo, quote, or reproduce the CV content. Only reference it in short rationale strings.
 - If you start writing CV text instead of JSON, STOP and restart with the JSON object.
-- Be thorough: check aliases (JS=JavaScript, K8s=Kubernetes, etc.)
+- Be thorough: check skill aliases and abbreviations:
+  JS=JavaScript, TS=TypeScript, K8s=Kubernetes, Postgres=PostgreSQL, Mongo=MongoDB,
+  GCP=Google Cloud Platform, ML=Machine Learning, DL=Deep Learning, NLP=Natural Language Processing,
+  CI/CD=Continuous Integration/Deployment, OOP=Object-Oriented Programming, REST=RESTful API,
+  React.js=React, Node.js=Node, Next.js=NextJS, Vue.js=Vue, .NET=dotnet, C#=CSharp,
+  AWS=Amazon Web Services, AI=Artificial Intelligence, DS=Data Science, DE=Data Engineering,
+  DevOps=Development Operations, SRE=Site Reliability Engineering, QA=Quality Assurance
 - Be realistic with scores — most unoptimized CVs score 30-50 ATS."""
 
 
@@ -338,7 +350,7 @@ Now analyse the above and return ONLY this JSON (replace example values with rea
     "experience": {{"cv_value": "5 years", "jd_value": "3+ years", "match_quality": "Strong Match"}},
     "education": {{"cv_value": "Bachelors", "jd_value": "Bachelors", "match_quality": "Strong Match"}},
     "skills": {{"cv_value": "8/12 key skills", "jd_value": "12 required", "match_quality": "Good Match"}},
-    "location": {{"cv_value": "Remote", "jd_value": "Remote", "match_quality": "Strong Match"}}
+    "location": {{"cv_value": "New York, NY", "jd_value": "Remote / US-based", "match_quality": "Strong Match"}}
   }},
   "skill_match": {{
     "matched": ["Python", "AWS"],
@@ -374,6 +386,7 @@ Now analyse the above and return ONLY this JSON (replace example values with rea
       {{"section": "Future-Ready Skills", "relevance": 25.0}}
     ]
   }},
+  "role_relevancy_score": 55,
   "jd_keywords": ["keyword1", "keyword2"],
   "cv_keywords": ["keyword1", "keyword2"]
 }}
@@ -387,10 +400,12 @@ Instructions:
   - action_verb_quality (weight 10%): achievement-oriented language vs passive/generic
   - section_structure (weight 10%): ATS-parsable format, standard sections, readability
   - overall_relevance (weight 5%): holistic fit — would a recruiter shortlist this candidate?
-- quick_match: Extract REAL values. match_quality: "Strong Match"/"Good Match"/"Weak Match"
+- quick_match: Extract REAL values from the CV and JD. match_quality: "Strong Match"/"Good Match"/"Weak Match"
+  - location: Extract the candidate's location from the CV (look for city, state, country, or "Remote" mentions near the top or in contact info). Extract the job location from the JD (look for "Location:", "Based in:", or remote/hybrid/onsite mentions). If the CV doesn't mention location, use "Not mentioned" for cv_value. If the JD doesn't mention location, use "Not mentioned" for jd_value. Compare them for match_quality.
 - skill_match: ALL skills from JD classified as matched/missing. ALL extra CV skills. Group by category. skill_score = matched/total*100
 - top_skill_groups: 6-8 groups from JD, ordered by importance. Mark each skill found/not-found in CV
 - experience_analysis: verb_alignment 0-100, list common and missing action verbs. section_relevance MUST have exactly 6 sections: Experience, Summary, Education, Skills, Soft Skills, Future-Ready Skills — each scored 0-100 for relevance to the JD
+- role_relevancy_score: A single integer 0-100 representing how relevant the candidate's overall profile is to this specific role. Consider industry alignment, seniority match, domain expertise, and career trajectory. Be realistic: most unoptimized CVs score 30-60.
 - jd_keywords/cv_keywords: Top 15 important keywords each
 - NEVER echo back the CV or JD text. Return ONLY the JSON."""
 
@@ -399,10 +414,13 @@ Instructions:
 # Call 2: Recruiter Insights
 # ---------------------------------------------------------------------------
 
+# [7h] Stronger JSON enforcement
 _RECRUITER_SYSTEM = """You are a senior technical recruiter with 15+ years of hiring experience. You evaluate candidates directly and specifically — no fluff. Address the candidate in 2nd person (you/your).
 
 RULES:
 - Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
+- Your output must parse with json.loads(). No trailing commas, no comments.
+- All string values must be properly escaped. No literal newlines inside strings.
 - Do NOT echo or repeat the CV or JD content.
 - Reference specific items from the CV, not generic advice.
 - Be honest: a weak fit is a weak fit."""
@@ -414,14 +432,15 @@ def _build_recruiter_prompt(cv_text: str, jd_text: str,
     matched_str = ', '.join(matched[:15]) or 'None'
     missing_str = ', '.join(missing[:15]) or 'None'
 
+    # [7a] Standardized truncation: CV[:3000], JD[:2000]
     return f"""Evaluate this candidate. ATS Score: {ats_score}%. Skill Match: {skill_score:.0f}%. Matched: {matched_str}. Missing: {missing_str}.
 
 <JD>
-{jd_text[:1500]}
+{jd_text[:2000]}
 </JD>
 
 <CV>
-{cv_text[:2500]}
+{cv_text[:3000]}
 </CV>
 
 Return this JSON:
@@ -438,9 +457,14 @@ Return this JSON:
       "priority": "high"
     }}
   ],
-  "skill_gap_tips": {{
-    "SkillName": "One actionable sentence to demonstrate this skill."
-  }}
+  "skill_gap_tips": [
+    {{
+      "skill": "SkillName",
+      "tip": "One actionable sentence to demonstrate this skill.",
+      "original_text": "Managed database operations for the team",
+      "improved_text": "Architected and optimized PostgreSQL database cluster serving 2M+ daily queries with 99.9% uptime"
+    }}
+  ]
 }}
 
 Instructions:
@@ -448,7 +472,11 @@ Instructions:
 - working_well: 3-5 genuine strengths for THIS role
 - needs_improvement: 3-5 real gaps, be direct
 - suggestions: EXACTLY 5-7 items. First 2 "high" priority, next 2 "medium" priority, rest "low" priority. Each must be specific and actionable.
-- skill_gap_tips: Top 3-5 missing skills only, one sentence each
+- skill_gap_tips: Top 3-5 missing or weak skills. Each must include:
+  - skill: the skill name
+  - tip: one actionable sentence explaining how to address this gap
+  - original_text: a REAL bullet point or phrase from the candidate's CV that could be improved to showcase this skill (or "Not present in CV" if the skill is completely absent from their experience)
+  - improved_text: a rewritten version of that bullet point incorporating the missing skill naturally. Make it specific, quantified, and compelling. If original_text is "Not present in CV", write a NEW bullet point the candidate could add based on their existing experience.
 - NEVER echo the CV or JD. Return ONLY the JSON."""
 
 
@@ -508,6 +536,17 @@ def compute_ats_score(breakdown: dict) -> tuple:
 
 
 # ---------------------------------------------------------------------------
+# Course URL Generation (Change 6)
+# ---------------------------------------------------------------------------
+
+def _generate_course_url(topic: str) -> str:
+    """Generate a Udemy free course search URL for a given topic."""
+    clean_topic = topic.strip()
+    encoded = urllib.parse.quote_plus(clean_topic)
+    return f'https://www.udemy.com/courses/search/?q={encoded}&price=price-free&sort=relevance'
+
+
+# ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
 
@@ -519,7 +558,9 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     # --- Call 1: Skills & Scoring ---
     skills_prompt = _build_skills_prompt(cv_text, jd_text)
     logger.info('LLM call 1: skills & scoring (%d chars)', len(skills_prompt))
-    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=3500, timeout=30.0)
+    # [7d] Lower temperature for more deterministic output
+    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=3500,
+                            temperature=0.2, timeout=30.0)
 
     # --- Build results from call 1 ---
     results = {}
@@ -561,10 +602,17 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     tsg = skills_data.get('top_skill_groups', [])
     results['top_skill_groups'] = _normalise_top_skill_groups(tsg)
 
+    # [Change 3] Show top 3 matched skills instead of "found/total" format
     if results['top_skill_groups']:
         total = sum(g['total'] for g in results['top_skill_groups'])
         found = sum(g['matched'] for g in results['top_skill_groups'])
-        results['quick_match']['skills']['cv_value'] = f'{found}/{total} key skills'
+        matched_skills = results['skill_match']['matched']
+        top_3 = matched_skills[:3]
+        results['quick_match']['skills']['cv_value'] = ', '.join(top_3) if top_3 else 'No matches'
+        results['quick_match']['skills']['top_matched'] = top_3
+        results['quick_match']['skills']['total_matched'] = found
+        results['quick_match']['skills']['total_required'] = total
+        results['quick_match']['skills']['jd_value'] = f'{total} required'
 
     ea = skills_data.get('experience_analysis', {})
     results['experience_analysis'] = {
@@ -574,10 +622,36 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         'section_relevance': _normalise_section_relevance(ea.get('section_relevance', [])),
     }
 
+    # [7f] Enforce exactly 6 sections in section_relevance
+    _REQUIRED_SECTIONS = ['Experience', 'Summary', 'Education', 'Skills', 'Soft Skills', 'Future-Ready Skills']
+    existing_sections = {s['section'] for s in results['experience_analysis']['section_relevance']}
+    for section_name in _REQUIRED_SECTIONS:
+        if section_name not in existing_sections:
+            results['experience_analysis']['section_relevance'].append({
+                'section': section_name,
+                'relevance': 0.0,
+            })
+    results['experience_analysis']['section_relevance'] = [
+        s for s in results['experience_analysis']['section_relevance']
+        if s['section'] in set(_REQUIRED_SECTIONS)
+    ][:6]
+
+    # [Change 2] Role relevancy score
+    role_rel = skills_data.get('role_relevancy_score', None)
+    if role_rel is not None:
+        results['role_relevancy_score'] = min(100, max(0, int(_ensure_float(role_rel))))
+    else:
+        # Fallback: use overall_relevance from ATS breakdown
+        or_score = raw_breakdown.get('overall_relevance', {})
+        if isinstance(or_score, dict):
+            results['role_relevancy_score'] = min(100, max(0, int(_ensure_float(or_score.get('score', 45)))))
+        else:
+            results['role_relevancy_score'] = 45
+
     skill_score = results['skill_match']['skill_score']
     verb_score = results['experience_analysis']['verb_alignment']
     results['tfidf_score'] = results['ats_score']
-    results['composite_score'] = results['ats_score']  # ATS breakdown IS the composite now
+    results['composite_score'] = results['ats_score']
 
     jd_kw = skills_data.get('jd_keywords', [])
     cv_kw = skills_data.get('cv_keywords', [])
@@ -589,8 +663,21 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     results['cv_keywords_categorized'] = _categorize_keywords(
         results['cv_keywords'], results['skill_match'].get('matched_by_category', {}),
         results['skill_match'].get('extra_by_category', {}))
-    results['jd_skills'] = results['skill_match'].get('matched_by_category', {})
-    results['cv_skills'] = results['skill_match'].get('matched_by_category', {})
+
+    # [7b] Fix: jd_skills = all JD skills, cv_skills = all CV skills
+    jd_all = {}
+    for cat, skills in results['skill_match'].get('matched_by_category', {}).items():
+        jd_all.setdefault(cat, []).extend(skills)
+    for cat, skills in results['skill_match'].get('missing_by_category', {}).items():
+        jd_all.setdefault(cat, []).extend(skills)
+    results['jd_skills'] = jd_all
+
+    cv_all = {}
+    for cat, skills in results['skill_match'].get('matched_by_category', {}).items():
+        cv_all.setdefault(cat, []).extend(skills)
+    for cat, skills in results['skill_match'].get('extra_by_category', {}).items():
+        cv_all.setdefault(cat, []).extend(skills)
+    results['cv_skills'] = cv_all
 
     # --- Call 2: Recruiter Insights ---
     try:
@@ -602,8 +689,9 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
             skill_score,
         )
         logger.info('LLM call 2: recruiter insights (%d chars)', len(recruiter_prompt))
+        # [7d] Lower temperature for consistency
         recruiter_data = _call_llm(_RECRUITER_SYSTEM, recruiter_prompt,
-                                    max_tokens=2500, timeout=45.0)
+                                    max_tokens=2500, temperature=0.25, timeout=45.0)
 
         results['llm_insights'] = {}
         if isinstance(recruiter_data.get('profile_summary'), str) and recruiter_data['profile_summary'].strip():
@@ -612,20 +700,48 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
             results['llm_insights']['working_well'] = [s for s in recruiter_data['working_well'] if isinstance(s, str) and s.strip()]
         if isinstance(recruiter_data.get('needs_improvement'), list):
             results['llm_insights']['needs_improvement'] = [s for s in recruiter_data['needs_improvement'] if isinstance(s, str) and s.strip()]
-        if isinstance(recruiter_data.get('skill_gap_tips'), dict):
-            results['llm_insights']['skill_gap_tips'] = recruiter_data['skill_gap_tips']
+
+        # [Change 5] Handle skill_gap_tips — new list format with before/after
+        raw_tips = recruiter_data.get('skill_gap_tips', [])
+        if isinstance(raw_tips, list):
+            gap_tips = []
+            for tip in raw_tips:
+                if isinstance(tip, dict) and tip.get('skill'):
+                    gap_tips.append({
+                        'skill': str(tip.get('skill', '')),
+                        'tip': str(tip.get('tip', '')),
+                        'original_text': str(tip.get('original_text', '')),
+                        'improved_text': str(tip.get('improved_text', '')),
+                    })
+            results['llm_insights']['skill_gap_tips'] = gap_tips
+        elif isinstance(raw_tips, dict):
+            # Legacy dict format — convert to list format
+            gap_tips = []
+            for skill, tip_text in raw_tips.items():
+                gap_tips.append({
+                    'skill': str(skill),
+                    'tip': str(tip_text),
+                    'original_text': '',
+                    'improved_text': '',
+                })
+            results['llm_insights']['skill_gap_tips'] = gap_tips
+
         results['llm_insights']['ats_score'] = results['ats_score']
 
         raw_suggestions = recruiter_data.get('suggestions', [])
         results['suggestions'] = []
         for i, s in enumerate(raw_suggestions):
             if isinstance(s, dict) and s.get('title'):
+                title = s['title']
                 results['suggestions'].append({
                     'type': s.get('type', 'recruiter_insight'),
-                    'title': s['title'],
+                    'title': title,
                     'body': s.get('body', ''),
                     'examples': _ensure_list(s.get('examples', [])),
-                    'priority': s.get('priority', 'high' if i < 2 else 'medium'),
+                    # [7g] Proper priority fallback: high/medium/low
+                    'priority': s.get('priority', 'high' if i < 2 else ('medium' if i < 4 else 'low')),
+                    # [Change 6] Course URL for each suggestion
+                    'course_url': _generate_course_url(title),
                 })
 
         # Mark that we have enhanced (LLM-powered) suggestions
@@ -657,19 +773,24 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     _default_suggestions = [
         {'type': 'recruiter_insight', 'title': 'Tailor Your CV to This Role',
          'body': 'Review the job description and ensure your CV mirrors its key terminology and requirements.',
-         'examples': ['Use exact keywords from the JD in your experience bullets'], 'priority': 'high'},
+         'examples': ['Use exact keywords from the JD in your experience bullets'], 'priority': 'high',
+         'course_url': _generate_course_url('Resume Writing ATS Optimization')},
         {'type': 'recruiter_insight', 'title': 'Quantify Your Achievements',
          'body': 'Replace vague statements with specific numbers, percentages, and measurable outcomes.',
-         'examples': ['Instead of "improved performance", write "Improved API response time by 40%, reducing P95 latency from 800ms to 480ms"'], 'priority': 'high'},
+         'examples': ['Instead of "improved performance", write "Improved API response time by 40%, reducing P95 latency from 800ms to 480ms"'], 'priority': 'high',
+         'course_url': _generate_course_url('Professional Resume Writing')},
         {'type': 'recruiter_insight', 'title': 'Add Missing Keywords Naturally',
          'body': 'Incorporate the missing skills from the ATS breakdown into your experience bullets where truthful.',
-         'examples': ['Add relevant technologies to project descriptions where you actually used them'], 'priority': 'medium'},
+         'examples': ['Add relevant technologies to project descriptions where you actually used them'], 'priority': 'medium',
+         'course_url': _generate_course_url('ATS Resume Keywords')},
         {'type': 'recruiter_insight', 'title': 'Strengthen Your Action Verbs',
          'body': 'Replace weak verbs like "worked on", "helped with", "responsible for" with strong action verbs.',
-         'examples': ['"Responsible for database" → "Architected and optimized PostgreSQL database serving 2M+ daily queries"'], 'priority': 'medium'},
+         'examples': ['"Responsible for database" → "Architected and optimized PostgreSQL database serving 2M+ daily queries"'], 'priority': 'medium',
+         'course_url': _generate_course_url('Technical Writing')},
         {'type': 'recruiter_insight', 'title': 'Optimize Your CV Structure',
          'body': 'Ensure your CV has clear, ATS-parsable sections: Summary, Experience, Skills, Education, Certifications.',
-         'examples': ['Add a professional summary at the top that mirrors the JD language'], 'priority': 'low'},
+         'examples': ['Add a professional summary at the top that mirrors the JD language'], 'priority': 'low',
+         'course_url': _generate_course_url('CV Structure Best Practices')},
     ]
     if not results.get('suggestions'):
         results['suggestions'] = _default_suggestions
@@ -682,10 +803,11 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
             if ds['title'].lower() not in existing_titles:
                 results['suggestions'].append(ds)
 
-    logger.info('Analysis complete: ATS=%d, skills=%d/%d',
+    logger.info('Analysis complete: ATS=%d, skills=%d/%d, relevancy=%d',
                 results['ats_score'],
                 len(results['skill_match']['matched']),
-                len(results['skill_match']['matched']) + len(results['skill_match']['missing']))
+                len(results['skill_match']['matched']) + len(results['skill_match']['missing']),
+                results.get('role_relevancy_score', 0))
     return results
 
 

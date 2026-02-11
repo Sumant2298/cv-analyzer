@@ -24,7 +24,7 @@
             </div>
             <!-- Info + Quick Match Dimensions -->
             <div class="anim-fade-up-1 flex-1 min-w-0">
-                <h1 class="text-xl sm:text-2xl font-bold mb-3">Analysis Complete</h1>
+                <h1 class="text-lg sm:text-xl font-bold mb-3 leading-tight">Here's a detailed Comparison of your Resume against the JD</h1>
                 <!-- Full Quick Match with symbols -->
                 {% if results.quick_match %}
                 <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
@@ -44,7 +44,19 @@
                             <span class="text-red-300" title="Not a Match">✗</span>
                             {% endif %}
                         </div>
+                        {% if key == 'skills' and dim.top_matched is defined and dim.top_matched %}
+                        <!-- Change 3: Show top matched skills as green badges -->
+                        <div class="flex flex-wrap gap-1">
+                            {% for skill_name in dim.top_matched %}
+                            <span class="bg-green-400/30 text-green-100 text-[10px] font-semibold px-1.5 py-0.5 rounded-md border border-green-400/40">{{ skill_name }}</span>
+                            {% endfor %}
+                            {% if dim.total_matched is defined and dim.total_matched > dim.top_matched|length %}
+                            <span class="text-[10px] text-white/50 font-medium self-center">+{{ dim.total_matched - dim.top_matched|length }} more</span>
+                            {% endif %}
+                        </div>
+                        {% else %}
                         <p class="text-xs font-semibold text-white/90 leading-tight truncate" title="{{ dim.cv_value }}">{{ dim.cv_value }}</p>
+                        {% endif %}
                     </div>
                     {% endfor %}
                 </div>
@@ -52,7 +64,11 @@
                 <!-- Sub-scores -->
                 <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
                     <span class="text-xs text-white/50 font-semibold uppercase">Skill Match: {{ results.skill_match.skill_score }}%</span>
-                    <span class="text-white/30">•</span>
+                    <span class="text-white/30">&bull;</span>
+                    {% if results.role_relevancy_score is defined %}
+                    <span class="text-xs text-white/50 font-semibold uppercase">Relevancy to Role: {{ results.role_relevancy_score }}%</span>
+                    <span class="text-white/30">&bull;</span>
+                    {% endif %}
                     <span class="text-xs text-white/50 font-semibold uppercase">Verb Alignment: {{ results.experience_analysis.verb_alignment }}%</span>
                 </div>
             </div>
@@ -172,17 +188,55 @@
             </div>
             <div>
                 <h3 class="text-base font-bold text-slate-800">How to Close the Gaps</h3>
-                <p class="text-[10px] text-slate-500">Actionable tips to bridge your skill gaps for this role</p>
+                <p class="text-[10px] text-slate-500">Actionable tips with CV rewrite examples to bridge your skill gaps</p>
             </div>
         </div>
-        <div class="space-y-3">
-            {% for tip in results.llm_insights.skill_gap_tips.values() %}
+        <div class="space-y-4">
+            {% for tip in results.llm_insights.skill_gap_tips %}
+            {% if tip is mapping %}
+            {# New list-of-objects format with before/after #}
+            <div class="bg-white/70 rounded-xl px-4 py-3 border border-amber-100">
+                <div class="flex items-start gap-3 mb-2">
+                    <div class="w-5 h-5 bg-amber-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <span class="text-[10px] font-bold text-amber-700">{{ loop.index }}</span>
+                    </div>
+                    <div class="flex-1">
+                        {% if tip.skill %}
+                        <span class="inline-block text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-md mb-1">{{ tip.skill }}</span>
+                        {% endif %}
+                        <p class="text-sm text-slate-700 leading-relaxed">{{ tip.tip }}</p>
+                    </div>
+                </div>
+                {# Before / After examples #}
+                {% if tip.original_text and tip.improved_text and tip.original_text != 'Not present in CV' %}
+                <div class="ml-8 mt-2 space-y-1.5">
+                    <div class="flex items-start gap-2">
+                        <span class="text-[10px] font-bold text-red-500 uppercase bg-red-50 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">Before</span>
+                        <p class="text-xs text-red-600 line-through leading-relaxed">{{ tip.original_text }}</p>
+                    </div>
+                    <div class="flex items-start gap-2">
+                        <span class="text-[10px] font-bold text-green-600 uppercase bg-green-50 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">After</span>
+                        <p class="text-xs text-green-700 font-medium leading-relaxed">{{ tip.improved_text }}</p>
+                    </div>
+                </div>
+                {% elif tip.improved_text and tip.original_text == 'Not present in CV' %}
+                <div class="ml-8 mt-2">
+                    <div class="flex items-start gap-2">
+                        <span class="text-[10px] font-bold text-green-600 uppercase bg-green-50 px-1.5 py-0.5 rounded flex-shrink-0 mt-0.5">Add</span>
+                        <p class="text-xs text-green-700 font-medium leading-relaxed">{{ tip.improved_text }}</p>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+            {% else %}
+            {# Legacy string format fallback #}
             <div class="flex items-start gap-3 bg-white/70 rounded-xl px-4 py-3 border border-amber-100">
                 <div class="w-5 h-5 bg-amber-200 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
                     <span class="text-[10px] font-bold text-amber-700">{{ loop.index }}</span>
                 </div>
                 <p class="text-sm text-slate-700 leading-relaxed">{{ tip }}</p>
             </div>
+            {% endif %}
             {% endfor %}
         </div>
     </div>
@@ -426,19 +480,13 @@
         </div>
     </div>
 
-    <!-- ===================== IMPROVEMENT SUGGESTIONS — 5+ with high/medium/low ===================== -->
+    <!-- ===================== BECOME FUTURE READY — Suggestions + Course Links ===================== -->
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5">
-        <h3 class="text-base font-bold text-slate-800 mb-3 flex items-center gap-2">
-            <svg class="w-5 h-5 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1zM8 16v-1h4v1a2 2 0 11-4 0zM12 14c.015-.34.208-.646.477-.859a4 4 0 10-4.954 0c.27.213.462.519.476.859h4.002z"/></svg>
-            {% if results.llm_insights and results.llm_insights.enhanced_suggestions %}
-            Recruiter Recommendations
-            {% else %}
-            Improvement Suggestions
-            {% endif %}
+        <h3 class="text-base font-bold text-slate-800 mb-1 flex items-center gap-2">
+            <svg class="w-5 h-5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            Become Future Ready
         </h3>
-        {% if results.llm_insights and results.llm_insights.enhanced_suggestions %}
-        <p class="text-xs text-slate-400 mb-3 -mt-1">Prioritized by hiring impact — what matters most to get you to the next round</p>
-        {% endif %}
+        <p class="text-xs text-slate-400 mb-3 ml-7">Prioritized by hiring impact — upskill with free courses to get you to the next round</p>
         <div class="space-y-2">
             {% for suggestion in results.suggestions %}
             <details class="group rounded-xl border transition-all
@@ -469,6 +517,16 @@
                             <p class="text-xs text-slate-700 leading-relaxed">{{ example }}</p>
                         </div>
                         {% endfor %}
+                    </div>
+                    {% endif %}
+                    {% if suggestion.course_url %}
+                    <div class="mt-3 ml-8">
+                        <a href="{{ suggestion.course_url }}" target="_blank" rel="noopener noreferrer"
+                           class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-3 py-1.5 rounded-lg transition-colors">
+                            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/></svg>
+                            Find Free Courses
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg>
+                        </a>
                     </div>
                     {% endif %}
                 </div>
