@@ -47,17 +47,9 @@ if GROQ_API_KEY:
         'max_context': 128000,
     })
 
-# Provider 2: Cerebras (1M tokens/day free, very fast, 8K context on free)
-CEREBRAS_API_KEY = os.environ.get('CEREBRAS_API_KEY', '')
-CEREBRAS_MODEL = os.environ.get('CEREBRAS_MODEL', 'llama-3.3-70b')
-if CEREBRAS_API_KEY:
-    _PROVIDERS.append({
-        'name': 'cerebras',
-        'base_url': 'https://api.cerebras.ai/v1',
-        'api_key': CEREBRAS_API_KEY,
-        'model': CEREBRAS_MODEL,
-        'max_context': 8192,
-    })
+# Provider 2: Cerebras — REMOVED (8K context too small for reliable results)
+# CEREBRAS_API_KEY = os.environ.get('CEREBRAS_API_KEY', '')
+# CEREBRAS_MODEL = os.environ.get('CEREBRAS_MODEL', 'llama-3.3-70b')
 
 # Provider 3: Together AI (free Llama 3.3 70B endpoint)
 TOGETHER_API_KEY = os.environ.get('TOGETHER_API_KEY', '')
@@ -343,11 +335,11 @@ def _build_skills_prompt(cv_text: str, jd_text: str) -> str:
     return f"""I will give you a CV and JD to analyse. Read them, then respond with ONLY the JSON structure specified below. Do NOT repeat or echo any CV/JD content.
 
 --- BEGIN JD ---
-{jd_text[:2500]}
+{jd_text[:4000]}
 --- END JD ---
 
 --- BEGIN CV ---
-{cv_text[:3000]}
+{cv_text[:6000]}
 --- END CV ---
 
 Now analyse the above and return ONLY this JSON (replace example values with real analysis):
@@ -447,15 +439,14 @@ def _build_recruiter_prompt(cv_text: str, jd_text: str,
     matched_str = ', '.join(matched[:15]) or 'None'
     missing_str = ', '.join(missing[:15]) or 'None'
 
-    # [7a] Standardized truncation: CV[:3000], JD[:2000]
     return f"""Evaluate this candidate. ATS Score: {ats_score}%. Skill Match: {skill_score:.0f}%. Matched: {matched_str}. Missing: {missing_str}.
 
 <JD>
-{jd_text[:2000]}
+{jd_text[:4000]}
 </JD>
 
 <CV>
-{cv_text[:3000]}
+{cv_text[:6000]}
 </CV>
 
 Return this JSON:
@@ -605,8 +596,8 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     skills_prompt = _build_skills_prompt(cv_text, jd_text)
     logger.info('LLM call 1: skills & scoring (%d chars)', len(skills_prompt))
     # [7d] Lower temperature for more deterministic output
-    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=3500,
-                            temperature=0.2, timeout=30.0)
+    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=4000,
+                            temperature=0.2, timeout=60.0)
 
     # --- Build results from call 1 ---
     results = {}
@@ -737,7 +728,7 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         logger.info('LLM call 2: recruiter insights (%d chars)', len(recruiter_prompt))
         # [7d] Lower temperature for consistency
         recruiter_data = _call_llm(_RECRUITER_SYSTEM, recruiter_prompt,
-                                    max_tokens=2500, temperature=0.25, timeout=45.0)
+                                    max_tokens=3500, temperature=0.25, timeout=60.0)
 
         results['llm_insights'] = {}
         if isinstance(recruiter_data.get('profile_summary'), str) and recruiter_data['profile_summary'].strip():
