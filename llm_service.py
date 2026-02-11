@@ -286,10 +286,12 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
                     # Exhausted retries for this provider — fall through
                     break
 
-                # Rate limit / server error → fall through to next provider
+                # Rate limit / server error → short backoff then fall through
                 if _is_rate_limit_error(e):
-                    logger.warning('[%s] rate limited / unavailable: %s — trying next provider',
+                    logger.warning('[%s] rate limited / unavailable: %s',
                                    name, error_str[:200])
+                    # Brief pause before trying next provider (helps if limits are per-second)
+                    time.sleep(2)
                     break
 
                 # Other error (auth, invalid model, etc.) → fall through
@@ -299,7 +301,28 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
 
         errors_by_provider[name] = last_error
 
-    # All providers failed
+    # All providers failed — last-resort: wait 15s and retry the first viable provider
+    all_rate_limited = all(_is_rate_limit_error(e) for e in errors_by_provider.values()
+                          if e is not None)
+    if all_rate_limited and _PROVIDERS:
+        logger.info('All providers rate-limited — waiting 15s for cooldown retry...')
+        time.sleep(15)
+        # Retry first viable provider once
+        for provider in _PROVIDERS:
+            name = provider['name']
+            provider_context = provider.get('max_context', 128000)
+            if min_context_needed > provider_context:
+                continue
+            try:
+                raw = _call_provider(provider, system, prompt,
+                                     max_tokens, temperature, timeout)
+                logger.info('[%s] cooldown retry succeeded', name)
+                return _parse_raw_json(raw)
+            except Exception as e:
+                logger.warning('[%s] cooldown retry also failed: %s', name, str(e)[:200])
+                errors_by_provider[f'{name}_retry'] = e
+                break
+
     provider_summary = '; '.join(f'{n}: {str(e)[:80]}' for n, e in errors_by_provider.items())
     raise RuntimeError(
         f'All LLM providers failed. Tried: {provider_summary}'
