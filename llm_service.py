@@ -415,7 +415,7 @@ Instructions:
 # ---------------------------------------------------------------------------
 
 # [7h] Stronger JSON enforcement
-_RECRUITER_SYSTEM = """You are a senior technical recruiter with 15+ years of hiring experience. You evaluate candidates directly and specifically — no fluff. Address the candidate in 2nd person (you/your).
+_RECRUITER_SYSTEM = """You are a senior technical recruiter and career development advisor with 15+ years of hiring experience. You evaluate candidates directly and specifically — no fluff. You also recommend specific skills and learning paths to close career gaps. Address the candidate in 2nd person (you/your).
 
 RULES:
 - Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
@@ -450,10 +450,12 @@ Return this JSON:
   "needs_improvement": ["Gap 1 referencing missing skill/experience", "Gap 2"],
   "suggestions": [
     {{
-      "type": "recruiter_insight",
-      "title": "5-8 word title",
-      "body": "Specific advice referencing their CV",
-      "examples": ["Rewritten bullet point example"],
+      "type": "skill_acquisition",
+      "skill": "Kubernetes",
+      "title": "Learn Kubernetes for Container Orchestration",
+      "body": "The JD requires container orchestration experience. Kubernetes is the industry standard and critical for this DevOps role.",
+      "course_name": "Kubernetes for the Absolute Beginners - Hands-on",
+      "platform": "Udemy",
       "priority": "high"
     }}
   ],
@@ -471,7 +473,16 @@ Instructions:
 - profile_summary: 3-5 sentences, 2nd person, specific, honest
 - working_well: 3-5 genuine strengths for THIS role
 - needs_improvement: 3-5 real gaps, be direct
-- suggestions: EXACTLY 5-7 items. First 2 "high" priority, next 2 "medium" priority, rest "low" priority. Each must be specific and actionable.
+- suggestions: EXACTLY 5-7 skill acquisition recommendations based on the candidate's skill gaps against this JD. Each must:
+  - Focus on a SPECIFIC skill the candidate is MISSING or WEAK in (from the missing skills list above)
+  - type: always "skill_acquisition"
+  - skill: the exact skill name from the missing skills list
+  - title: a concise actionable learning goal (e.g., "Master Docker and Container Orchestration")
+  - body: 1-2 sentences explaining WHY this skill matters for THIS role, referencing the JD
+  - course_name: recommend a specific, well-known course or certification program (e.g., "AWS Certified Solutions Architect", "Google Project Management Certificate", "The Complete Python Bootcamp"). Use your knowledge of popular courses.
+  - platform: which platform offers it (Udemy, Coursera, Simplilearn, LinkedIn Learning, edX, Pluralsight)
+  - priority: first 2 "high" (most critical missing skills), next 2 "medium", rest "low"
+  - Do NOT give CV writing advice like "Tailor Your CV" or "Quantify Achievements". Focus ONLY on what skills to LEARN/ACQUIRE.
 - skill_gap_tips: Top 3-5 missing or weak skills. Each must include:
   - skill: the skill name
   - tip: one actionable sentence explaining how to address this gap
@@ -540,10 +551,30 @@ def compute_ats_score(breakdown: dict) -> tuple:
 # ---------------------------------------------------------------------------
 
 def _generate_course_url(topic: str) -> str:
-    """Generate a Udemy free course search URL for a given topic."""
+    """Generate a Udemy free course search URL for a given topic (legacy)."""
     clean_topic = topic.strip()
     encoded = urllib.parse.quote_plus(clean_topic)
     return f'https://www.udemy.com/courses/search/?q={encoded}&price=price-free&sort=relevance'
+
+
+def _generate_course_urls(skill: str, course_name: str = '', platform: str = '') -> list:
+    """Generate course search URLs across multiple learning platforms."""
+    search_term = course_name.strip() if course_name.strip() else skill.strip()
+    encoded = urllib.parse.quote_plus(search_term)
+    skill_encoded = urllib.parse.quote_plus(skill.strip())
+
+    platforms = [
+        {'name': 'Udemy', 'url': f'https://www.udemy.com/courses/search/?q={encoded}&sort=relevance'},
+        {'name': 'Coursera', 'url': f'https://www.coursera.org/search?query={encoded}'},
+        {'name': 'Simplilearn', 'url': f'https://www.simplilearn.com/search?query={skill_encoded}'},
+    ]
+
+    # Sort preferred platform first if LLM specified one
+    if platform:
+        platform_lower = platform.lower()
+        platforms.sort(key=lambda p: 0 if platform_lower in p['name'].lower() else 1)
+
+    return platforms
 
 
 # ---------------------------------------------------------------------------
@@ -732,16 +763,19 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         results['suggestions'] = []
         for i, s in enumerate(raw_suggestions):
             if isinstance(s, dict) and s.get('title'):
-                title = s['title']
+                skill = s.get('skill', s['title'])
+                course_name = s.get('course_name', '')
+                platform = s.get('platform', '')
                 results['suggestions'].append({
-                    'type': s.get('type', 'recruiter_insight'),
-                    'title': title,
+                    'type': s.get('type', 'skill_acquisition'),
+                    'skill': skill,
+                    'title': s['title'],
                     'body': s.get('body', ''),
-                    'examples': _ensure_list(s.get('examples', [])),
+                    'course_name': course_name,
+                    'platform': platform,
                     # [7g] Proper priority fallback: high/medium/low
                     'priority': s.get('priority', 'high' if i < 2 else ('medium' if i < 4 else 'low')),
-                    # [Change 6] Course URL for each suggestion
-                    'course_url': _generate_course_url(title),
+                    'course_urls': _generate_course_urls(skill, course_name, platform),
                 })
 
         # Mark that we have enhanced (LLM-powered) suggestions
@@ -769,28 +803,33 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
             f'Review the detailed breakdown below to understand where your CV stands and how to improve it.'
         )
 
-    # Ensure suggestions has at least 5 items
+    # Ensure suggestions has at least 5 items — skill acquisition defaults
     _default_suggestions = [
-        {'type': 'recruiter_insight', 'title': 'Tailor Your CV to This Role',
-         'body': 'Review the job description and ensure your CV mirrors its key terminology and requirements.',
-         'examples': ['Use exact keywords from the JD in your experience bullets'], 'priority': 'high',
-         'course_url': _generate_course_url('Resume Writing ATS Optimization')},
-        {'type': 'recruiter_insight', 'title': 'Quantify Your Achievements',
-         'body': 'Replace vague statements with specific numbers, percentages, and measurable outcomes.',
-         'examples': ['Instead of "improved performance", write "Improved API response time by 40%, reducing P95 latency from 800ms to 480ms"'], 'priority': 'high',
-         'course_url': _generate_course_url('Professional Resume Writing')},
-        {'type': 'recruiter_insight', 'title': 'Add Missing Keywords Naturally',
-         'body': 'Incorporate the missing skills from the ATS breakdown into your experience bullets where truthful.',
-         'examples': ['Add relevant technologies to project descriptions where you actually used them'], 'priority': 'medium',
-         'course_url': _generate_course_url('ATS Resume Keywords')},
-        {'type': 'recruiter_insight', 'title': 'Strengthen Your Action Verbs',
-         'body': 'Replace weak verbs like "worked on", "helped with", "responsible for" with strong action verbs.',
-         'examples': ['"Responsible for database" → "Architected and optimized PostgreSQL database serving 2M+ daily queries"'], 'priority': 'medium',
-         'course_url': _generate_course_url('Technical Writing')},
-        {'type': 'recruiter_insight', 'title': 'Optimize Your CV Structure',
-         'body': 'Ensure your CV has clear, ATS-parsable sections: Summary, Experience, Skills, Education, Certifications.',
-         'examples': ['Add a professional summary at the top that mirrors the JD language'], 'priority': 'low',
-         'course_url': _generate_course_url('CV Structure Best Practices')},
+        {'type': 'skill_acquisition', 'skill': 'Cloud Computing',
+         'title': 'Build Cloud Computing Fundamentals',
+         'body': 'Cloud skills are increasingly required across most tech roles. Start with a foundational certification.',
+         'course_name': 'AWS Cloud Practitioner Essentials', 'platform': 'Coursera', 'priority': 'high',
+         'course_urls': _generate_course_urls('Cloud Computing', 'AWS Cloud Practitioner Essentials', 'Coursera')},
+        {'type': 'skill_acquisition', 'skill': 'Project Management',
+         'title': 'Develop Project Management Skills',
+         'body': 'Project management methodology is valued in almost every technical role for leading initiatives effectively.',
+         'course_name': 'Google Project Management Certificate', 'platform': 'Coursera', 'priority': 'high',
+         'course_urls': _generate_course_urls('Project Management', 'Google Project Management Certificate', 'Coursera')},
+        {'type': 'skill_acquisition', 'skill': 'Data Analysis',
+         'title': 'Learn Data Analysis and Visualization',
+         'body': 'Data-driven decision making is a core competency employers look for across all technical and business roles.',
+         'course_name': 'Google Data Analytics Certificate', 'platform': 'Coursera', 'priority': 'medium',
+         'course_urls': _generate_course_urls('Data Analysis', 'Google Data Analytics Certificate', 'Coursera')},
+        {'type': 'skill_acquisition', 'skill': 'Communication',
+         'title': 'Strengthen Technical Communication',
+         'body': 'Clear communication is consistently cited as a top skill gap. Learn to present technical concepts to non-technical stakeholders.',
+         'course_name': 'Business Communication Skills', 'platform': 'Udemy', 'priority': 'medium',
+         'course_urls': _generate_course_urls('Technical Communication', 'Business Communication Skills', 'Udemy')},
+        {'type': 'skill_acquisition', 'skill': 'Agile Methodologies',
+         'title': 'Master Agile and Scrum Practices',
+         'body': 'Most modern teams operate in Agile environments. Understanding Scrum, Kanban, and sprint planning is essential.',
+         'course_name': 'Agile with Atlassian Jira', 'platform': 'Coursera', 'priority': 'low',
+         'course_urls': _generate_course_urls('Agile Methodologies', 'Agile with Atlassian Jira', 'Coursera')},
     ]
     if not results.get('suggestions'):
         results['suggestions'] = _default_suggestions
