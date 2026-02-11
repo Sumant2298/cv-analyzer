@@ -185,7 +185,7 @@ def _call_provider(provider: dict, system: str, prompt: str,
     extra_kwargs = {}
     if name == 'openrouter':
         extra_kwargs['extra_headers'] = {
-            'HTTP-Referer': 'https://levelupx.app',
+            'HTTP-Referer': 'https://levelupx.ai',
             'X-Title': 'LevelUpX CV Analyzer',
         }
 
