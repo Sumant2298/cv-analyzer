@@ -559,13 +559,10 @@ def login_page():
 def google_login():
     if not _oauth_enabled:
         return redirect(url_for('index'))
-    # Use explicit redirect URI if set, otherwise build from request
-    redirect_uri = os.environ.get('GOOGLE_REDIRECT_URI', '')
-    if not redirect_uri:
-        redirect_uri = url_for('google_callback', _external=True)
-        # Ensure https in production (behind reverse proxy: Railway / Cloudflare)
-        if redirect_uri.startswith('http://') and not redirect_uri.startswith('http://localhost'):
-            redirect_uri = redirect_uri.replace('http://', 'https://', 1)
+    redirect_uri = url_for('google_callback', _external=True)
+    # Ensure https in production (behind reverse proxy: Railway / Cloudflare)
+    if redirect_uri.startswith('http://') and not redirect_uri.startswith('http://localhost'):
+        redirect_uri = redirect_uri.replace('http://', 'https://', 1)
     logger.info('OAuth redirect_uri: %s', redirect_uri)
     return oauth.google.authorize_redirect(redirect_uri)
 
@@ -590,15 +587,6 @@ def google_callback():
         flash('Sign-in failed. Please try again.', 'error')
     # Redirect to the page user was trying to visit before login
     next_url = session.pop('_login_next', None)
-    # If using a custom domain, always redirect back to it after OAuth
-    canonical = os.environ.get('CANONICAL_DOMAIN', '')
-    if canonical and not (next_url and canonical in next_url):
-        # Redirect to custom domain homepage (or next_url path on custom domain)
-        if next_url:
-            from urllib.parse import urlparse
-            path = urlparse(next_url).path or '/'
-            return redirect(f'https://{canonical}{path}')
-        return redirect(f'https://{canonical}/')
     return redirect(next_url or url_for('index'))
 
 
