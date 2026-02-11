@@ -590,6 +590,15 @@ def google_callback():
         flash('Sign-in failed. Please try again.', 'error')
     # Redirect to the page user was trying to visit before login
     next_url = session.pop('_login_next', None)
+    # If using a custom domain, always redirect back to it after OAuth
+    canonical = os.environ.get('CANONICAL_DOMAIN', '')
+    if canonical and not (next_url and canonical in next_url):
+        # Redirect to custom domain homepage (or next_url path on custom domain)
+        if next_url:
+            from urllib.parse import urlparse
+            path = urlparse(next_url).path or '/'
+            return redirect(f'https://{canonical}{path}')
+        return redirect(f'https://{canonical}/')
     return redirect(next_url or url_for('index'))
 
 
