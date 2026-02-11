@@ -471,8 +471,10 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
     skills_prompt = _build_skills_prompt(cv_text, jd_text)
     logger.info('LLM call 1: skills & scoring (%d chars)', len(skills_prompt))
     # [7d] Lower temperature for more deterministic output
-    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=4000,
-                            temperature=0.2, timeout=60.0)
+    # Gemini 2.5 Flash is a thinking model — thinking tokens consume part of
+    # max_tokens budget, so we need ~3-4x the expected output size
+    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=16000,
+                            temperature=0.2, timeout=120.0)
 
     # --- Build results from call 1 ---
     results = {}
@@ -603,7 +605,7 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         logger.info('LLM call 2: recruiter insights (%d chars)', len(recruiter_prompt))
         # [7d] Lower temperature for consistency
         recruiter_data = _call_llm(_RECRUITER_SYSTEM, recruiter_prompt,
-                                    max_tokens=3500, temperature=0.25, timeout=60.0)
+                                    max_tokens=12000, temperature=0.25, timeout=120.0)
 
         results['llm_insights'] = {}
         if isinstance(recruiter_data.get('profile_summary'), str) and recruiter_data['profile_summary'].strip():
@@ -839,7 +841,7 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
     )
 
     logger.info('LLM call 3: CV rewrite (%d chars)', len(prompt))
-    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=8000, timeout=180.0)
+    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=24000, timeout=180.0)
 
     result = {
         'rewritten_cv': str(data.get('rewritten_cv', '')),
