@@ -214,9 +214,15 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
     _retries times on JSON validation failures. On rate limit / server
     errors, falls through to the next provider.
 
+    Skips providers whose max_context is too small for the request.
+
     For local backend, uses Ollama native API directly.
     """
     errors_by_provider = {}
+
+    # Rough token estimate: 1 token ≈ 4 chars for English text
+    estimated_input_tokens = (len(system) + len(prompt)) // 3
+    min_context_needed = estimated_input_tokens + max_tokens
 
     # --- Local LLM first (if configured) ---
     if LOCAL_LLM_URL:
@@ -238,6 +244,15 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
     for provider in _PROVIDERS:
         name = provider['name']
         last_error = None
+
+        # Skip providers that can't fit this request
+        provider_context = provider.get('max_context', 128000)
+        if min_context_needed > provider_context:
+            logger.info('[%s] skipped — estimated %d tokens exceeds %d context',
+                        name, min_context_needed, provider_context)
+            errors_by_provider[name] = RuntimeError(
+                f'Context too small: need ~{min_context_needed}, have {provider_context}')
+            continue
 
         for attempt in range(_retries + 1):
             try:
@@ -854,22 +869,25 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
 # Call 3: CV Rewrite (on-demand, paid feature)
 # ---------------------------------------------------------------------------
 
-_REWRITE_SYSTEM = """You are an expert CV writer and ATS optimization specialist. You rewrite CVs to maximize ATS scores and recruiter appeal for a specific job description.
+_REWRITE_SYSTEM = """You are an expert CV writer and ATS optimization specialist with 15+ years of experience. You rewrite CVs to maximize ATS scores and recruiter appeal for a specific job description.
 
-RULES:
+CRITICAL RULES:
 - Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
-- NEVER fabricate experience, degrees, or skills the candidate doesn't have.
-- ONLY reorganize, reword, and optimize what already exists.
+- NEVER fabricate experience, degrees, companies, job titles, or skills the candidate doesn't have.
+- ONLY reorganize, reword, and optimize what already exists in the original CV.
+- You MUST preserve EVERY section and EVERY job/experience entry from the original CV. Do NOT drop any roles, internships, projects, education entries, or sections — even short or old ones.
 - Naturally weave in JD keywords where truthful.
-- Use strong action verbs and quantify achievements where possible.
-- Keep the same overall structure but improve every section.
-- Address the candidate in 2nd person in the changes_summary."""
+- Use strong, specific action verbs and quantify achievements where possible.
+- The candidate's name and all contact information must appear EXACTLY as in the original — do NOT alter, rearrange, or garble the name.
+- Keep ALL dates, ALL company names, ALL job titles exactly as they are.
+- Address the candidate in 2nd person in the changes_summary.
+- The rewritten CV must be AT LEAST as long as the original. Never shorten or truncate it."""
 
-_REWRITE_PROMPT = """Rewrite this CV to be optimized for the target role below.
+_REWRITE_PROMPT = """Rewrite this CV to be optimized for the target role below. You MUST preserve every single section, job entry, internship, project, and detail from the original CV.
 
-Matched skills: {matched}
-Missing skills (DO NOT fabricate — suggest where the candidate could mention related experience): {missing}
-Missing action verbs to incorporate: {missing_verbs}
+Matched skills (already in CV): {matched}
+Missing skills (DO NOT fabricate — only mention if the candidate has related transferable experience): {missing}
+Missing action verbs to incorporate where truthful: {missing_verbs}
 Current ATS score: {ats_score}%
 
 <JD>
@@ -882,7 +900,7 @@ Current ATS score: {ats_score}%
 
 Return this JSON:
 {{
-  "rewritten_cv": "The complete rewritten CV text in clean markdown format. Use ## for section headings, **bold** for company names, bullet points for experience items. Preserve all factual information.",
+  "rewritten_cv": "The COMPLETE rewritten CV text. Every section, every job, every bullet point from the original must be present.",
   "changes_summary": [
     "Specific change 1 — what was improved and why",
     "Specific change 2 — what was improved and why"
@@ -890,11 +908,49 @@ Return this JSON:
   "expected_ats_improvement": 15
 }}
 
-Instructions:
-- rewritten_cv: Full CV text in markdown. Keep ALL real experience, education, contact info. Improve wording, add JD keywords naturally, use strong action verbs. DO NOT invent anything.
-- changes_summary: 4-8 bullet points explaining what you changed and why. Be specific (e.g., "Replaced 'worked on database' with 'Architected and optimized PostgreSQL database serving 2M+ queries/day'").
+STRICT Instructions for rewritten_cv:
+- Use this EXACT format structure:
+  CANDIDATE NAME (exactly as original)
+  TITLE LINE (e.g., "EXPERIENCED ENGINEER | AI | DATA SCIENCE")
+
+  CONTACT
+  Phone: ...
+  Email: ...
+  LinkedIn: ...
+  GitHub: ... (if present)
+
+  SUMMARY
+  (Rewrite the summary to be more targeted to the JD. Keep all factual claims.)
+
+  EXPERIENCE
+  COMPANY NAME — Date Range
+  Job Title
+  * Bullet point 1 (improved with action verbs + metrics)
+  * Bullet point 2
+  (Repeat for EVERY company/role in the original CV — do NOT skip any!)
+
+  EDUCATION
+  DEGREE — UNIVERSITY
+  Concentration/Details
+  (Repeat for ALL degrees)
+
+  PROJECTS
+  Project Name
+  * Detail 1
+  * Detail 2
+  (Include ALL projects from original)
+
+  (Include any other sections from the original: HOBBIES, CERTIFICATIONS, etc.)
+
+- You MUST include EVERY job/internship from the original, even short summer internships. Count the number of roles in the original CV and ensure the same count appears in the output.
+- Improve wording: replace weak verbs (worked on, helped, did) with strong verbs (architected, spearheaded, engineered, optimized, delivered)
+- Add JD keywords ONLY where the candidate genuinely has the experience
+- Quantify achievements wherever possible (numbers, percentages, scale)
+- Do NOT use markdown syntax like ## or ** or ### in the output — use PLAIN TEXT with CAPS for section headings and company names
+- Bullet points should use * or - prefix
+- changes_summary: 5-10 specific bullet points explaining what you changed and why
 - expected_ats_improvement: Estimated point increase (0-40) from original score. Be realistic.
-- NEVER echo the JD. Return ONLY the JSON."""
+- NEVER echo the JD text. Return ONLY the JSON."""
 
 
 def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
@@ -912,12 +968,12 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
         missing=', '.join(missing[:15]) or 'None',
         missing_verbs=', '.join(missing_verbs[:10]) or 'None',
         ats_score=ats_score,
-        jd_text=jd_text[:2000],
-        cv_text=cv_text[:4000],
+        jd_text=jd_text[:3000],
+        cv_text=cv_text[:8000],
     )
 
     logger.info('LLM call 3: CV rewrite (%d chars)', len(prompt))
-    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=4000, timeout=120.0)
+    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=8000, timeout=180.0)
 
     result = {
         'rewritten_cv': str(data.get('rewritten_cv', '')),

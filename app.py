@@ -185,14 +185,8 @@ def _extract_docx(filepath: str) -> str:
     return '\n'.join(para.text for para in doc.paragraphs if para.text.strip())
 
 
-def _text_to_pdf(text: str, output_path: str):
-    from fpdf import FPDF
-    pdf = FPDF()
-    pdf.add_page()
-    pdf.set_auto_page_break(auto=True, margin=15)
-    pdf.set_font('Helvetica', size=10)
-
-    # Sanitize text: replace unicode chars that Helvetica (Latin-1) can't render
+def _sanitize_for_pdf(text: str) -> str:
+    """Sanitize text: replace unicode chars that Helvetica (Latin-1) can't render."""
     clean = text
     clean = clean.replace('\u2018', "'").replace('\u2019', "'")   # smart quotes
     clean = clean.replace('\u201c', '"').replace('\u201d', '"')   # smart double quotes
@@ -200,29 +194,170 @@ def _text_to_pdf(text: str, output_path: str):
     clean = clean.replace('\u2022', '-').replace('\u2023', '>')   # bullets
     clean = clean.replace('\u2026', '...')                        # ellipsis
     clean = clean.replace('\u00a0', ' ')                          # non-breaking space
-    # Strip any remaining non-latin1 characters
     clean = clean.encode('latin-1', errors='replace').decode('latin-1')
+    return clean
 
-    # Calculate usable width (page width minus left+right margins)
+
+def _text_to_pdf(text: str, output_path: str):
+    """Basic text-to-PDF for original CV downloads."""
+    from fpdf import FPDF
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    pdf.set_font('Helvetica', size=10)
+    clean = _sanitize_for_pdf(text)
     usable_w = pdf.w - pdf.l_margin - pdf.r_margin
 
     for line in clean.split('\n'):
         if not line.strip():
-            # Empty lines: just add vertical space (multi_cell with empty string
-            # breaks FPDF2's X position tracking and crashes subsequent calls)
             pdf.ln(5)
             continue
         try:
             pdf.multi_cell(usable_w, 5, line)
         except Exception:
             try:
-                # Fallback: truncate very long lines
                 pdf.multi_cell(usable_w, 5, line[:500])
             except Exception:
-                # Last resort: skip this line
                 pdf.ln(5)
-        # Reset X to left margin (multi_cell can leave X at right edge)
         pdf.x = pdf.l_margin
+
+    pdf.output(output_path)
+
+
+def _rewritten_cv_to_pdf(text: str, output_path: str):
+    """Convert a rewritten CV (plain text with structure) to a well-formatted PDF."""
+    import re as regex
+    from fpdf import FPDF
+
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_auto_page_break(auto=True, margin=15)
+    usable_w = pdf.w - pdf.l_margin - pdf.r_margin
+
+    clean = _sanitize_for_pdf(text)
+
+    # Strip any leftover markdown syntax
+    clean = regex.sub(r'^#{1,4}\s+', '', clean, flags=regex.MULTILINE)  # ### headings
+    clean = regex.sub(r'\*\*(.+?)\*\*', r'\1', clean)                  # **bold** → plain
+
+    lines = clean.split('\n')
+
+    # Section headings we recognize (all caps)
+    section_headings = {
+        'SUMMARY', 'EXPERIENCE', 'EDUCATION', 'PROJECTS', 'SKILLS',
+        'CONTACT', 'HOBBIES', 'CERTIFICATIONS', 'ACHIEVEMENTS',
+        'PUBLICATIONS', 'INTERESTS', 'VOLUNTEER', 'AWARDS',
+        'TECHNICAL SKILLS', 'CORE COMPETENCIES', 'PROFESSIONAL SUMMARY',
+    }
+
+    def _is_section_heading(line_text):
+        stripped = line_text.strip().rstrip(':')
+        return stripped.upper() in section_headings or stripped.isupper() and len(stripped) > 2 and not stripped.startswith(('*', '-', 'HTTP'))
+
+    def _is_company_line(line_text):
+        """Detect company name lines: ALL CAPS with optional date range."""
+        stripped = line_text.strip()
+        if not stripped:
+            return False
+        # Pattern: "COMPANY NAME    Month Year - Month Year" or just "COMPANY NAME"
+        parts = regex.split(r'\s{2,}|\t+', stripped, maxsplit=1)
+        name_part = parts[0].strip()
+        # Check if name part is mostly uppercase and at least 2 words or known company pattern
+        if name_part.isupper() and len(name_part) > 3 and name_part not in section_headings:
+            return True
+        return False
+
+    def _is_bullet(line_text):
+        stripped = line_text.strip()
+        return stripped.startswith(('* ', '- ', '- '))
+
+    first_line = True
+    for i, line in enumerate(lines):
+        stripped = line.strip()
+
+        if not stripped:
+            pdf.ln(3)
+            continue
+
+        try:
+            # Line 1: Candidate name (large, bold)
+            if first_line and stripped and not _is_section_heading(stripped) and not _is_bullet(stripped):
+                pdf.set_font('Helvetica', 'B', 16)
+                pdf.multi_cell(usable_w, 8, stripped)
+                pdf.x = pdf.l_margin
+                pdf.ln(1)
+                first_line = False
+                continue
+
+            first_line = False
+
+            # Title/tagline line (e.g., "EXPERIENCED ENGINEER | AI | ...")
+            if '|' in stripped and i < 5:
+                pdf.set_font('Helvetica', '', 9)
+                pdf.set_text_color(80, 80, 80)
+                pdf.multi_cell(usable_w, 5, stripped)
+                pdf.x = pdf.l_margin
+                pdf.set_text_color(0, 0, 0)
+                pdf.ln(1)
+                continue
+
+            # Section headings (SUMMARY, EXPERIENCE, etc.)
+            if _is_section_heading(stripped):
+                pdf.ln(4)
+                pdf.set_font('Helvetica', 'B', 12)
+                pdf.set_text_color(0, 80, 60)  # Emerald color
+                pdf.multi_cell(usable_w, 6, stripped.upper())
+                pdf.x = pdf.l_margin
+                # Draw a thin line under the heading
+                y = pdf.get_y()
+                pdf.set_draw_color(0, 80, 60)
+                pdf.line(pdf.l_margin, y, pdf.l_margin + usable_w, y)
+                pdf.ln(3)
+                pdf.set_text_color(0, 0, 0)
+                pdf.set_draw_color(0, 0, 0)
+                continue
+
+            # Company / role lines (VERIZON, EXTRON ELECTRONICS, etc.)
+            if _is_company_line(stripped):
+                pdf.ln(2)
+                pdf.set_font('Helvetica', 'B', 11)
+                pdf.multi_cell(usable_w, 5.5, stripped)
+                pdf.x = pdf.l_margin
+                continue
+
+            # Sub-title lines (job title, degree name — usually after company/education)
+            # Detect: italic-style subtitle like "Business Strategy, Data Science Group"
+            # or "Concentration: ..."
+            prev_stripped = lines[i - 1].strip() if i > 0 else ''
+            if (_is_company_line(prev_stripped) or prev_stripped.upper() in section_headings) and not _is_bullet(stripped):
+                pdf.set_font('Helvetica', 'I', 10)
+                pdf.multi_cell(usable_w, 5, stripped)
+                pdf.x = pdf.l_margin
+                continue
+
+            # Bullet points
+            if _is_bullet(stripped):
+                bullet_text = regex.sub(r'^[\*\-]\s+', '', stripped)
+                pdf.set_font('Helvetica', '', 10)
+                # Indent bullets
+                indent = 8
+                pdf.x = pdf.l_margin + indent
+                pdf.multi_cell(usable_w - indent, 5, '  ' + bullet_text)
+                pdf.x = pdf.l_margin
+                continue
+
+            # Regular text
+            pdf.set_font('Helvetica', '', 10)
+            pdf.multi_cell(usable_w, 5, stripped)
+            pdf.x = pdf.l_margin
+
+        except Exception:
+            try:
+                pdf.set_font('Helvetica', '', 10)
+                pdf.multi_cell(usable_w, 5, stripped[:500])
+                pdf.x = pdf.l_margin
+            except Exception:
+                pdf.ln(5)
 
     pdf.output(output_path)
 
@@ -861,15 +996,8 @@ def download_rewritten_cv():
         flash('No rewritten CV available. Please perform a rewrite first.', 'warning')
         return redirect(url_for('index'))
 
-    # Convert markdown to plain text for PDF (strip markdown formatting)
-    import re as regex
-    clean_text = rewritten_text
-    clean_text = regex.sub(r'^##\s+', '', clean_text, flags=regex.MULTILINE)  # ## headers → plain
-    clean_text = regex.sub(r'\*\*(.+?)\*\*', r'\1', clean_text)  # **bold** → plain
-    clean_text = regex.sub(r'^\-\s+', '  - ', clean_text, flags=regex.MULTILINE)  # - bullets → indented
-
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'rewritten_cv.pdf')
-    _text_to_pdf(clean_text, pdf_path)
+    _rewritten_cv_to_pdf(rewritten_text, pdf_path)
     return send_file(pdf_path, as_attachment=True, download_name='rewritten_cv.pdf')
 
 
