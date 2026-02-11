@@ -10,7 +10,7 @@ from models import User, CreditUsage, db
 
 logger = logging.getLogger(__name__)
 
-FREE_SIGNUP_CREDITS = 5
+FREE_SIGNUP_CREDITS = 100
 
 oauth = OAuth()
 
