@@ -1104,6 +1104,76 @@ def download_rewritten_cv():
 
 
 # ---------------------------------------------------------------------------
+# Inline CV editing routes (P14)
+# ---------------------------------------------------------------------------
+
+@app.route('/refine-section', methods=['POST'])
+def refine_section():
+    """Refine a selected CV section using AI (1 credit per call)."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.json or {}
+    selected_text = data.get('selected_text', '').strip()
+    instruction = data.get('instruction', '').strip()
+    full_cv = data.get('full_cv', '').strip()
+
+    if not selected_text or not instruction:
+        return jsonify({'error': 'Please provide selected text and an instruction'}), 400
+
+    # Deduct 1 credit
+    from payments import deduct_credits
+    if not deduct_credits(session['user_id'], credits_needed=1, action='cv_refine'):
+        return jsonify({'error': 'Insufficient credits. You need 1 credit per refinement.'}), 402
+
+    try:
+        from llm_service import refine_cv_section
+        refined_text = refine_cv_section(selected_text, instruction, full_cv)
+
+        user = User.query.get(session['user_id'])
+        session['user_credits'] = user.credits if user else 0
+
+        return jsonify({
+            'success': True,
+            'refined_text': refined_text,
+            'credits_remaining': user.credits if user else 0,
+        })
+    except Exception as e:
+        # Refund the credit on failure
+        user = User.query.get(session['user_id'])
+        if user:
+            user.credits += 1
+            usage = CreditUsage(user_id=user.id, credits_used=-1, action='cv_refine_refund')
+            db.session.add(usage)
+            db.session.commit()
+            session['user_credits'] = user.credits
+        logger.error('Refine section failed: %s', e)
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/update-rewritten-cv', methods=['POST'])
+def update_rewritten_cv():
+    """Update the session-stored rewritten CV with user's edits."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.json or {}
+    rewritten_cv = data.get('rewritten_cv', '').strip()
+    if not rewritten_cv:
+        return jsonify({'error': 'No CV text provided'}), 400
+
+    # Update session data
+    token = session.get('_data_token', '')
+    session_data = _load_session_data(token)
+    session_data['rewritten_cv'] = rewritten_cv
+    # Save back
+    new_token = _save_session_data(session_data)
+    session['_data_token'] = new_token
+
+    return jsonify({'success': True})
+
+
+# ---------------------------------------------------------------------------
 # Credit purchase & payment routes
 # ---------------------------------------------------------------------------
 
@@ -1121,6 +1191,34 @@ def buy_credits():
                            payments_enabled=PAYMENTS_ENABLED,
                            razorpay_key=RAZORPAY_KEY_ID,
                            user=user)
+
+
+@app.route('/grant-free-credits', methods=['POST'])
+def grant_free_credits():
+    """Temporary: grant credits without payment. Replace with Razorpay later."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.json or {}
+    tier = data.get('tier', '')
+    from payments import TIERS
+    tier_info = TIERS.get(tier)
+    if not tier_info:
+        return jsonify({'error': f'Invalid tier: {tier}'}), 400
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    credits_to_add = tier_info['credits']
+    user.credits += credits_to_add
+    usage = CreditUsage(user_id=user.id, credits_used=-credits_to_add, action=f'free_grant_{tier}')
+    db.session.add(usage)
+    db.session.commit()
+    session['user_credits'] = user.credits
+    logger.info('Granted %d free credits to user %d (tier=%s)', credits_to_add, user.id, tier)
+
+    return jsonify({'success': True, 'credits_added': credits_to_add, 'new_balance': user.credits})
 
 
 @app.route('/payment/create', methods=['POST'])

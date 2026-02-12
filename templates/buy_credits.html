@@ -38,9 +38,11 @@
                 Buy {{ tier.credits }} Credits
             </button>
             {% else %}
-            <div class="w-full py-2.5 rounded-xl text-center text-sm font-medium bg-slate-100 text-slate-400">
-                Coming Soon
-            </div>
+            <button onclick="grantFreeCredits('{{ tier_key }}', {{ tier.credits }})"
+                class="w-full py-2.5 rounded-xl font-semibold text-sm transition-all shadow cursor-pointer
+                {{ 'bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white' if tier_key == 'popular' else 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
+                Buy {{ tier.credits }} Credits
+            </button>
             {% endif %}
         </div>
         {% endfor %}
@@ -51,6 +53,44 @@
         <p>5 credits = 1 CV rewrite. Rewrites are powered by AI and tailored to the specific job description.</p>
     </div>
 </div>
+
+<script>
+function grantFreeCredits(tier, credits) {
+    const btn = event.target;
+    btn.disabled = true;
+    btn.textContent = 'Adding...';
+    fetch('/grant-free-credits', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({tier: tier})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.credits_added + ' credits added! New balance: ' + data.new_balance);
+            setTimeout(() => window.location.reload(), 1500);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+            btn.disabled = false;
+            btn.textContent = 'Buy ' + credits + ' Credits';
+        }
+    })
+    .catch(err => {
+        alert('Error: ' + err);
+        btn.disabled = false;
+        btn.textContent = 'Buy ' + credits + ' Credits';
+    });
+}
+
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'fixed top-6 right-6 z-50 bg-emerald-500 text-white font-semibold px-6 py-3 rounded-xl shadow-2xl text-sm';
+    toast.style.animation = 'slideDown 0.3s ease';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+</script>
 
 {% if payments_enabled %}
 <script src="https://checkout.razorpay.com/v1/checkout.js"></script>

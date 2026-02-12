@@ -16,7 +16,7 @@
                     <svg class="w-3.5 h-3.5 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                     </svg>
-                    AI + NLP Resume Intelligence
+                    Resume Intelligence that gets you shortlisted
                 </div>
                 <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
                     Know your CV's<br>
@@ -28,12 +28,12 @@
                     Then match it against any job description.
                 </p>
                 <div class="flex flex-wrap gap-4 items-center mb-8">
-                    <a href="#analyze-form" class="inline-flex items-center gap-2 bg-white text-brand-700 font-bold py-3 px-7 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-50 transition-all">
+                    <button type="button" onclick="revealForm()" class="inline-flex items-center gap-2 bg-white text-brand-700 font-bold py-3 px-7 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-50 transition-all">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                         </svg>
                         Analyze My CV
-                    </a>
+                    </button>
                     {% if session.get('user_id') and user_data %}
                         {% if user_data.first_free %}
                         <span class="text-sm text-emerald-300 font-semibold">First analysis is FREE</span>
@@ -53,11 +53,11 @@
                         <div class="text-[10px] text-white/50">Instant Analysis</div>
                     </div>
                     <div class="text-center bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
-                        <div class="text-lg font-extrabold text-emerald-300">Score</div>
+                        <div class="text-lg font-extrabold text-emerald-300">ATS Score</div>
                         <div class="text-[10px] text-white/50">Quality Rating</div>
                     </div>
                     <div class="text-center bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
-                        <div class="text-lg font-extrabold text-emerald-300">AI+NLP</div>
+                        <div class="text-lg font-extrabold text-emerald-300">Smart AI</div>
                         <div class="text-[10px] text-white/50">Smart Insights</div>
                     </div>
                 </div>
@@ -159,6 +159,7 @@
       class="max-w-3xl mx-auto px-4 sm:px-6 {% if session.get('user_id') %}-mt-8{% else %}-mt-2{% endif %} relative z-10"
       {% if not session.get('user_id') %}onsubmit="event.preventDefault(); window.location.href='{{ url_for('login_page') }}';"{% endif %}>
 
+    <div id="cv-form-container" class="hidden">
     <!-- ===================== CV Panel ===================== -->
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden anim-fade-up-1 mb-6">
         <div class="bg-gradient-to-r from-brand-600 to-brand-500 px-6 py-3">
@@ -206,7 +207,7 @@
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 mb-6 max-w-2xl mx-auto anim-fade-up-2">
         <label for="cv_consent" class="flex items-center gap-4 cursor-pointer">
             <div class="relative">
-                <input type="checkbox" name="cv_consent" id="cv_consent" value="yes" class="sr-only peer">
+                <input type="checkbox" name="cv_consent" id="cv_consent" value="yes" class="sr-only peer" checked>
                 <div class="w-11 h-6 bg-slate-200 rounded-full peer-checked:bg-brand-500 transition"></div>
                 <div class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
             </div>
@@ -227,6 +228,7 @@
         </button>
         <p class="text-xs text-slate-400 mt-3">No job description needed &mdash; just your CV</p>
     </div>
+    </div><!-- /cv-form-container -->
 </form>
 
 <!-- How it works -->
@@ -258,6 +260,34 @@
 </div>
 
 <script>
+/* Reveal form on "Analyze My CV" click */
+let formRevealed = false;
+function revealForm() {
+    const container = document.getElementById('cv-form-container');
+    if (!formRevealed) {
+        container.classList.remove('hidden');
+        container.style.opacity = '0';
+        container.style.maxHeight = '0';
+        container.style.overflow = 'hidden';
+        requestAnimationFrame(() => {
+            container.style.transition = 'opacity 0.5s ease, max-height 0.6s ease';
+            container.style.opacity = '1';
+            container.style.maxHeight = '900px';
+        });
+        formRevealed = true;
+        setTimeout(() => {
+            container.style.overflow = 'visible';
+            container.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }, 600);
+    }
+}
+
+/* Auto-reveal if mode=jd (returning from CV results to match against JD) */
+const _params = new URLSearchParams(window.location.search);
+if (_params.get('mode') === 'jd') {
+    revealForm();
+}
+
 /* Tab Switching */
 function switchTab(group, btn, targetId) {
     const tabClass = group + '-tab';

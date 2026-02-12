@@ -151,15 +151,33 @@
                 Copy Text
             </button>
         </div>
-        <div id="cvContent" class="prose prose-sm max-w-none text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-5 border border-slate-200 max-h-[600px] overflow-y-auto whitespace-pre-wrap">{{ rewrite.rewritten_cv }}</div>
+        <div id="cvContent" contenteditable="true" class="prose prose-sm max-w-none text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-5 border-2 border-slate-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 max-h-[600px] overflow-y-auto whitespace-pre-wrap outline-none transition-colors" spellcheck="true">{{ rewrite.rewritten_cv }}</div>
+        <p class="text-[10px] text-slate-400 mt-1.5">Click into the text above to edit directly. Select text and use the toolbar below to refine with AI.</p>
+
+        <!-- AI Refine Toolbar -->
+        <div class="mt-3 bg-gradient-to-r from-brand-50 to-emerald-50 rounded-xl p-4 border border-brand-200 no-print">
+            <div class="flex items-center gap-2 mb-2">
+                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                <span class="text-xs font-semibold text-brand-700">Refine with AI</span>
+                <span class="text-[10px] text-brand-500 bg-brand-100 px-1.5 py-0.5 rounded font-medium">1 credit per refinement</span>
+            </div>
+            <div class="flex gap-2">
+                <input type="text" id="refineInstruction" placeholder="e.g. Make this more impactful, Add metrics, Shorten this section..." class="flex-1 text-sm border border-brand-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-300 bg-white">
+                <button onclick="refineWithAI()" id="refineBtn" class="inline-flex items-center gap-1.5 bg-gradient-to-r from-brand-500 to-emerald-500 hover:from-brand-600 hover:to-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all shadow">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                    Refine
+                </button>
+            </div>
+            <p id="refineStatus" class="text-[10px] text-brand-500 mt-1.5 hidden"></p>
+        </div>
     </div>
 
     <!-- Action buttons -->
     <div class="flex flex-wrap justify-center gap-4 py-3 no-print">
-        <a href="{{ url_for('download_rewritten_cv') }}" class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
+        <button onclick="downloadEditedCV()" id="downloadBtn" class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Download Rewritten CV (PDF)
-        </a>
+            Download CV (PDF)
+        </button>
         <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
             Analyse Another CV
@@ -208,6 +226,98 @@ function showDiffTab(tab) {
         rewDiv.classList.remove('hidden');
         origDiv.classList.add('hidden');
     }
+}
+
+function refineWithAI() {
+    const instruction = document.getElementById('refineInstruction').value.trim();
+    if (!instruction) {
+        alert('Please enter an instruction for the AI (e.g., "Make this more impactful")');
+        return;
+    }
+
+    // Get selected text or full content
+    const selection = window.getSelection();
+    let selectedText = selection.toString().trim();
+    const cvContent = document.getElementById('cvContent');
+    const fullText = cvContent.innerText;
+
+    if (!selectedText) {
+        selectedText = fullText;
+    }
+
+    const btn = document.getElementById('refineBtn');
+    const status = document.getElementById('refineStatus');
+    btn.disabled = true;
+    btn.textContent = 'Refining...';
+    status.classList.remove('hidden');
+    status.textContent = 'AI is refining your text...';
+
+    fetch('/refine-section', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({
+            selected_text: selectedText,
+            instruction: instruction,
+            full_cv: fullText
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            // Replace the selected text in the contenteditable div
+            const currentHTML = cvContent.innerText;
+            const refined = data.refined_text;
+            // Simple replacement
+            cvContent.innerText = currentHTML.replace(selectedText, refined);
+            status.textContent = 'Refined! Credits remaining: ' + data.credits_remaining;
+            status.classList.remove('text-brand-500');
+            status.classList.add('text-emerald-600');
+            document.getElementById('refineInstruction').value = '';
+        } else {
+            status.textContent = 'Error: ' + (data.error || 'Unknown error');
+            status.classList.remove('text-brand-500');
+            status.classList.add('text-red-500');
+        }
+    })
+    .catch(err => {
+        status.textContent = 'Error: ' + err;
+        status.classList.add('text-red-500');
+    })
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Refine';
+        setTimeout(() => {
+            status.classList.add('hidden');
+            status.className = 'text-[10px] text-brand-500 mt-1.5 hidden';
+        }, 5000);
+    });
+}
+
+function downloadEditedCV() {
+    const btn = document.getElementById('downloadBtn');
+    const cvText = document.getElementById('cvContent').innerText;
+    btn.disabled = true;
+    btn.textContent = 'Preparing...';
+
+    // Save edited content, then redirect to download
+    fetch('/update-rewritten-cv', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({rewritten_cv: cvText})
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (data.success) {
+            window.location.href = '{{ url_for("download_rewritten_cv") }}';
+        } else {
+            alert('Error saving: ' + (data.error || 'Unknown error'));
+        }
+    })
+    .catch(err => alert('Error: ' + err))
+    .finally(() => {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Download CV (PDF)';
+    });
 }
 </script>
 

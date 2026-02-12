@@ -886,8 +886,10 @@ def _build_cv_only_prompt(cv_text: str, nlp_results: dict) -> str:
     contact = nlp_results.get('contact', {})
     formatting = nlp_results.get('formatting', {})
     skills = nlp_results.get('skills', {})
+    candidate_name = nlp_results.get('candidate_name', '')
 
     nlp_summary = f"""NLP Analysis Summary:
+- Candidate Name: {candidate_name or 'Not detected'}
 - CV Quality Score: {nlp_results.get('cv_quality_score', 'N/A')}/100
 - Sections found: {', '.join(sections.get('sections_found', []))}
 - Sections missing: {', '.join(sections.get('sections_missing', []))}
@@ -899,6 +901,8 @@ def _build_cv_only_prompt(cv_text: str, nlp_results: dict) -> str:
 - Contact: email={contact.get('email', '?')}, phone={contact.get('phone', '?')}, linkedin={contact.get('linkedin', '?')}
 - Skills detected: {skills.get('total_skills', 0)} across {sum(1 for v in skills.get('category_coverage', {}).values() if v > 0)} categories"""
 
+    sections_found_list = ', '.join(f'"{s}"' for s in sections.get('sections_found', []))
+
     return f"""Review this CV for overall quality and professional presentation. I've already run NLP analysis — use it as context, but add your qualitative insights.
 
 {nlp_summary}
@@ -909,7 +913,21 @@ def _build_cv_only_prompt(cv_text: str, nlp_results: dict) -> str:
 
 Return this JSON:
 {{
+  "candidate_name": "Full name of the candidate as it appears on the CV",
+  "one_liner_summary": "One sentence, max 15 words, summarising the candidate's profile and strongest positioning",
   "profile_summary": "3-4 sentences assessing the CV's overall quality, structure, and presentation. Be specific about what stands out.",
+  "cv_highlights": [
+    {{"dimension": "Strategic Clarity", "score": 7, "rationale": "Short explanation"}},
+    {{"dimension": "Progression Logic", "score": 6, "rationale": "Short explanation"}},
+    {{"dimension": "Signal to Noise Ratio", "score": 5, "rationale": "Short explanation"}},
+    {{"dimension": "Formatting Discipline", "score": 8, "rationale": "Short explanation"}},
+    {{"dimension": "Red Flags", "score": 3, "rationale": "Short explanation"}},
+    {{"dimension": "Credibility Markers", "score": 7, "rationale": "Short explanation"}}
+  ],
+  "section_summaries": {{
+    "Summary": "One-line description of how this section reads in the CV",
+    "Experience": "One-line description of the experience section"
+  }},
   "working_well": [
     "Strength 1 referencing specific CV content",
     "Strength 2",
@@ -920,23 +938,49 @@ Return this JSON:
     "Issue 2",
     "Issue 3"
   ],
+  "bullet_rewrites": [
+    {{
+      "original_text": "Exact weak bullet from the CV",
+      "improved_text": "Rewritten version with stronger verbs and metrics",
+      "improvement_reason": "Why this is better"
+    }}
+  ],
+  "future_ready_suggestions": [
+    {{
+      "skill": "Docker",
+      "title": "Learn Containerization",
+      "body": "Containers are becoming standard for deployment. Learning Docker will future-proof your ops skills.",
+      "course_name": "Docker for Beginners",
+      "platform": "Udemy",
+      "priority": "high"
+    }}
+  ],
   "general_suggestions": [
     {{
       "title": "Short title for the suggestion",
       "body": "2-3 sentences explaining why this matters and how to fix it",
       "priority": "high"
-    }},
-    {{
-      "title": "Another suggestion",
-      "body": "Explanation",
-      "priority": "medium"
     }}
   ]
 }}
 
 Requirements:
+- candidate_name: Extract the full name from the CV. If NLP detected "{candidate_name}", verify or correct it.
+- one_liner_summary: Max 15 words. Example: "Experienced full-stack developer with strong React and Node.js expertise"
+- cv_highlights: EXACTLY 6 dimensions, each scored 1-10:
+  - Strategic Clarity: Does the CV tell a coherent career story?
+  - Progression Logic: Is there visible career growth and trajectory?
+  - Signal to Noise Ratio: How much of the content is impactful vs filler?
+  - Formatting Discipline: Is the layout clean, consistent, and scannable?
+  - Red Flags: Are there gaps, inconsistencies, or concerns? (higher = fewer red flags)
+  - Credibility Markers: Are there quantified results, brand names, certifications?
+- section_summaries: One-line description for EACH section found in the CV: [{sections_found_list}]. Describe what's in the section, not generic advice.
 - 3-5 items in working_well
 - 3-5 items in needs_improvement
+- bullet_rewrites: Pick the 3-5 WEAKEST bullet points from the CV and rewrite them. NEVER fabricate experience — only improve wording, add impact verbs, suggest where metrics could go.
+- future_ready_suggestions: 3-5 trending skills relevant to the candidate's DOMAIN (not JD-based). Each must have a specific course recommendation.
+  - priority: first 2 "high", next 1-2 "medium", rest "low"
+  - These should be forward-looking industry trends, not basic skills the candidate already has.
 - 5-7 items in general_suggestions (first 2 high priority, next 2 medium, rest low)
 - Be specific to THIS CV — no generic advice
 - Do NOT suggest matching to a job description (user hasn't provided one yet)
@@ -958,13 +1002,80 @@ def analyze_cv_only(cv_text: str) -> dict:
                 nlp_results.get('skills', {}).get('total_skills', 0),
                 nlp_results.get('sections', {}).get('section_count', 0))
 
-    # 2. Small LLM call for qualitative feedback (optional — degrades gracefully)
+    # 2. LLM call for qualitative feedback (optional — degrades gracefully)
     try:
         if LLM_ENABLED:
             prompt = _build_cv_only_prompt(cv_text, nlp_results)
             logger.info('LLM call 0: CV-only review (%d chars)', len(prompt))
-            llm_data = _call_llm(_CV_ONLY_SYSTEM, prompt, max_tokens=4000,
-                                  temperature=0.3, timeout=60.0)
+            llm_data = _call_llm(_CV_ONLY_SYSTEM, prompt, max_tokens=8000,
+                                  temperature=0.3, timeout=90.0)
+
+            # Candidate name: prefer LLM, fallback to NLP
+            llm_name = str(llm_data.get('candidate_name', '')).strip()
+            if llm_name and not nlp_results.get('candidate_name'):
+                nlp_results['candidate_name'] = llm_name
+            elif llm_name and nlp_results.get('candidate_name'):
+                # LLM may correct casing or formatting
+                nlp_results['candidate_name'] = llm_name
+
+            # One-liner summary
+            nlp_results['one_liner_summary'] = str(llm_data.get('one_liner_summary', '')).strip()
+
+            # CV highlights (6 scored dimensions)
+            raw_highlights = llm_data.get('cv_highlights', [])
+            cv_highlights = []
+            if isinstance(raw_highlights, list):
+                for h in raw_highlights[:6]:
+                    if isinstance(h, dict) and h.get('dimension'):
+                        score = min(10, max(1, int(_ensure_float(h.get('score', 5)))))
+                        cv_highlights.append({
+                            'dimension': str(h['dimension']),
+                            'score': score,
+                            'rationale': str(h.get('rationale', '')),
+                        })
+            nlp_results['cv_highlights'] = cv_highlights
+
+            # Section summaries (LLM overrides static descriptions)
+            raw_section_summaries = llm_data.get('section_summaries', {})
+            if isinstance(raw_section_summaries, dict):
+                existing = nlp_results.get('section_descriptions', {})
+                for sec, desc in raw_section_summaries.items():
+                    if isinstance(desc, str) and desc.strip():
+                        existing[str(sec)] = desc.strip()
+                nlp_results['section_descriptions'] = existing
+
+            # Bullet rewrites (before/after)
+            raw_rewrites = llm_data.get('bullet_rewrites', [])
+            bullet_rewrites = []
+            if isinstance(raw_rewrites, list):
+                for r in raw_rewrites[:5]:
+                    if isinstance(r, dict) and r.get('original_text'):
+                        bullet_rewrites.append({
+                            'original_text': str(r['original_text']),
+                            'improved_text': str(r.get('improved_text', '')),
+                            'improvement_reason': str(r.get('improvement_reason', '')),
+                        })
+            nlp_results['bullet_rewrites'] = bullet_rewrites
+
+            # Future ready suggestions
+            raw_future = llm_data.get('future_ready_suggestions', [])
+            future_suggestions = []
+            if isinstance(raw_future, list):
+                for i, fs in enumerate(raw_future[:5]):
+                    if isinstance(fs, dict) and fs.get('skill'):
+                        skill = str(fs['skill'])
+                        course_name = str(fs.get('course_name', ''))
+                        platform = str(fs.get('platform', ''))
+                        future_suggestions.append({
+                            'skill': skill,
+                            'title': str(fs.get('title', '')),
+                            'body': str(fs.get('body', '')),
+                            'course_name': course_name,
+                            'platform': platform,
+                            'priority': str(fs.get('priority', 'high' if i < 2 else ('medium' if i < 4 else 'low'))),
+                            'course_urls': _generate_course_urls(skill, course_name, platform),
+                        })
+            nlp_results['future_ready_suggestions'] = future_suggestions
 
             nlp_results['llm_insights'] = {
                 'profile_summary': str(llm_data.get('profile_summary', '')),
@@ -985,8 +1096,10 @@ def analyze_cv_only(cv_text: str) -> dict:
             nlp_results['suggestions'] = suggestions or _default_cv_suggestions()
 
             nlp_results['llm_enhanced'] = True
-            logger.info('LLM CV-only review complete: %d suggestions',
-                        len(nlp_results['suggestions']))
+            logger.info('LLM CV-only review complete: %d suggestions, %d highlights, %d bullet rewrites',
+                        len(nlp_results['suggestions']),
+                        len(nlp_results.get('cv_highlights', [])),
+                        len(nlp_results.get('bullet_rewrites', [])))
         else:
             raise RuntimeError('LLM not enabled')
 
@@ -998,6 +1111,10 @@ def analyze_cv_only(cv_text: str) -> dict:
             'needs_improvement': nlp_results.get('formatting', {}).get('issues', []),
         }
         nlp_results['suggestions'] = _default_cv_suggestions()
+        nlp_results.setdefault('one_liner_summary', '')
+        nlp_results.setdefault('cv_highlights', [])
+        nlp_results.setdefault('bullet_rewrites', [])
+        nlp_results.setdefault('future_ready_suggestions', [])
         nlp_results['llm_enhanced'] = False
 
     return nlp_results
@@ -1127,6 +1244,61 @@ def _normalise_section_relevance(raw: list) -> list:
         {'section': str(s['section']), 'relevance': _ensure_float(s.get('relevance', 0))}
         for s in raw if isinstance(s, dict) and s.get('section')
     ]
+
+
+# ---------------------------------------------------------------------------
+# Refine CV Section (P14 — inline editing with AI)
+# ---------------------------------------------------------------------------
+
+_REFINE_SYSTEM = """You are an expert CV editor. You refine specific sections of a CV based on user instructions.
+
+RULES:
+- Output ONLY a valid JSON object with a single key "refined_text".
+- Preserve the candidate's real experience — NEVER fabricate.
+- Apply the user's instruction precisely.
+- Keep the same general length unless the instruction says otherwise.
+- Use strong action verbs and quantified achievements where possible."""
+
+
+def refine_cv_section(selected_text: str, instruction: str,
+                      full_cv_context: str = '') -> str:
+    """Refine a selected CV section based on user instruction.
+
+    Returns the refined text string. Raises RuntimeError on failure.
+    """
+    if not LLM_ENABLED:
+        raise RuntimeError('LLM is not configured')
+
+    prompt = f"""Refine the following selected text from a CV based on the user's instruction.
+
+<SELECTED_TEXT>
+{selected_text[:2000]}
+</SELECTED_TEXT>
+
+<USER_INSTRUCTION>
+{instruction[:500]}
+</USER_INSTRUCTION>
+
+{f'<CV_CONTEXT>{full_cv_context[:3000]}</CV_CONTEXT>' if full_cv_context else ''}
+
+Return this JSON:
+{{
+  "refined_text": "The refined version of the selected text"
+}}
+
+Rules:
+- Apply the user's instruction precisely
+- Keep the same format (bullet points stay as bullet points, etc.)
+- NEVER fabricate experience, skills, or companies
+- Improve wording, action verbs, and impact where relevant
+- Return ONLY the JSON"""
+
+    data = _call_llm(_REFINE_SYSTEM, prompt, max_tokens=2000,
+                     temperature=0.3, timeout=30.0)
+    refined = str(data.get('refined_text', '')).strip()
+    if not refined:
+        raise RuntimeError('LLM returned empty refined text')
+    return refined
 
 
 def _categorize_keywords(keywords: list, *category_dicts) -> dict:

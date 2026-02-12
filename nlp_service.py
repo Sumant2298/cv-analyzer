@@ -132,6 +132,64 @@ _LINKEDIN_RE = re.compile(r'linkedin\.com/in/[\w-]+', re.I)
 _GITHUB_RE = re.compile(r'github\.com/[\w-]+', re.I)
 _WEBSITE_RE = re.compile(r'https?://(?!linkedin|github)[\w.-]+\.\w+')
 
+# Patterns that indicate a line is NOT a name (contact info, headers, etc.)
+_NOT_NAME_RE = re.compile(
+    r'(?i)(?:@|http|www\.|\.com|phone|email|address|linkedin|github'
+    r'|resume|curriculum|vitae|cv\b|page\b|objective|summary|experience'
+    r'|education|skills|projects?|certifications?|references?)',
+)
+
+
+def extract_candidate_name(cv_text: str) -> str:
+    """Extract candidate name from the first few lines of CV text.
+
+    Heuristic: the name is typically the first non-empty line in the top
+    10 lines that contains 1-5 alphabetic words, is not a section header,
+    and does not contain contact info patterns.
+    """
+    lines = cv_text.split('\n')[:10]
+    for line in lines:
+        stripped = line.strip().strip('#*_- \t')
+        if not stripped or len(stripped) < 2:
+            continue
+        # Skip lines with contact info or section headers
+        if _NOT_NAME_RE.search(stripped):
+            continue
+        # Skip lines that are mostly numbers (phone etc.)
+        alpha_chars = sum(1 for c in stripped if c.isalpha())
+        if alpha_chars < len(stripped) * 0.5:
+            continue
+        # Name should be 1-5 words, each mostly alphabetic
+        words = stripped.split()
+        if 1 <= len(words) <= 5:
+            all_alpha = all(
+                sum(1 for c in w if c.isalpha()) >= len(w) * 0.7
+                for w in words
+            )
+            if all_alpha:
+                # Title-case the name
+                return ' '.join(w.capitalize() if w.islower() else w for w in words)
+    return ''
+
+
+# ---------------------------------------------------------------------------
+# Section Descriptions (static fallbacks for missing sections)
+# ---------------------------------------------------------------------------
+
+_SECTION_DESCRIPTIONS = {
+    'Summary': 'A brief professional overview that positions your candidacy and highlights key strengths.',
+    'Experience': 'Your work history with accomplishments, responsibilities, and impact at each role.',
+    'Education': 'Academic qualifications, degrees, and relevant coursework or honors.',
+    'Skills': 'Technical and professional competencies that demonstrate your capabilities.',
+    'Projects': 'Hands-on work that showcases initiative, technical depth, and problem-solving.',
+    'Certifications': 'Professional credentials that validate specialized knowledge and commitment to growth.',
+    'Awards': 'Recognition and honors that demonstrate excellence and peer acknowledgment.',
+    'Publications': 'Research papers, articles, or technical writing that establish thought leadership.',
+    'Hobbies': 'Personal interests that add dimension to your profile and show cultural fit.',
+    'Volunteer': 'Community contributions that demonstrate leadership and social responsibility.',
+    'Contact': 'Your reachability information — email, phone, LinkedIn, and other professional links.',
+}
+
 
 def extract_contact_info(cv_text: str) -> dict:
     """Extract contact information using regex."""
@@ -658,6 +716,7 @@ def analyze_cv_standalone(cv_text: str) -> dict:
     """Run all local NLP analysis on a CV. Returns template-ready dict."""
     _ensure_nltk()
 
+    candidate_name = extract_candidate_name(cv_text)
     sections = detect_sections(cv_text)
     contact = extract_contact_info(cv_text)
     formatting = compute_formatting_score(cv_text, sections)
@@ -671,10 +730,20 @@ def analyze_cv_standalone(cv_text: str) -> dict:
         formatting, contact, sections, verbs, quantification, skills
     )
 
+    # Build section descriptions: LLM will override found sections,
+    # static descriptions used for missing sections
+    section_descriptions = {}
+    for sec in sections.get('sections_found', []):
+        section_descriptions[sec] = _SECTION_DESCRIPTIONS.get(sec, '')
+    for sec in sections.get('sections_missing', []):
+        section_descriptions[sec] = _SECTION_DESCRIPTIONS.get(sec, '')
+
     return {
         'cv_quality_score': cv_quality_score,
         'quality_breakdown': quality_breakdown,
+        'candidate_name': candidate_name,
         'sections': sections,
+        'section_descriptions': section_descriptions,
         'contact': contact,
         'formatting': formatting,
         'verbs': verbs,
