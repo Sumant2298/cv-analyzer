@@ -984,7 +984,8 @@ Requirements:
 - 5-7 items in general_suggestions (first 2 high priority, next 2 medium, rest low)
 - Be specific to THIS CV — no generic advice
 - Do NOT suggest matching to a job description (user hasn't provided one yet)
-- Focus on: writing quality, structure, impact, clarity, completeness"""
+- Focus on: writing quality, structure, impact, clarity, completeness
+- NEVER use markdown formatting (no **, no ##, no *). All text must be plain text only."""
 
 
 def analyze_cv_only(cv_text: str) -> dict:

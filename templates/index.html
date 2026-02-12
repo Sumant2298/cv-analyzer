@@ -243,21 +243,22 @@
             </h2>
         </div>
         <div class="flex border-b border-slate-200" role="tablist">
-            <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-emerald-500 text-emerald-600" data-target="jd-paste" onclick="switchTab('jd', this, 'jd-paste')">Paste Text</button>
-            <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" data-target="jd-upload" onclick="switchTab('jd', this, 'jd-upload')">Upload File</button>
+            <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-emerald-500 text-emerald-600" data-target="jd-upload" onclick="switchTab('jd', this, 'jd-upload')">Upload File</button>
+            <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" data-target="jd-paste" onclick="switchTab('jd', this, 'jd-paste')">Paste Text</button>
             <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" data-target="jd-url" onclick="switchTab('jd', this, 'jd-url')">Job URL</button>
         </div>
         <div class="p-6">
-            <div id="jd-paste" class="jd-panel">
-                <textarea name="jd_text" rows="10" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-y placeholder:text-slate-400" placeholder="Paste the full job description here..."></textarea>
-            </div>
-            <div id="jd-upload" class="jd-panel hidden">
+            <div id="jd-upload" class="jd-panel">
                 <label class="flex flex-col items-center justify-center w-full h-40 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition group">
                     <svg class="w-10 h-10 text-slate-300 group-hover:text-emerald-400 transition mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
                     <span class="text-sm text-slate-500 group-hover:text-emerald-600 transition font-medium">Drop a file or click to browse</span>
                     <span class="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT (max 10 MB)</span>
-                    <input type="file" name="jd_file" accept=".pdf,.docx,.txt" class="hidden">
+                    <input type="file" name="jd_file" accept=".pdf,.docx,.txt" class="hidden" id="jd_file_input">
                 </label>
+                <p class="text-xs text-emerald-600 font-medium mt-2 hidden" id="jd_file_label"></p>
+            </div>
+            <div id="jd-paste" class="jd-panel hidden">
+                <textarea name="jd_text" rows="10" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-y placeholder:text-slate-400" placeholder="Paste the full job description here..."></textarea>
             </div>
             <div id="jd-url" class="jd-panel hidden">
                 <input type="url" name="jd_url" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-slate-400" placeholder="https://example.com/job-posting">
@@ -270,7 +271,7 @@
         <button type="submit" id="jdSubmitBtn"
                 class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-3.5 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all text-lg">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            <span id="jdBtnText">Match CV Against JD</span>
+            <span id="jdBtnText">Analyse My CV Against JD</span>
             <span class="text-xs bg-white/20 px-2 py-0.5 rounded font-bold">3 credits</span>
         </button>
         <p class="text-xs text-slate-400 mt-3">Your CV is already loaded from the previous analysis</p>
@@ -279,7 +280,8 @@
 
 <!-- How it works -->
 <div class="max-w-3xl mx-auto px-4 sm:px-6 pb-12">
-    <h3 class="text-center text-sm font-bold text-slate-400 uppercase tracking-wider mb-6">How It Works</h3>
+    <h2 class="text-center text-xl sm:text-2xl font-extrabold text-slate-800 mb-2">From Upload to Offer-Ready in 3 Steps</h2>
+    <p class="text-center text-sm text-slate-500 mb-6 max-w-lg mx-auto">Score your CV, match it to any job, and let AI rewrite it for maximum impact.</p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div class="text-center">
             <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center mx-auto mb-3">
@@ -342,12 +344,13 @@ if (_params.get('mode') === 'jd') {
 function switchTab(group, btn, targetId) {
     const tabClass = group + '-tab';
     const panelClass = group + '-panel';
+    const activeColor = (group === 'jd') ? 'emerald' : 'brand';
     document.querySelectorAll('.' + tabClass).forEach(t => {
         t.className = t.className.replace(/border-brand-500|border-emerald-500/g, 'border-transparent')
                                    .replace(/text-brand-600|text-emerald-600/g, 'text-slate-400');
     });
     btn.classList.remove('border-transparent', 'text-slate-400');
-    'border-brand-500 text-brand-600'.split(' ').forEach(c => btn.classList.add(c));
+    btn.classList.add('border-' + activeColor + '-500', 'text-' + activeColor + '-600');
     document.querySelectorAll('.' + panelClass).forEach(p => p.classList.add('hidden'));
     document.getElementById(targetId).classList.remove('hidden');
 }
@@ -357,6 +360,20 @@ const cvInput = document.getElementById('cv_file_input');
 if (cvInput) {
     cvInput.addEventListener('change', function() {
         const label = document.getElementById('cv_file_label');
+        if (this.files.length > 0) {
+            label.textContent = 'Selected: ' + this.files[0].name;
+            label.classList.remove('hidden');
+        } else {
+            label.classList.add('hidden');
+        }
+    });
+}
+
+/* JD File input label update */
+const jdInput = document.getElementById('jd_file_input');
+if (jdInput) {
+    jdInput.addEventListener('change', function() {
+        const label = document.getElementById('jd_file_label');
         if (this.files.length > 0) {
             label.textContent = 'Selected: ' + this.files[0].name;
             label.classList.remove('hidden');
