@@ -136,6 +136,15 @@ def _refresh_user_credits():
         except Exception:
             pass
 
+
+@app.after_request
+def _set_cache_headers(response):
+    """Prevent proxy/CDN caching of authenticated pages (security fix)."""
+    if session.get('user_id'):
+        response.headers['Cache-Control'] = 'private, no-cache, no-store, must-revalidate'
+        response.headers['Vary'] = 'Cookie'
+    return response
+
 # Folder to store consented CVs
 # Default: ~/Downloads/LevelUpX_CVs/ locally, or collected_cvs/ on Railway
 _default_cv_path = os.path.join(os.path.expanduser('~'), 'Downloads', 'LevelUpX_CVs')
