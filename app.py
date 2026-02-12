@@ -28,7 +28,11 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 # Trust Railway's reverse proxy headers so url_for() generates https:// URLs
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
-app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
+_secret = os.environ.get('SECRET_KEY')
+if not _secret:
+    logger.warning('SECRET_KEY not set — using fallback. Set SECRET_KEY env var for production!')
+    _secret = 'levelupx-dev-fallback-key-change-in-production'
+app.secret_key = _secret
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
@@ -1309,6 +1313,11 @@ def payment_webhook():
 @app.route('/experts')
 def experts():
     return render_template('experts.html')
+
+
+@app.route('/mentors')
+def mentors():
+    return render_template('mentors.html')
 
 
 # ---------------------------------------------------------------------------
