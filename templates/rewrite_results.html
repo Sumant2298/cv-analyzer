@@ -299,7 +299,7 @@ function downloadEditedCV() {
     btn.disabled = true;
     btn.textContent = 'Preparing...';
 
-    // Save edited content, then redirect to download
+    // Save edited content, then trigger download via <a> element
     fetch('/update-rewritten-cv', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -308,7 +308,12 @@ function downloadEditedCV() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            window.location.href = '{{ url_for("download_rewritten_cv") }}';
+            const a = document.createElement('a');
+            a.href = '{{ url_for("download_rewritten_cv") }}';
+            a.download = 'rewritten_cv.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
         } else {
             alert('Error saving: ' + (data.error || 'Unknown error'));
         }

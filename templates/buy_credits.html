@@ -5,7 +5,7 @@
 <section class="bg-gradient-to-br from-brand-700 via-brand-600 to-emerald-500 text-white py-10">
     <div class="max-w-4xl mx-auto px-4 sm:px-6 text-center">
         <h1 class="text-3xl font-extrabold mb-2">Get Credits, Rewrite Your CV</h1>
-        <p class="text-white/70 text-sm max-w-xl mx-auto">Each CV rewrite uses 5 credits. Choose a plan below to power your next career move.</p>
+        <p class="text-white/70 text-sm max-w-xl mx-auto">Each CV rewrite uses 5 credits. Choose a plan below and send us a request to power your next career move.</p>
         <div class="mt-4 inline-flex items-center gap-2 bg-white/15 backdrop-blur-sm px-4 py-2 rounded-xl">
             <svg class="w-4 h-4 text-amber-300" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029c-.472.786-.96.979-1.264.979-.304 0-.792-.193-1.264-.979a5.389 5.389 0 01-.421-.821h2.382a1 1 0 000-2H7.653a7.357 7.357 0 010-1h3.044a1 1 0 000-2H8.315c.134-.29.268-.545.421-.821z"/></svg>
             <span class="font-bold text-lg">{{ user.credits }}</span>
@@ -28,130 +28,25 @@
             <p class="text-sm text-slate-500 mb-4">{{ tier.credits }} credits &middot; {{ (tier.credits / 5)|int }} rewrites</p>
             <div class="text-xs text-slate-400 mb-4">
                 <span class="font-semibold text-slate-600">{{ "%.0f"|format(tier.amount_paise / tier.credits) }} paise/credit</span>
-                &middot; ~{{ "₹%.0f"|format(tier.amount_paise / 100 / (tier.credits / 5)) }}/rewrite
+                &middot; ~{{ "\u20b9%.0f"|format(tier.amount_paise / 100 / (tier.credits / 5)) }}/rewrite
             </div>
             <div class="flex-1"></div>
-            {% if payments_enabled %}
-            <button onclick="buyCredits('{{ tier_key }}', {{ tier.amount_paise }}, '{{ tier.label }} — {{ tier.credits }} credits')"
-                class="w-full py-2.5 rounded-xl font-semibold text-sm transition-all shadow
+            <a href="mailto:Sumantbvp@gmail.com?subject=LevelUpX%20Credit%20Request%20-%20{{ tier.label|urlencode }}&body=Hi%2C%0A%0AI%20would%20like%20to%20purchase%20the%20{{ tier.label|urlencode }}%20plan%20({{ tier.credits }}%20credits)%20for%20{{ tier.price|urlencode }}.%0A%0AMy%20registered%20email%3A%20{{ user.email|urlencode }}%0A%0AThank%20you!"
+                class="w-full py-2.5 rounded-xl font-semibold text-sm transition-all shadow text-center block
                 {{ 'bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white' if tier_key == 'popular' else 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
-                Buy {{ tier.credits }} Credits
-            </button>
-            {% else %}
-            <button onclick="grantFreeCredits('{{ tier_key }}', {{ tier.credits }})"
-                class="w-full py-2.5 rounded-xl font-semibold text-sm transition-all shadow cursor-pointer
-                {{ 'bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white' if tier_key == 'popular' else 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
-                Buy {{ tier.credits }} Credits
-            </button>
-            {% endif %}
+                <span class="inline-flex items-center gap-1.5">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    Request {{ tier.credits }} Credits
+                </span>
+            </a>
         </div>
         {% endfor %}
     </div>
 
     <div class="mt-8 text-center text-xs text-slate-400 space-y-1">
-        <p>Payments securely processed by <span class="font-semibold text-slate-500">Razorpay</span>. Credits never expire.</p>
+        <p>Contact us to purchase credits. Credits never expire.</p>
         <p>5 credits = 1 CV rewrite. Rewrites are powered by AI and tailored to the specific job description.</p>
     </div>
 </div>
-
-<script>
-function grantFreeCredits(tier, credits) {
-    const btn = event.target;
-    btn.disabled = true;
-    btn.textContent = 'Adding...';
-    fetch('/grant-free-credits', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({tier: tier})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.success) {
-            showToast(data.credits_added + ' credits added! New balance: ' + data.new_balance);
-            setTimeout(() => window.location.reload(), 1500);
-        } else {
-            alert('Error: ' + (data.error || 'Unknown error'));
-            btn.disabled = false;
-            btn.textContent = 'Buy ' + credits + ' Credits';
-        }
-    })
-    .catch(err => {
-        alert('Error: ' + err);
-        btn.disabled = false;
-        btn.textContent = 'Buy ' + credits + ' Credits';
-    });
-}
-
-function showToast(message) {
-    const toast = document.createElement('div');
-    toast.className = 'fixed top-6 right-6 z-50 bg-emerald-500 text-white font-semibold px-6 py-3 rounded-xl shadow-2xl text-sm';
-    toast.style.animation = 'slideDown 0.3s ease';
-    toast.textContent = message;
-    document.body.appendChild(toast);
-    setTimeout(() => toast.remove(), 3000);
-}
-</script>
-
-{% if payments_enabled %}
-<script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-<script>
-function buyCredits(tier, amountPaise, description) {
-    // 1. Create order on our server
-    fetch('/payment/create', {
-        method: 'POST',
-        headers: {'Content-Type': 'application/json'},
-        body: JSON.stringify({tier: tier})
-    })
-    .then(r => r.json())
-    .then(data => {
-        if (data.error) {
-            alert('Error: ' + data.error);
-            return;
-        }
-        // 2. Open Razorpay checkout
-        const options = {
-            key: '{{ razorpay_key }}',
-            amount: data.amount_paise,
-            currency: 'INR',
-            name: 'LevelUpX',
-            description: description,
-            order_id: data.order_id,
-            handler: function(response) {
-                // 3. Verify payment on our server
-                fetch('/payment/verify', {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({
-                        order_id: response.razorpay_order_id,
-                        payment_id: response.razorpay_payment_id,
-                        signature: response.razorpay_signature
-                    })
-                })
-                .then(r => r.json())
-                .then(result => {
-                    if (result.success) {
-                        // Update credit display
-                        alert('Payment successful! ' + result.credits_added + ' credits added. New balance: ' + result.new_balance);
-                        window.location.reload();
-                    } else {
-                        alert('Payment verification failed. Please contact support.');
-                    }
-                })
-                .catch(() => alert('Verification error. Credits will be added shortly.'));
-            },
-            prefill: {
-                email: '{{ user.email }}',
-                name: '{{ user.name }}'
-            },
-            theme: { color: '#4f46e5' },
-            modal: { ondismiss: function() { /* User closed modal */ } }
-        };
-        const rzp = new Razorpay(options);
-        rzp.open();
-    })
-    .catch(err => alert('Error creating order: ' + err));
-}
-</script>
-{% endif %}
 
 {% endblock %}

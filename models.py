@@ -58,3 +58,22 @@ class CreditUsage(db.Model):
 
     def __repr__(self):
         return f'<CreditUsage user={self.user_id} action={self.action} credits={self.credits_used}>'
+
+
+class LLMUsage(db.Model):
+    """Tracks LLM API call statistics — tokens, duration, model."""
+    __tablename__ = 'llm_usages'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    action = db.Column(db.String(50), nullable=False)  # cv_analysis, jd_analysis, cv_rewrite, cv_refine
+    model = db.Column(db.String(100), nullable=False)
+    input_chars = db.Column(db.Integer, default=0)
+    output_chars = db.Column(db.Integer, default=0)
+    estimated_input_tokens = db.Column(db.Integer, default=0)
+    estimated_output_tokens = db.Column(db.Integer, default=0)
+    duration_ms = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<LLMUsage user={self.user_id} action={self.action} model={self.model}>'

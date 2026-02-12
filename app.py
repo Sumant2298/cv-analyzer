@@ -18,7 +18,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from models import db, User, Transaction, CreditUsage
+from models import db, User, Transaction, CreditUsage, LLMUsage
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -87,6 +87,13 @@ else:
     _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'users.db')
     app.config['SQLALCHEMY_DATABASE_URI'] = f'sqlite:///{_db_path}'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+# Connection pool config for PostgreSQL (Supabase / Railway) — not used for SQLite
+if database_url:
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 5,
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+    }
 db.init_app(app)
 with app.app_context():
     db.create_all()
@@ -658,6 +665,28 @@ def _refund_analysis_credits(user_id: int, credits: int, action: str = 'refund_c
         logger.error('Failed to refund credits to user %d: %s', user_id, e)
 
 
+def _log_llm_usage(user_id: int, action: str):
+    """Log LLM usage stats from the last call to the database."""
+    try:
+        from llm_service import get_last_call_stats
+        stats = get_last_call_stats()
+        if stats:
+            usage = LLMUsage(
+                user_id=user_id,
+                action=action,
+                model=stats.get('model', 'unknown'),
+                input_chars=stats.get('input_chars', 0),
+                output_chars=stats.get('output_chars', 0),
+                estimated_input_tokens=stats.get('estimated_input_tokens', 0),
+                estimated_output_tokens=stats.get('estimated_output_tokens', 0),
+                duration_ms=stats.get('duration_ms', 0),
+            )
+            db.session.add(usage)
+            db.session.commit()
+    except Exception as e:
+        logger.warning('Failed to log LLM usage: %s', e)
+
+
 def _compute_cv_diff(original: str, rewritten: str) -> list:
     """Compare original and rewritten CV line-by-line for side-by-side display.
 
@@ -864,6 +893,7 @@ def analyze_cv():
     try:
         from llm_service import analyze_cv_only
         results = analyze_cv_only(cv_text)
+        _log_llm_usage(user_id, 'cv_analysis')
     except Exception as e:
         if credits_charged:
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
@@ -944,6 +974,7 @@ def analyze_jd():
 
     try:
         results = analyze_cv_against_jd(cv_text, jd_text)
+        _log_llm_usage(user_id, 'jd_analysis')
     except Exception as e:
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         logger.error('JD analysis error: %s', e, exc_info=True)
@@ -982,7 +1013,8 @@ def download_cv_text():
 
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cv_download.pdf')
     _text_to_pdf(cv_text, pdf_path)
-    return send_file(pdf_path, as_attachment=True, download_name='my_cv.pdf')
+    return send_file(pdf_path, as_attachment=True, download_name='my_cv.pdf',
+                     mimetype='application/pdf')
 
 
 # ---------------------------------------------------------------------------
@@ -1059,6 +1091,7 @@ def rewrite_cv_action():
             missing_verbs=analysis.get('missing_verbs', []),
             ats_score=analysis.get('ats_score', 0),
         )
+        _log_llm_usage(session['user_id'], 'cv_rewrite')
     except Exception as e:
         # Refund credits on LLM failure
         logger.error('CV rewrite LLM error: %s', e, exc_info=True)
@@ -1100,7 +1133,8 @@ def download_rewritten_cv():
 
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'rewritten_cv.pdf')
     _rewritten_cv_to_pdf(rewritten_text, pdf_path)
-    return send_file(pdf_path, as_attachment=True, download_name='rewritten_cv.pdf')
+    return send_file(pdf_path, as_attachment=True, download_name='rewritten_cv.pdf',
+                     mimetype='application/pdf')
 
 
 # ---------------------------------------------------------------------------
@@ -1129,6 +1163,7 @@ def refine_section():
     try:
         from llm_service import refine_cv_section
         refined_text = refine_cv_section(selected_text, instruction, full_cv)
+        _log_llm_usage(session['user_id'], 'cv_refine')
 
         user = User.query.get(session['user_id'])
         session['user_credits'] = user.credits if user else 0
@@ -1268,8 +1303,70 @@ def payment_webhook():
 
 
 # ---------------------------------------------------------------------------
+# Experts landing page (Change 7)
+# ---------------------------------------------------------------------------
+
+@app.route('/experts')
+def experts():
+    return render_template('experts.html')
+
+
+# ---------------------------------------------------------------------------
 # Admin endpoints — protected by ADMIN_TOKEN
 # ---------------------------------------------------------------------------
+
+@app.route('/admin/dashboard')
+def admin_dashboard():
+    """Admin dashboard — users, credits, LLM token consumption."""
+    token = request.args.get('token', '')
+    if token != ADMIN_TOKEN:
+        return 'Unauthorized', 401
+
+    from sqlalchemy import func
+
+    # Summary stats
+    total_users = User.query.count()
+    total_credits_consumed = db.session.query(
+        func.coalesce(func.sum(CreditUsage.credits_used), 0)
+    ).filter(CreditUsage.credits_used > 0).scalar()
+    total_input_tokens = db.session.query(
+        func.coalesce(func.sum(LLMUsage.estimated_input_tokens), 0)
+    ).scalar()
+    total_output_tokens = db.session.query(
+        func.coalesce(func.sum(LLMUsage.estimated_output_tokens), 0)
+    ).scalar()
+
+    # All users with their LLM token usage
+    users = User.query.order_by(User.created_at.desc()).all()
+    user_tokens = {}
+    token_rows = db.session.query(
+        LLMUsage.user_id,
+        func.sum(LLMUsage.estimated_input_tokens).label('input_tokens'),
+        func.sum(LLMUsage.estimated_output_tokens).label('output_tokens'),
+        func.count(LLMUsage.id).label('call_count'),
+    ).group_by(LLMUsage.user_id).all()
+    for row in token_rows:
+        user_tokens[row.user_id] = {
+            'input_tokens': row.input_tokens or 0,
+            'output_tokens': row.output_tokens or 0,
+            'call_count': row.call_count or 0,
+        }
+
+    # Recent 20 activities (credit usages)
+    recent_activities = db.session.query(CreditUsage, User).join(
+        User, CreditUsage.user_id == User.id
+    ).order_by(CreditUsage.created_at.desc()).limit(20).all()
+
+    return render_template('admin_dashboard.html',
+                           token=token,
+                           total_users=total_users,
+                           total_credits_consumed=total_credits_consumed,
+                           total_input_tokens=total_input_tokens,
+                           total_output_tokens=total_output_tokens,
+                           users=users,
+                           user_tokens=user_tokens,
+                           recent_activities=recent_activities)
+
 
 @app.route('/admin/grant-credits')
 def admin_grant_credits():
@@ -1362,10 +1459,9 @@ def admin_llm_status():
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Unauthorized'}), 401
-    from llm_service import LLM_ENABLED, _PROVIDERS, LOCAL_LLM_URL
+    from llm_service import LLM_ENABLED, _PROVIDERS
     return jsonify({
         'llm_enabled': LLM_ENABLED,
-        'local_llm': LOCAL_LLM_URL or None,
         'waterfall': [
             {'name': p['name'], 'model': p['model'], 'base_url': p['base_url'],
              'max_context': p['max_context']}

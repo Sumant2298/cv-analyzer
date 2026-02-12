@@ -50,6 +50,14 @@ if not LLM_ENABLED:
 # Cache OpenAI clients per provider (lazy init)
 _clients = {}
 
+# Track stats from the last LLM call (for admin dashboard logging)
+_last_call_stats = {}
+
+
+def get_last_call_stats() -> dict:
+    """Return stats from the most recent _call_llm() invocation."""
+    return dict(_last_call_stats)
+
 
 def _get_provider_client(provider: dict):
     """Lazy-initialise an OpenAI-compatible client for a provider."""
@@ -118,6 +126,8 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
     Retries up to _retries times on JSON validation failures.
     On rate limit errors, waits and retries with exponential backoff.
     """
+    global _last_call_stats
+
     if not _PROVIDERS:
         raise RuntimeError('No LLM backend configured — set GEMINI_API_KEY')
 
@@ -144,6 +154,18 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
 
             logger.info('[%s] response in %.1fs: %d chars (attempt %d)',
                         name, elapsed, len(raw), attempt)
+
+            # Track stats for admin dashboard
+            input_chars = len(system) + len(prompt)
+            output_chars = len(raw)
+            _last_call_stats = {
+                'model': provider['model'],
+                'input_chars': input_chars,
+                'output_chars': output_chars,
+                'estimated_input_tokens': input_chars // 4,
+                'estimated_output_tokens': output_chars // 4,
+                'duration_ms': int(elapsed * 1000),
+            }
 
             return _parse_raw_json(raw)
 
