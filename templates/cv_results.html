@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}CV Quality Analysis — LevelUpX{% endblock %}
+{% block title %}Resume Quality Analysis — LevelUpX{% endblock %}
 {% block content %}
 
 {% set score = results.cv_quality_score|default(50) %}
@@ -26,13 +26,13 @@
             </div>
             <!-- Info -->
             <div class="text-center sm:text-left flex-1">
-                <h1 class="text-2xl font-extrabold mb-1">{{ results.candidate_name|default('Candidate') }} — Resume Quality Analysis</h1>
+                <h1 class="text-2xl font-extrabold mb-1">{{ results.candidate_name|default('Candidate') }} &mdash; Resume Quality Analysis</h1>
                 <p class="text-sm text-white/70 mb-3">
                     {% if results.one_liner_summary %}{{ results.one_liner_summary }}
-                    {% elif score >= 70 %}Your CV is well-structured and professionally written.
-                    {% elif score >= 50 %}Your CV has a solid foundation with room for improvement.
-                    {% elif score >= 30 %}Your CV needs significant improvements to stand out.
-                    {% else %}Your CV requires a major overhaul — see suggestions below.
+                    {% elif score >= 70 %}Your resume is well-structured and professionally written.
+                    {% elif score >= 50 %}Your resume has a solid foundation with room for improvement.
+                    {% elif score >= 30 %}Your resume needs significant improvements to stand out.
+                    {% else %}Your resume requires a major overhaul — see suggestions below.
                     {% endif %}
                 </p>
                 <!-- CV Highlight Dimensions -->
@@ -85,7 +85,7 @@
             <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
                 <svg class="w-4 h-4 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/></svg>
             </div>
-            <h3 class="font-semibold text-slate-800 text-sm">Recruiter's View of Your CV</h3>
+            <h3 class="font-semibold text-slate-800 text-sm">Recruiter's View of Your Resume</h3>
         </div>
         <p class="text-sm text-slate-600 leading-relaxed">{{ results.llm_insights.profile_summary }}</p>
     </div>
@@ -334,11 +334,11 @@
                 <div class="text-center pb-6 px-6">
                     <button type="submit" id="jdSubmitBtn" class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-3 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all text-base">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        <span id="jdBtnText">Analyse My CV Against JD</span>
+                        <span id="jdBtnText">Analyse Resume Against JD</span>
                         <svg id="jdBtnSpinner" class="hidden animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                         <span class="text-xs bg-white/20 px-2 py-0.5 rounded font-bold">3 credits</span>
                     </button>
-                    <p id="jdInlineHelperText" class="text-xs text-slate-400 mt-2">Your CV is already loaded from the analysis above</p>
+                    <p id="jdInlineHelperText" class="text-xs text-slate-400 mt-2">Your resume is already loaded from the analysis above</p>
                 </div>
             </div>
         </form>
@@ -348,11 +348,11 @@
     <div id="action-buttons" class="flex flex-wrap justify-center gap-4 py-4 no-print">
         <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Analyze Another CV
+            Analyze Another Resume
         </a>
         <button onclick="revealJDForm()" class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            Analyze CV Against a JD
+            Analyze Resume Against a JD
             <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">3 credits</span>
         </button>
         <button onclick="window.print()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">

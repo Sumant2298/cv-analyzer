@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Rewritten CV — LevelUpX{% endblock %}
+{% block title %}Rewritten Resume — LevelUpX{% endblock %}
 {% block content %}
 
 <!-- Hero -->
@@ -12,8 +12,8 @@
                 </div>
             </div>
             <div>
-                <h1 class="text-2xl font-extrabold mb-1">CV Rewrite Complete</h1>
-                <p class="text-sm text-white/80">Your CV has been optimized for the target role</p>
+                <h1 class="text-2xl font-extrabold mb-1">Resume Rewrite Complete</h1>
+                <p class="text-sm text-white/80">Your resume has been optimized for the target role</p>
                 <div class="flex items-center gap-4 mt-2">
                     <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5">
                         <span class="text-xs text-white/60">Original ATS</span>
@@ -41,7 +41,7 @@
             </div>
             <div>
                 <h3 class="font-semibold text-slate-800 text-sm">What Changed</h3>
-                <p class="text-[10px] text-slate-400">{{ rewrite.changes_summary|length }} improvements made to your CV</p>
+                <p class="text-[10px] text-slate-400">{{ rewrite.changes_summary|length }} improvements made to your resume</p>
             </div>
         </div>
         <ul class="space-y-2">
@@ -76,7 +76,7 @@
             <!-- Original Column -->
             <div>
                 <div class="sticky top-0 bg-red-50 px-4 py-2 border-b border-red-200">
-                    <span class="text-xs font-bold text-red-600">Original CV</span>
+                    <span class="text-xs font-bold text-red-600">Original Resume</span>
                 </div>
                 <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
                     {% for line in cv_diff %}
@@ -95,7 +95,7 @@
             <!-- Rewritten Column -->
             <div>
                 <div class="sticky top-0 bg-emerald-50 px-4 py-2 border-b border-emerald-200">
-                    <span class="text-xs font-bold text-emerald-600">Rewritten CV</span>
+                    <span class="text-xs font-bold text-emerald-600">Rewritten Resume</span>
                 </div>
                 <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
                     {% for line in cv_diff %}
@@ -144,7 +144,7 @@
                 <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
                     <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Your Optimized CV</h3>
+                <h3 class="font-semibold text-slate-800 text-sm">Your Optimized Resume</h3>
             </div>
             <button onclick="copyCV()" id="copyBtn" class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition">
                 <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
@@ -176,11 +176,11 @@
     <div class="flex flex-wrap justify-center gap-4 py-3 no-print">
         <button onclick="downloadEditedCV()" id="downloadBtn" class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Download CV (PDF)
+            Download Resume (PDF)
         </button>
         <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Analyse Another CV
+            Analyse Another Resume
         </a>
         <button onclick="window.print()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
@@ -321,7 +321,7 @@ function downloadEditedCV() {
     .catch(err => alert('Error: ' + err))
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Download CV (PDF)';
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Download Resume (PDF)';
     });
 }
 </script>

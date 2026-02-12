@@ -1329,6 +1329,11 @@ def mentors():
     return render_template('mentors.html')
 
 
+@app.route('/resume-tips')
+def resume_tips():
+    return render_template('resume_tips.html')
+
+
 # ---------------------------------------------------------------------------
 # Admin endpoints — protected by ADMIN_TOKEN
 # ---------------------------------------------------------------------------

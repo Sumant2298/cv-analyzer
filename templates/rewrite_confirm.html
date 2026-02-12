@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Rewrite Your CV — LevelUpX{% endblock %}
+{% block title %}Rewrite Your Resume — LevelUpX{% endblock %}
 {% block content %}
 
 <div class="max-w-2xl mx-auto px-4 sm:px-6 py-10">
@@ -11,7 +11,7 @@
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 </div>
                 <div>
-                    <h1 class="text-xl font-bold">Rewrite Your CV for This Role</h1>
+                    <h1 class="text-xl font-bold">Rewrite Your Resume for This Role</h1>
                     <p class="text-sm text-white/80">AI-powered optimization tailored to the job description</p>
                 </div>
             </div>
@@ -55,7 +55,7 @@
                     </li>
                     <li class="flex items-center gap-2 text-sm text-slate-600">
                         <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                        Downloadable PDF of the rewritten CV
+                        Downloadable PDF of the rewritten resume
                     </li>
                 </ul>
             </div>
@@ -79,7 +79,7 @@
                 </a>
                 <form method="POST" action="{{ url_for('rewrite_cv_action') }}" class="flex-1">
                     <button type="submit" id="rewriteBtn" class="w-full py-2.5 rounded-xl font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white shadow-lg transition-all">
-                        Rewrite My CV
+                        Rewrite My Resume
                     </button>
                 </form>
             </div>

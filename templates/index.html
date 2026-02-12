@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}LevelUpX — Know Your CV's True Strength{% endblock %}
+{% block title %}LevelUpX — Know Your Resume's True Strength{% endblock %}
 {% block content %}
 
 <!-- Hero -->
@@ -16,10 +16,10 @@
                     <svg class="w-3.5 h-3.5 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                     </svg>
-                    Resume Intelligence that gets you shortlisted
+                    Resume intelligence that gets you shortlisted
                 </div>
                 <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
-                    Know your CV's<br>
+                    Know your Resume's<br>
                     <span class="text-emerald-300">true strength</span><br>
                     before you apply.
                 </h1>
@@ -32,11 +32,11 @@
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                         </svg>
-                        Analyze My CV
+                        Analyze My Resume
                     </button>
                     {% if session.get('user_id') and user_data %}
                         {% if user_data.first_free %}
-                        <span class="text-sm text-emerald-300 font-semibold">First analysis is FREE</span>
+                        <span class="text-sm text-emerald-300 font-semibold">First analysis FREE</span>
                         {% elif user_data.credits >= user_data.credits_per_cv %}
                         <span class="text-sm text-white/60">{{ user_data.credits_per_cv }} credits/analysis &middot; {{ user_data.credits }} credits available</span>
                         {% else %}
@@ -47,7 +47,7 @@
                     {% endif %}
                 </div>
                 <!-- Trust signals -->
-                <div class="grid grid-cols-3 gap-4 max-w-sm">
+                <div class="grid grid-cols-3 gap-4 max-w-md">
                     <div class="text-center bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2">
                         <div class="text-lg font-extrabold text-emerald-300">Fast</div>
                         <div class="text-[10px] text-white/50">Instant Analysis</div>
@@ -78,7 +78,7 @@
                                 </div>
                             </div>
                             <div>
-                                <p class="text-sm font-bold text-white/90">CV Quality Score</p>
+                                <p class="text-sm font-bold text-white/90">Resume Quality Score</p>
                                 <p class="text-xs text-white/50">Well-structured with room to improve</p>
                             </div>
                         </div>
@@ -137,10 +137,10 @@
                 </svg>
             </div>
             <div class="flex-1">
-                <h3 class="font-bold text-slate-800 text-lg mb-1">Sign in to analyze your CV</h3>
+                <h3 class="font-bold text-slate-800 text-lg mb-1">Sign in to analyze your Resume</h3>
                 <p class="text-sm text-slate-600 mb-3">
-                    Get your <span class="font-bold text-amber-600">first CV analysis FREE</span> when you sign up.
-                    Then match against job descriptions and rewrite your CV.
+                    Get your <span class="font-bold text-amber-600">first resume analysis FREE</span> when you sign up.
+                    Then match against job descriptions and rewrite your resume.
                 </p>
                 <a href="{{ url_for('login_page') }}" class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg transition-all text-sm">
                     <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
@@ -165,7 +165,7 @@
         <div class="bg-gradient-to-r from-brand-600 to-brand-500 px-6 py-3">
             <h2 class="text-white font-semibold flex items-center gap-2">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
-                Your CV / Resume
+                Your Resume
             </h2>
         </div>
         <!-- Tabs -->
@@ -186,7 +186,7 @@
                 <p class="text-xs text-brand-600 font-medium mt-2 hidden" id="cv_file_label"></p>
             </div>
             <div id="cv-paste" class="cv-panel hidden">
-                <textarea name="cv_text" rows="8" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-brand-400 focus:border-transparent resize-y placeholder:text-slate-400" placeholder="Paste your full CV / resume text here..."></textarea>
+                <textarea name="cv_text" rows="8" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-brand-400 focus:border-transparent resize-y placeholder:text-slate-400" placeholder="Paste your full resume text here..."></textarea>
             </div>
             <div id="cv-linkedin" class="cv-panel hidden">
                 <div class="space-y-3">
@@ -212,8 +212,8 @@
                 <div class="absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow peer-checked:translate-x-5 transition"></div>
             </div>
             <div>
-                <span class="text-sm font-semibold text-slate-700">Allow CV storage for recruitment</span>
-                <p class="text-xs text-slate-400 mt-0.5">Optional. Your CV will only be used for potential job opportunities.</p>
+                <span class="text-sm font-semibold text-slate-700">Allow resume storage for recruitment</span>
+                <p class="text-xs text-slate-400 mt-0.5">Optional. Your resume will only be used for potential job opportunities.</p>
             </div>
         </label>
     </div>
@@ -223,10 +223,10 @@
         <button type="submit" id="submitBtn"
                 class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-3.5 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all text-lg">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-            <span id="btnText">{% if session.get('user_id') %}Analyze My CV{% else %}Sign in to Analyze{% endif %}</span>
+            <span id="btnText">{% if session.get('user_id') %}Analyze My Resume{% else %}Sign in to Analyze{% endif %}</span>
             <svg id="btnSpinner" class="w-5 h-5 spinner hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
         </button>
-        <p id="cvHelperText" class="text-xs text-slate-400 mt-3">No job description needed &mdash; just your CV</p>
+        <p id="cvHelperText" class="text-xs text-slate-400 mt-3">No job description needed &mdash; just your resume</p>
     </div>
     </div><!-- /cv-form-container -->
 </form>
@@ -271,7 +271,7 @@
         <button type="submit" id="jdSubmitBtn"
                 class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-3.5 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all text-lg">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            <span id="jdBtnText">Analyse My CV Against JD</span>
+            <span id="jdBtnText">Analyse Resume Against JD</span>
             <span class="text-xs bg-white/20 px-2 py-0.5 rounded font-bold">3 credits</span>
         </button>
         <p id="jdHelperText" class="text-xs text-slate-400 mt-3">Your CV is already loaded from the previous analysis</p>
@@ -281,13 +281,13 @@
 <!-- How it works -->
 <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-16 pb-12">
     <h2 class="text-center text-lg sm:text-xl font-extrabold text-slate-800 mb-3">From Upload to Offer-Ready in 3 Steps</h2>
-    <p class="text-center text-sm text-slate-500 mb-8 max-w-lg mx-auto">Score your CV, match it to any job, and let AI rewrite it for maximum impact.</p>
+    <p class="text-center text-sm text-slate-500 mb-8 max-w-lg mx-auto">Score your resume, match it to any job, and let AI rewrite it for maximum impact.</p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div class="text-center">
             <div class="w-10 h-10 bg-brand-100 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <span class="text-brand-600 font-extrabold">1</span>
             </div>
-            <h4 class="font-semibold text-slate-700 text-sm mb-1">Analyze CV</h4>
+            <h4 class="font-semibold text-slate-700 text-sm mb-1">Analyze Resume</h4>
             <p class="text-xs text-slate-400">Get a quality score, structure analysis, and improvement suggestions</p>
         </div>
         <div class="text-center">
@@ -295,14 +295,14 @@
                 <span class="text-emerald-600 font-extrabold">2</span>
             </div>
             <h4 class="font-semibold text-slate-700 text-sm mb-1">Match Against JD</h4>
-            <p class="text-xs text-slate-400">Compare your CV against a specific job description for ATS scoring</p>
+            <p class="text-xs text-slate-400">Compare your resume against a specific job description for ATS scoring</p>
         </div>
         <div class="text-center">
             <div class="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center mx-auto mb-3">
                 <span class="text-amber-600 font-extrabold">3</span>
             </div>
-            <h4 class="font-semibold text-slate-700 text-sm mb-1">Rewrite CV</h4>
-            <p class="text-xs text-slate-400">AI rewrites your CV optimized for the role with side-by-side comparison</p>
+            <h4 class="font-semibold text-slate-700 text-sm mb-1">Rewrite Resume</h4>
+            <p class="text-xs text-slate-400">AI rewrites your resume optimized for the role with side-by-side comparison</p>
         </div>
     </div>
 </div>
