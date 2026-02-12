@@ -3,7 +3,43 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}LevelUpX{% endblock %}</title>
+    <title>{% block title %}LevelUpX — Free AI Resume Analyzer & ATS Score Checker{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Free AI-powered resume analyzer. Get your ATS compatibility score, smart keyword insights, and tailored resume rewrites to land more interviews.{% endblock %}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://levelupx.ai{{ request.path }}">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="LevelUpX">
+    <meta property="og:title" content="{% block og_title %}LevelUpX — Free AI Resume Analyzer{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Free AI-powered resume analyzer. Get ATS score, keyword insights, and tailored rewrites.{% endblock %}">
+    <meta property="og:url" content="https://levelupx.ai{{ request.path }}">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="LevelUpX — Free AI Resume Analyzer">
+    <meta name="twitter:description" content="Get your ATS score, keyword analysis, and AI-powered resume rewrite in seconds.">
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "LevelUpX",
+        "url": "https://levelupx.ai",
+        "description": "AI-powered resume analyzer that checks ATS compatibility, provides keyword insights, and generates tailored resume rewrites.",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR",
+            "description": "First resume analysis is free"
+        },
+        "creator": {
+            "@type": "Organization",
+            "name": "LevelUpX",
+            "url": "https://levelupx.ai"
+        }
+    }
+    </script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">

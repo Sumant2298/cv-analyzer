@@ -15,8 +15,8 @@ load_dotenv()  # Load .env file (GROQ_API_KEY, etc.)
 
 import requests as http_requests
 from bs4 import BeautifulSoup
-from flask import (Flask, flash, jsonify, redirect, render_template, request,
-                   send_file, session, url_for)
+from flask import (Flask, Response, flash, jsonify, redirect, render_template,
+                   request, send_file, session, url_for)
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
@@ -889,7 +889,7 @@ def account():
         flash('User not found. Please sign in again.', 'error')
         return redirect(url_for('login_page'))
 
-    from payments import FREE_ANALYSIS_LIMIT, CREDITS_PER_ANALYSIS, CREDITS_PER_REWRITE
+    from payments import FREE_ANALYSIS_LIMIT, CREDITS_PER_ANALYSIS, CREDITS_PER_REWRITE, CREDITS_PER_JD_ANALYSIS
 
     # Credit usage history (most recent 20)
     usage_history = CreditUsage.query.filter_by(user_id=user.id)\
@@ -909,6 +909,7 @@ def account():
                            free_remaining=free_remaining,
                            free_limit=FREE_ANALYSIS_LIMIT,
                            credits_per_analysis=CREDITS_PER_ANALYSIS,
+                           credits_per_jd=CREDITS_PER_JD_ANALYSIS,
                            credits_per_rewrite=CREDITS_PER_REWRITE,
                            usage_history=usage_history,
                            transactions=transactions,
@@ -1558,6 +1559,59 @@ def admin_llm_status():
         ],
         'provider_count': len(_PROVIDERS),
     })
+
+
+# ---------------------------------------------------------------------------
+# SEO: sitemap.xml & robots.txt
+# ---------------------------------------------------------------------------
+
+@app.route('/sitemap.xml')
+def sitemap():
+    """Dynamic sitemap for search engine discovery."""
+    pages = [
+        {'loc': '/',            'changefreq': 'weekly',  'priority': '1.0'},
+        {'loc': '/resume-tips', 'changefreq': 'monthly', 'priority': '0.8'},
+        {'loc': '/buy-credits', 'changefreq': 'monthly', 'priority': '0.7'},
+        {'loc': '/experts',     'changefreq': 'monthly', 'priority': '0.6'},
+        {'loc': '/mentors',     'changefreq': 'monthly', 'priority': '0.6'},
+        {'loc': '/login',       'changefreq': 'yearly',  'priority': '0.4'},
+    ]
+    xml = ['<?xml version="1.0" encoding="UTF-8"?>']
+    xml.append('<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">')
+    for p in pages:
+        xml.append('  <url>')
+        xml.append(f'    <loc>https://levelupx.ai{p["loc"]}</loc>')
+        xml.append(f'    <changefreq>{p["changefreq"]}</changefreq>')
+        xml.append(f'    <priority>{p["priority"]}</priority>')
+        xml.append('  </url>')
+    xml.append('</urlset>')
+    return Response('\n'.join(xml), mimetype='application/xml')
+
+
+@app.route('/robots.txt')
+def robots():
+    """Robots.txt for search engine crawl guidance."""
+    content = """User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /auth/
+Disallow: /logout
+Disallow: /account
+Disallow: /analyze
+Disallow: /analyze-cv
+Disallow: /analyze-jd
+Disallow: /rewrite-cv
+Disallow: /download-cv
+Disallow: /download-rewritten-cv
+Disallow: /grant-free-credits
+Disallow: /payment/
+Disallow: /refine-section
+Disallow: /update-rewritten-cv
+
+Sitemap: https://levelupx.ai/sitemap.xml
+"""
+    return Response(content.strip(), mimetype='text/plain')
 
 
 if __name__ == '__main__':
