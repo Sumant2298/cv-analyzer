@@ -28,6 +28,12 @@ CREDITS_PER_REWRITE = 5
 CREDITS_PER_ANALYSIS = 2
 FREE_ANALYSIS_LIMIT = 5
 
+# Tier-specific constants (3-tier flow)
+CREDITS_PER_CV_ANALYSIS = 2    # Tier 1: CV-only analysis
+CREDITS_PER_JD_ANALYSIS = 3    # Tier 2: CV vs JD matching
+CREDITS_PER_CV_REWRITE = 5     # Tier 3: CV rewrite (same as CREDITS_PER_REWRITE)
+FREE_CV_ANALYSIS_LIMIT = 1     # First CV analysis is free (requires login)
+
 _razorpay_client = None
 
 

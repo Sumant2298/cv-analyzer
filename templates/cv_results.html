@@ -1,0 +1,374 @@
+{% extends "base.html" %}
+{% block title %}CV Quality Analysis — LevelUpX{% endblock %}
+{% block content %}
+
+{% set score = results.cv_quality_score|default(50) %}
+{% set color = 'emerald' if score >= 70 else ('amber' if score >= 40 else 'red') %}
+
+<!-- Score Hero -->
+<section class="bg-gradient-to-br from-brand-700 via-brand-600 to-emerald-500 text-white">
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
+        <div class="flex flex-col sm:flex-row items-center gap-6">
+            <!-- Score Ring -->
+            <div class="relative w-28 h-28 flex-shrink-0 anim-scale">
+                <svg class="w-28 h-28 -rotate-90" viewBox="0 0 100 100">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="7"/>
+                    <circle cx="50" cy="50" r="42" fill="none"
+                            stroke="{% if score >= 70 %}#4ade80{% elif score >= 40 %}#fbbf24{% else %}#f87171{% endif %}"
+                            stroke-width="7" stroke-linecap="round"
+                            stroke-dasharray="264" stroke-dashoffset="{{ 264 - (264 * score / 100) }}"
+                            class="anim-ring"/>
+                </svg>
+                <div class="absolute inset-0 flex flex-col items-center justify-center">
+                    <span class="text-3xl font-extrabold">{{ score }}</span>
+                    <span class="text-[9px] text-white/60 font-semibold uppercase">Quality</span>
+                </div>
+            </div>
+            <!-- Info -->
+            <div class="text-center sm:text-left flex-1">
+                <h1 class="text-2xl font-extrabold mb-1">CV Quality Analysis</h1>
+                <p class="text-sm text-white/70 mb-3">
+                    {% if score >= 70 %}Your CV is well-structured and professionally written.
+                    {% elif score >= 50 %}Your CV has a solid foundation with room for improvement.
+                    {% elif score >= 30 %}Your CV needs significant improvements to stand out.
+                    {% else %}Your CV requires a major overhaul — see suggestions below.
+                    {% endif %}
+                </p>
+                <!-- Quick Stats -->
+                <div class="flex flex-wrap justify-center sm:justify-start gap-3">
+                    <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5 text-center">
+                        <span class="text-xs text-white/60">Words</span>
+                        <span class="text-sm font-bold ml-1">{{ results.text_stats.word_count|default(0) }}</span>
+                    </div>
+                    <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5 text-center">
+                        <span class="text-xs text-white/60">Sections</span>
+                        <span class="text-sm font-bold ml-1">{{ results.sections.section_count|default(0) }}</span>
+                    </div>
+                    <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5 text-center">
+                        <span class="text-xs text-white/60">Skills</span>
+                        <span class="text-sm font-bold ml-1">{{ results.skills.total_skills|default(0) }}</span>
+                    </div>
+                    <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5 text-center">
+                        <span class="text-xs text-white/60">Contact</span>
+                        <span class="text-sm font-bold ml-1">{{ results.contact.completeness_score|default(0) }}%</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<div class="max-w-5xl mx-auto px-4 sm:px-6 -mt-5 relative z-10 space-y-5 pb-8">
+
+    <!-- Profile Summary -->
+    {% if results.llm_insights and results.llm_insights.profile_summary %}
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-brand-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-6-3a2 2 0 11-4 0 2 2 0 014 0zm-2 4a5 5 0 00-4.546 2.916A5.986 5.986 0 0010 16a5.986 5.986 0 004.546-2.084A5 5 0 0010 11z" clip-rule="evenodd"/></svg>
+            </div>
+            <h3 class="font-semibold text-slate-800 text-sm">CV Assessment</h3>
+        </div>
+        <p class="text-sm text-slate-600 leading-relaxed">{{ results.llm_insights.profile_summary }}</p>
+    </div>
+    {% endif %}
+
+    <!-- Working Well + Needs Improvement -->
+    {% if results.llm_insights %}
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Working Well -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Working Well</h3>
+            </div>
+            <ul class="space-y-2">
+                {% for item in results.llm_insights.working_well|default([]) %}
+                <li class="flex items-start gap-2 text-sm text-slate-600">
+                    <svg class="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    <span>{{ item }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+        <!-- Needs Improvement -->
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
+            <div class="flex items-center gap-2 mb-3">
+                <div class="w-8 h-8 bg-red-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-red-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Needs Improvement</h3>
+            </div>
+            <ul class="space-y-2">
+                {% for item in results.llm_insights.needs_improvement|default([]) %}
+                <li class="flex items-start gap-2 text-sm text-slate-600">
+                    <svg class="w-4 h-4 text-red-400 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                    <span>{{ item }}</span>
+                </li>
+                {% endfor %}
+            </ul>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- CV Quality Breakdown -->
+    <details open class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-1">
+        <summary class="flex items-center justify-between cursor-pointer p-5 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Quality Score Breakdown</h3>
+            </div>
+            <div class="flex gap-0.5">
+                {% for item in results.quality_breakdown|default([]) %}
+                <div class="w-5 h-2.5 rounded-sm {% if item.score >= 70 %}bg-emerald-400{% elif item.score >= 40 %}bg-amber-400{% else %}bg-red-400{% endif %}"></div>
+                {% endfor %}
+            </div>
+        </summary>
+        <div class="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {% for item in results.quality_breakdown|default([]) %}
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="flex items-center justify-between mb-2">
+                    <span class="text-xs font-semibold text-slate-700">{{ item.label }}</span>
+                    <span class="text-xs text-slate-400">{{ item.weight }}%</span>
+                </div>
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-lg font-extrabold {% if item.score >= 70 %}text-emerald-600{% elif item.score >= 40 %}text-amber-600{% else %}text-red-600{% endif %}">{{ item.score }}</span>
+                    <div class="flex-1 bg-slate-200 rounded-full h-1.5">
+                        <div class="h-1.5 rounded-full anim-bar {% if item.score >= 70 %}bg-emerald-400{% elif item.score >= 40 %}bg-amber-400{% else %}bg-red-400{% endif %}" style="width:{{ item.score }}%"></div>
+                    </div>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-relaxed">{{ item.rationale }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+
+    <!-- Section Analysis -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-2">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"/></svg>
+            </div>
+            <h3 class="font-semibold text-slate-800 text-sm">Section Analysis</h3>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {% for section in results.sections.sections_found|default([]) %}
+            <div class="flex items-center gap-2 bg-emerald-50 rounded-lg px-3 py-2">
+                <svg class="w-4 h-4 text-emerald-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                <span class="text-sm font-medium text-emerald-700">{{ section }}</span>
+            </div>
+            {% endfor %}
+            {% for section in results.sections.sections_missing|default([]) %}
+            <div class="flex items-center gap-2 bg-red-50 rounded-lg px-3 py-2">
+                <svg class="w-4 h-4 text-red-400 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"/></svg>
+                <span class="text-sm font-medium text-red-600">{{ section }}</span>
+                <span class="text-[10px] text-red-400">(missing)</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Action Verb Analysis -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-2">
+        <div class="flex items-center gap-2 mb-3">
+            <div class="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <div>
+                <h3 class="font-semibold text-slate-800 text-sm">Action Verb Analysis</h3>
+                <p class="text-[10px] text-slate-400">{{ results.verbs.strong_verb_count|default(0) }} strong, {{ results.verbs.weak_verb_count|default(0) }} weak out of {{ results.verbs.total_bullets_analyzed|default(0) }} bullets</p>
+            </div>
+        </div>
+        {% if results.verbs.strong_verbs_found %}
+        <div class="mb-3">
+            <p class="text-xs font-semibold text-emerald-600 mb-1.5">Strong Verbs</p>
+            <div class="flex flex-wrap gap-1.5">
+                {% for verb in results.verbs.strong_verbs_found %}
+                <span class="bg-emerald-50 text-emerald-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-emerald-200">{{ verb }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if results.verbs.weak_verbs_found %}
+        <div class="mb-3">
+            <p class="text-xs font-semibold text-red-500 mb-1.5">Weak Verbs — Replace These</p>
+            <div class="flex flex-wrap gap-1.5">
+                {% for verb in results.verbs.weak_verbs_found %}
+                <span class="bg-red-50 text-red-600 text-xs font-medium px-2.5 py-1 rounded-lg border border-red-200 line-through">{{ verb }}</span>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        {% if results.verbs.suggestions %}
+        <div class="space-y-1.5 mt-3">
+            {% for suggestion in results.verbs.suggestions %}
+            <p class="text-xs text-slate-500 flex items-start gap-1.5">
+                <svg class="w-3.5 h-3.5 text-amber-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/></svg>
+                {{ suggestion }}
+            </p>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </div>
+
+    <!-- Skills Detected -->
+    {% if results.skills.total_skills > 0 %}
+    <details open class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-2">
+        <summary class="flex items-center justify-between cursor-pointer p-5 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Skills Detected ({{ results.skills.total_skills }})</h3>
+            </div>
+        </summary>
+        <div class="px-5 pb-5 space-y-3">
+            {% for category, skills_list in results.skills.by_category.items() %}
+            {% if skills_list %}
+            <div>
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{{ category|replace('_', ' ')|title }}</p>
+                <div class="flex flex-wrap gap-1.5">
+                    {% for skill in skills_list %}
+                    <span class="bg-brand-50 text-brand-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-brand-200">{{ skill }}</span>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- General Suggestions -->
+    {% if results.suggestions %}
+    <details open class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-3">
+        <summary class="flex items-center justify-between cursor-pointer p-5 hover:bg-slate-50 transition">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1z"/><path fill-rule="evenodd" d="M8 10a2 2 0 114 0 2 2 0 01-4 0zm2 4a4 4 0 100-8 4 4 0 000 8z" clip-rule="evenodd"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Improvement Suggestions</h3>
+            </div>
+        </summary>
+        <div class="px-5 pb-5 space-y-3">
+            {% for s in results.suggestions %}
+            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div class="flex items-center gap-2 mb-1.5">
+                    <span class="inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded-full
+                        {% if s.priority == 'high' %}bg-red-100 text-red-600
+                        {% elif s.priority == 'medium' %}bg-amber-100 text-amber-600
+                        {% else %}bg-slate-200 text-slate-500{% endif %}">{{ s.priority }}</span>
+                    <h4 class="font-semibold text-slate-700 text-sm">{{ s.title }}</h4>
+                </div>
+                <p class="text-xs text-slate-500 leading-relaxed">{{ s.body }}</p>
+            </div>
+            {% endfor %}
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- CTA: Match Against Job Description -->
+    <div class="bg-gradient-to-br from-emerald-500 via-emerald-600 to-brand-600 rounded-2xl shadow-xl p-6 text-white anim-fade-up-4">
+        <div class="text-center mb-5">
+            <h2 class="text-xl font-extrabold mb-2">Match Your CV Against a Job Description</h2>
+            <p class="text-sm text-white/70">Get ATS score, skill gap analysis, and role-specific suggestions (3 credits)</p>
+        </div>
+        <form action="{{ url_for('analyze_jd') }}" method="post" enctype="multipart/form-data" id="jd-form">
+            <div class="bg-white rounded-xl overflow-hidden mb-4">
+                <!-- JD Tabs -->
+                <div class="flex border-b border-slate-200" role="tablist">
+                    <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-emerald-500 text-emerald-600" data-target="jd-upload" onclick="switchTab('jd', this, 'jd-upload')">Upload File</button>
+                    <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" data-target="jd-paste" onclick="switchTab('jd', this, 'jd-paste')">Paste Text</button>
+                    <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" data-target="jd-url" onclick="switchTab('jd', this, 'jd-url')">Job URL</button>
+                </div>
+                <div class="p-5">
+                    <div id="jd-upload" class="jd-panel">
+                        <label class="flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition group">
+                            <svg class="w-8 h-8 text-slate-300 group-hover:text-emerald-400 transition mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                            <span class="text-sm text-slate-500 group-hover:text-emerald-600 transition font-medium">Drop JD file or click to browse</span>
+                            <span class="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT</span>
+                            <input type="file" name="jd_file" accept=".pdf,.docx,.txt" class="hidden" id="jd_file_input">
+                        </label>
+                        <p class="text-xs text-emerald-600 font-medium mt-2 hidden" id="jd_file_label"></p>
+                    </div>
+                    <div id="jd-paste" class="jd-panel hidden">
+                        <textarea name="jd_text" rows="5" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-y placeholder:text-slate-400" placeholder="Paste the full job description here..."></textarea>
+                    </div>
+                    <div id="jd-url" class="jd-panel hidden">
+                        <div class="space-y-3">
+                            <div class="flex items-center gap-2 p-3 bg-emerald-50 rounded-xl">
+                                <svg class="w-5 h-5 text-emerald-600 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                                <span class="text-xs text-emerald-700">Paste any job posting URL from Indeed, LinkedIn, Glassdoor, etc.</span>
+                            </div>
+                            <input type="url" name="jd_url" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-slate-400" placeholder="https://www.indeed.com/viewjob?jk=...">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="text-center">
+                <button type="submit" id="jdSubmitBtn" class="inline-flex items-center gap-2 bg-white text-emerald-700 font-bold py-3 px-8 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-50 transition-all text-base">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    <span id="jdBtnText">Analyze Against JD (3 credits)</span>
+                    <svg id="jdBtnSpinner" class="w-5 h-5 spinner hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Action Buttons -->
+    <div class="flex flex-wrap justify-center gap-4 py-3 no-print">
+        <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Analyze Another CV
+        </a>
+        <button onclick="window.print()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+            Print Results
+        </button>
+    </div>
+
+    <div class="text-center text-xs text-slate-400">
+        <p>Credits remaining: <span class="font-semibold text-slate-600">{{ credits_remaining }}</span></p>
+    </div>
+</div>
+
+<script>
+function switchTab(group, btn, targetId) {
+    const tabClass = group + '-tab';
+    const panelClass = group + '-panel';
+    document.querySelectorAll('.' + tabClass).forEach(t => {
+        t.className = t.className.replace(/border-brand-500|border-emerald-500/g, 'border-transparent')
+                                   .replace(/text-brand-600|text-emerald-600/g, 'text-slate-400');
+    });
+    btn.classList.remove('border-transparent', 'text-slate-400');
+    'border-emerald-500 text-emerald-600'.split(' ').forEach(c => btn.classList.add(c));
+    document.querySelectorAll('.' + panelClass).forEach(p => p.classList.add('hidden'));
+    document.getElementById(targetId).classList.remove('hidden');
+}
+
+const jdInput = document.getElementById('jd_file_input');
+if (jdInput) {
+    jdInput.addEventListener('change', function() {
+        const label = document.getElementById('jd_file_label');
+        if (this.files.length > 0) {
+            label.textContent = 'Selected: ' + this.files[0].name;
+            label.classList.remove('hidden');
+        } else { label.classList.add('hidden'); }
+    });
+}
+
+document.getElementById('jd-form').addEventListener('submit', function() {
+    const btn = document.getElementById('jdSubmitBtn');
+    const text = document.getElementById('jdBtnText');
+    const spin = document.getElementById('jdBtnSpinner');
+    btn.disabled = true;
+    btn.classList.add('opacity-80', 'cursor-wait');
+    text.textContent = 'Analyzing against JD...';
+    spin.classList.remove('hidden');
+});
+</script>
+{% endblock %}

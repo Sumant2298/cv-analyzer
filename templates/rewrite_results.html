@@ -54,7 +54,90 @@
         </ul>
     </div>
 
-    <!-- Rewritten CV -->
+    <!-- Side-by-Side Comparison -->
+    {% if cv_diff %}
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-1">
+        <div class="flex items-center justify-between p-5 border-b border-slate-100">
+            <div class="flex items-center gap-2">
+                <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
+                    <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                </div>
+                <h3 class="font-semibold text-slate-800 text-sm">Side-by-Side Comparison</h3>
+            </div>
+            <!-- Mobile tab toggle -->
+            <div class="flex sm:hidden gap-1 bg-slate-100 rounded-lg p-0.5">
+                <button onclick="showDiffTab('original')" id="diffTabOriginal" class="text-xs font-medium px-3 py-1 rounded-md bg-white shadow text-slate-700">Original</button>
+                <button onclick="showDiffTab('rewritten')" id="diffTabRewritten" class="text-xs font-medium px-3 py-1 rounded-md text-slate-400">Rewritten</button>
+            </div>
+        </div>
+
+        <!-- Desktop: side-by-side -->
+        <div class="hidden sm:grid sm:grid-cols-2 divide-x divide-slate-200 max-h-[600px] overflow-y-auto">
+            <!-- Original Column -->
+            <div>
+                <div class="sticky top-0 bg-red-50 px-4 py-2 border-b border-red-200">
+                    <span class="text-xs font-bold text-red-600">Original CV</span>
+                </div>
+                <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
+                    {% for line in cv_diff %}
+                    {% if line.type == 'unchanged' %}
+                    <div class="text-slate-500 py-0.5 whitespace-pre-wrap">{{ line.original_text }}</div>
+                    {% elif line.type == 'removed' %}
+                    <div class="bg-red-50 text-red-700 py-0.5 px-1 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
+                    {% elif line.type == 'modified' %}
+                    <div class="bg-red-50 text-red-700 py-0.5 px-1 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
+                    {% elif line.type == 'added' %}
+                    <div class="py-0.5 invisible whitespace-pre-wrap">&nbsp;</div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+            <!-- Rewritten Column -->
+            <div>
+                <div class="sticky top-0 bg-emerald-50 px-4 py-2 border-b border-emerald-200">
+                    <span class="text-xs font-bold text-emerald-600">Rewritten CV</span>
+                </div>
+                <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
+                    {% for line in cv_diff %}
+                    {% if line.type == 'unchanged' %}
+                    <div class="text-slate-600 py-0.5 whitespace-pre-wrap">{{ line.new_text }}</div>
+                    {% elif line.type == 'added' %}
+                    <div class="bg-emerald-50 text-emerald-700 py-0.5 px-1 rounded font-medium whitespace-pre-wrap">{{ line.new_text }}</div>
+                    {% elif line.type == 'modified' %}
+                    <div class="bg-emerald-50 text-emerald-700 py-0.5 px-1 rounded font-medium whitespace-pre-wrap">{{ line.new_text }}</div>
+                    {% elif line.type == 'removed' %}
+                    <div class="py-0.5 invisible whitespace-pre-wrap">&nbsp;</div>
+                    {% endif %}
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Mobile: stacked with tabs -->
+        <div class="sm:hidden max-h-[500px] overflow-y-auto">
+            <div id="mobileOriginal" class="p-4 text-sm font-mono leading-relaxed space-y-0">
+                {% for line in cv_diff %}
+                {% if line.type == 'unchanged' %}
+                <div class="text-slate-500 py-0.5 whitespace-pre-wrap">{{ line.original_text }}</div>
+                {% elif line.type == 'removed' or line.type == 'modified' %}
+                <div class="bg-red-50 text-red-700 py-0.5 px-1 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+            <div id="mobileRewritten" class="p-4 text-sm font-mono leading-relaxed space-y-0 hidden">
+                {% for line in cv_diff %}
+                {% if line.type == 'unchanged' %}
+                <div class="text-slate-600 py-0.5 whitespace-pre-wrap">{{ line.new_text }}</div>
+                {% elif line.type == 'added' or line.type == 'modified' %}
+                <div class="bg-emerald-50 text-emerald-700 py-0.5 px-1 rounded font-medium whitespace-pre-wrap">{{ line.new_text }}</div>
+                {% endif %}
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Full Rewritten CV (copyable) -->
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-1">
         <div class="flex items-center justify-between mb-4">
             <div class="flex items-center gap-2">
@@ -102,6 +185,29 @@ function copyCV() {
             btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy Text';
         }, 2000);
     });
+}
+
+function showDiffTab(tab) {
+    const origBtn = document.getElementById('diffTabOriginal');
+    const rewBtn = document.getElementById('diffTabRewritten');
+    const origDiv = document.getElementById('mobileOriginal');
+    const rewDiv = document.getElementById('mobileRewritten');
+
+    if (tab === 'original') {
+        origBtn.classList.add('bg-white', 'shadow', 'text-slate-700');
+        origBtn.classList.remove('text-slate-400');
+        rewBtn.classList.remove('bg-white', 'shadow', 'text-slate-700');
+        rewBtn.classList.add('text-slate-400');
+        origDiv.classList.remove('hidden');
+        rewDiv.classList.add('hidden');
+    } else {
+        rewBtn.classList.add('bg-white', 'shadow', 'text-slate-700');
+        rewBtn.classList.remove('text-slate-400');
+        origBtn.classList.remove('bg-white', 'shadow', 'text-slate-700');
+        origBtn.classList.add('text-slate-400');
+        rewDiv.classList.remove('hidden');
+        origDiv.classList.add('hidden');
+    }
 }
 </script>
 

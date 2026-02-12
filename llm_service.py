@@ -5,11 +5,11 @@ Primary LLM: Gemini 2.5 Flash via Google AI Studio (OpenAI-compatible endpoint)
   - $0.30/1M input, $2.50/1M output tokens
   - Excellent structured JSON output
 
-All analysis is performed via LLM — no NLP libraries needed.
-Three focused LLM calls:
-  1. Skills & scoring (structured extraction)
-  2. Recruiter insights (narrative feedback)
-  3. CV rewrite (on-demand, paid)
+Four LLM calls (three for CV+JD analysis, one lightweight for CV-only):
+  0. CV-only review (Tier 1 — uses NLP + small LLM call)
+  1. Skills & scoring (Tier 2 — structured extraction)
+  2. Recruiter insights (Tier 2 — narrative feedback)
+  3. CV rewrite (Tier 3 — on-demand, paid)
 """
 
 import json
@@ -860,6 +860,200 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
                 len(result['changes_summary']),
                 result['expected_ats_improvement'])
     return result
+
+
+# ---------------------------------------------------------------------------
+# Call 0: CV-Only Review (Tier 1 — NLP-heavy, small LLM call)
+# ---------------------------------------------------------------------------
+
+_CV_ONLY_SYSTEM = """You are an expert CV reviewer and career coach with 15+ years of hiring experience. You evaluate CVs for quality, structure, and professional presentation WITHOUT comparing to any job description.
+
+RULES:
+- Output ONLY a valid JSON object.
+- Address the candidate in 2nd person (you/your).
+- Be specific: reference actual content from the CV.
+- Be constructive: identify strengths AND actionable improvements.
+- Do NOT discuss job fit, ATS matching, or JD alignment — this is a standalone CV quality review.
+- Do NOT reproduce or echo CV text."""
+
+
+def _build_cv_only_prompt(cv_text: str, nlp_results: dict) -> str:
+    """Build prompt for CV-only qualitative feedback, using NLP results as context."""
+    # Summarise NLP findings for the LLM
+    sections = nlp_results.get('sections', {})
+    verbs = nlp_results.get('verbs', {})
+    quant = nlp_results.get('quantification', {})
+    contact = nlp_results.get('contact', {})
+    formatting = nlp_results.get('formatting', {})
+    skills = nlp_results.get('skills', {})
+
+    nlp_summary = f"""NLP Analysis Summary:
+- CV Quality Score: {nlp_results.get('cv_quality_score', 'N/A')}/100
+- Sections found: {', '.join(sections.get('sections_found', []))}
+- Sections missing: {', '.join(sections.get('sections_missing', []))}
+- Word count: {formatting.get('word_count', 0)}
+- Bullet points: {formatting.get('bullet_count', 0)}
+- Strong action verbs: {verbs.get('strong_verb_count', 0)} ({', '.join(verbs.get('strong_verbs_found', [])[:5])})
+- Weak action verbs: {verbs.get('weak_verb_count', 0)} ({', '.join(verbs.get('weak_verbs_found', [])[:5])})
+- Bullets with metrics: {quant.get('bullets_with_metrics', 0)}/{quant.get('total_bullets', 0)}
+- Contact: email={contact.get('email', '?')}, phone={contact.get('phone', '?')}, linkedin={contact.get('linkedin', '?')}
+- Skills detected: {skills.get('total_skills', 0)} across {sum(1 for v in skills.get('category_coverage', {}).values() if v > 0)} categories"""
+
+    return f"""Review this CV for overall quality and professional presentation. I've already run NLP analysis — use it as context, but add your qualitative insights.
+
+{nlp_summary}
+
+<CV>
+{cv_text[:5000]}
+</CV>
+
+Return this JSON:
+{{
+  "profile_summary": "3-4 sentences assessing the CV's overall quality, structure, and presentation. Be specific about what stands out.",
+  "working_well": [
+    "Strength 1 referencing specific CV content",
+    "Strength 2",
+    "Strength 3"
+  ],
+  "needs_improvement": [
+    "Issue 1 with specific actionable advice",
+    "Issue 2",
+    "Issue 3"
+  ],
+  "general_suggestions": [
+    {{
+      "title": "Short title for the suggestion",
+      "body": "2-3 sentences explaining why this matters and how to fix it",
+      "priority": "high"
+    }},
+    {{
+      "title": "Another suggestion",
+      "body": "Explanation",
+      "priority": "medium"
+    }}
+  ]
+}}
+
+Requirements:
+- 3-5 items in working_well
+- 3-5 items in needs_improvement
+- 5-7 items in general_suggestions (first 2 high priority, next 2 medium, rest low)
+- Be specific to THIS CV — no generic advice
+- Do NOT suggest matching to a job description (user hasn't provided one yet)
+- Focus on: writing quality, structure, impact, clarity, completeness"""
+
+
+def analyze_cv_only(cv_text: str) -> dict:
+    """Tier 1: CV-only analysis. NLP-heavy, minimal LLM.
+
+    Returns a template-ready dict combining NLP analysis and optional
+    LLM qualitative feedback.
+    """
+    import nlp_service
+
+    # 1. Run all local NLP analysis
+    nlp_results = nlp_service.analyze_cv_standalone(cv_text)
+    logger.info('NLP analysis complete: quality_score=%d, %d skills, %d sections',
+                nlp_results.get('cv_quality_score', 0),
+                nlp_results.get('skills', {}).get('total_skills', 0),
+                nlp_results.get('sections', {}).get('section_count', 0))
+
+    # 2. Small LLM call for qualitative feedback (optional — degrades gracefully)
+    try:
+        if LLM_ENABLED:
+            prompt = _build_cv_only_prompt(cv_text, nlp_results)
+            logger.info('LLM call 0: CV-only review (%d chars)', len(prompt))
+            llm_data = _call_llm(_CV_ONLY_SYSTEM, prompt, max_tokens=4000,
+                                  temperature=0.3, timeout=60.0)
+
+            nlp_results['llm_insights'] = {
+                'profile_summary': str(llm_data.get('profile_summary', '')),
+                'working_well': [str(s) for s in llm_data.get('working_well', [])
+                                 if isinstance(s, str) and s.strip()],
+                'needs_improvement': [str(s) for s in llm_data.get('needs_improvement', [])
+                                      if isinstance(s, str) and s.strip()],
+            }
+
+            suggestions = []
+            for s in llm_data.get('general_suggestions', []):
+                if isinstance(s, dict) and s.get('title'):
+                    suggestions.append({
+                        'title': str(s.get('title', '')),
+                        'body': str(s.get('body', '')),
+                        'priority': str(s.get('priority', 'medium')),
+                    })
+            nlp_results['suggestions'] = suggestions or _default_cv_suggestions()
+
+            nlp_results['llm_enhanced'] = True
+            logger.info('LLM CV-only review complete: %d suggestions',
+                        len(nlp_results['suggestions']))
+        else:
+            raise RuntimeError('LLM not enabled')
+
+    except Exception as e:
+        logger.warning('CV-only LLM call failed, using NLP-only results: %s', e)
+        nlp_results['llm_insights'] = {
+            'profile_summary': _generate_nlp_only_summary(nlp_results),
+            'working_well': nlp_results.get('formatting', {}).get('strengths', []),
+            'needs_improvement': nlp_results.get('formatting', {}).get('issues', []),
+        }
+        nlp_results['suggestions'] = _default_cv_suggestions()
+        nlp_results['llm_enhanced'] = False
+
+    return nlp_results
+
+
+def _generate_nlp_only_summary(nlp_results: dict) -> str:
+    """Generate a profile summary from NLP results when LLM is unavailable."""
+    score = nlp_results.get('cv_quality_score', 50)
+    skills_count = nlp_results.get('skills', {}).get('total_skills', 0)
+    sections = nlp_results.get('sections', {}).get('sections_found', [])
+    word_count = nlp_results.get('formatting', {}).get('word_count', 0)
+
+    if score >= 70:
+        quality = 'well-structured'
+    elif score >= 50:
+        quality = 'reasonably structured'
+    else:
+        quality = 'in need of improvement'
+
+    return (
+        f'Your CV is {quality} with a quality score of {score}/100. '
+        f'It contains {word_count} words across {len(sections)} sections '
+        f'with {skills_count} identifiable skills. '
+        f'Review the detailed breakdown below for specific areas to improve.'
+    )
+
+
+def _default_cv_suggestions() -> list:
+    """Default suggestions when LLM is unavailable."""
+    return [
+        {
+            'title': 'Strengthen Your Action Verbs',
+            'body': 'Replace weak verbs like "managed" or "helped" with strong action verbs like "orchestrated", "engineered", or "spearheaded" to make your achievements more impactful.',
+            'priority': 'high',
+        },
+        {
+            'title': 'Quantify Your Achievements',
+            'body': 'Add specific numbers, percentages, and scale indicators to your bullet points. "Improved API performance by 40%" is far more compelling than "Improved API performance".',
+            'priority': 'high',
+        },
+        {
+            'title': 'Ensure All Key Sections Are Present',
+            'body': 'A strong CV includes Summary, Experience, Education, and Skills sections at minimum. Add any that are missing to give recruiters a complete picture.',
+            'priority': 'medium',
+        },
+        {
+            'title': 'Optimise CV Length',
+            'body': 'Aim for 300-800 words (1-2 pages). Remove outdated or irrelevant entries and focus on your most impactful recent experience.',
+            'priority': 'medium',
+        },
+        {
+            'title': 'Add Contact Information',
+            'body': 'Include email, phone number, and LinkedIn profile URL at the top of your CV. This makes it easy for recruiters to reach you.',
+            'priority': 'low',
+        },
+    ]
 
 
 # ---------------------------------------------------------------------------

@@ -639,7 +639,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
 # Helpers
 # ---------------------------------------------------------------------------
 
-def _refund_analysis_credits(user_id: int, credits: int):
+def _refund_analysis_credits(user_id: int, credits: int, action: str = 'refund_cv_analysis'):
     """Refund credits when analysis fails after deduction."""
     try:
         user = User.query.get(user_id)
@@ -649,13 +649,46 @@ def _refund_analysis_credits(user_id: int, credits: int):
             refund = CreditUsage(
                 user_id=user_id,
                 credits_used=-credits,
-                action='refund_cv_analysis',
+                action=action,
             )
             db.session.add(refund)
             db.session.commit()
-            logger.info('Refunded %d credits to user %d (analysis failed)', credits, user_id)
+            logger.info('Refunded %d credits to user %d (%s)', credits, user_id, action)
     except Exception as e:
         logger.error('Failed to refund credits to user %d: %s', user_id, e)
+
+
+def _compute_cv_diff(original: str, rewritten: str) -> list:
+    """Compare original and rewritten CV line-by-line for side-by-side display.
+
+    Returns a list of dicts: {type: 'unchanged'|'removed'|'added'|'modified',
+                               original_text: str, new_text: str}
+    """
+    import difflib
+    orig_lines = original.strip().split('\n')
+    new_lines = rewritten.strip().split('\n')
+
+    sm = difflib.SequenceMatcher(None, orig_lines, new_lines)
+    diff = []
+
+    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+        if tag == 'equal':
+            for line in orig_lines[i1:i2]:
+                diff.append({'type': 'unchanged', 'original_text': line, 'new_text': line})
+        elif tag == 'replace':
+            max_len = max(i2 - i1, j2 - j1)
+            for k in range(max_len):
+                orig = orig_lines[i1 + k] if i1 + k < i2 else ''
+                new = new_lines[j1 + k] if j1 + k < j2 else ''
+                diff.append({'type': 'modified', 'original_text': orig, 'new_text': new})
+        elif tag == 'delete':
+            for line in orig_lines[i1:i2]:
+                diff.append({'type': 'removed', 'original_text': line, 'new_text': ''})
+        elif tag == 'insert':
+            for line in new_lines[j1:j2]:
+                diff.append({'type': 'added', 'original_text': '', 'new_text': line})
+
+    return diff
 
 
 # ---------------------------------------------------------------------------
@@ -669,11 +702,12 @@ def index():
     if _oauth_enabled and session.get('user_id'):
         user = User.query.get(session['user_id'])
         if user:
-            from payments import FREE_ANALYSIS_LIMIT
+            from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS
             user_data = {
                 'analysis_count': user.analysis_count,
                 'credits': user.credits,
-                'free_remaining': max(0, FREE_ANALYSIS_LIMIT - user.analysis_count),
+                'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
+                'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
             }
     return render_template('index.html', user_data=user_data)
 
@@ -773,10 +807,17 @@ def account():
 
 @app.route('/analyze', methods=['POST'])
 def analyze():
-    # ---- Login gate: require sign-in ----
+    """Legacy route — redirect to new CV-only analysis."""
+    return redirect(url_for('analyze_cv'), code=307)
+
+
+@app.route('/analyze-cv', methods=['POST'])
+def analyze_cv():
+    """Tier 1: CV-only analysis (NLP + small LLM call)."""
+    # ---- Login gate ----
     if not _oauth_enabled or not session.get('user_id'):
         session['_login_next'] = url_for('index')
-        flash('Please sign in to analyze your CV. Get 5 free analyses on signup!', 'warning')
+        flash('Please sign in to analyze your CV. First analysis is FREE!', 'warning')
         return redirect(url_for('login_page'))
 
     user_id = session['user_id']
@@ -785,22 +826,19 @@ def analyze():
         flash('Session expired. Please sign in again.', 'error')
         return redirect(url_for('login_page'))
 
-    # ---- Credit check: first 5 free, then 2 credits each ----
-    from payments import CREDITS_PER_ANALYSIS, FREE_ANALYSIS_LIMIT
+    # ---- Credit check: first analysis free, then 2 credits ----
+    from payments import CREDITS_PER_CV_ANALYSIS, FREE_CV_ANALYSIS_LIMIT, deduct_credits
     credits_charged = False
 
-    if user.analysis_count >= FREE_ANALYSIS_LIMIT:
-        if user.credits < CREDITS_PER_ANALYSIS:
-            flash(f'You need {CREDITS_PER_ANALYSIS} credits to analyze. '
-                  f'You have {user.credits}. Your 5 free analyses are used up.', 'warning')
+    if user.analysis_count >= FREE_CV_ANALYSIS_LIMIT:
+        if user.credits < CREDITS_PER_CV_ANALYSIS:
+            flash(f'You need {CREDITS_PER_CV_ANALYSIS} credits to analyze your CV. '
+                  f'You have {user.credits}.', 'warning')
             return redirect(url_for('buy_credits'))
-
-        from payments import deduct_credits
-        if not deduct_credits(user_id, CREDITS_PER_ANALYSIS, action='cv_analysis'):
-            flash(f'Insufficient credits. You need {CREDITS_PER_ANALYSIS} credits.', 'warning')
+        if not deduct_credits(user_id, CREDITS_PER_CV_ANALYSIS, action='cv_analysis'):
+            flash(f'Insufficient credits. You need {CREDITS_PER_CV_ANALYSIS} credits.', 'warning')
             return redirect(url_for('buy_credits'))
         credits_charged = True
-        # Refresh session credit balance
         user = User.query.get(user_id)
         session['user_credits'] = user.credits
 
@@ -811,26 +849,94 @@ def analyze():
             'cv_file', 'cv_text', url_field='cv_url',
             save_cv=consent_given, url_extractor=_extract_from_linkedin_url,
             user_email=user.email if consent_given else None)
+    except Exception as e:
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
+        flash(f'Error reading input: {e}', 'error')
+        return redirect(url_for('index'))
+
+    if not cv_text:
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
+        flash('Could not get CV content. Please try uploading a file or pasting text.', 'error')
+        return redirect(url_for('index'))
+
+    try:
+        from llm_service import analyze_cv_only
+        results = analyze_cv_only(cv_text)
+    except Exception as e:
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
+        logger.error('CV analysis error: %s', e, exc_info=True)
+        flash(f'Analysis error: {e}', 'error')
+        return redirect(url_for('index'))
+
+    # Store CV text + analysis data server-side
+    session['_data_token'] = _save_session_data({
+        'cv_text': cv_text[:20000],
+        'cv_analysis_results': results,
+        'tier': 1,
+    })
+
+    # Track usage
+    try:
+        track_analysis(user_id)
+        session['user_credits'] = User.query.get(user_id).credits
+    except Exception:
+        pass
+
+    return render_template('cv_results.html', results=results,
+                           credits_remaining=user.credits if user else 0)
+
+
+@app.route('/analyze-jd', methods=['POST'])
+def analyze_jd():
+    """Tier 2: CV vs JD analysis (full LLM pipeline)."""
+    # ---- Login gate ----
+    if not _oauth_enabled or not session.get('user_id'):
+        session['_login_next'] = url_for('index')
+        flash('Please sign in to analyze against a job description.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    # Must have CV from Tier 1
+    data = _load_session_data(session.get('_data_token', ''))
+    cv_text = data.get('cv_text', '')
+    if not cv_text:
+        flash('Please analyze your CV first before matching against a job description.', 'warning')
+        return redirect(url_for('index'))
+
+    # ---- Credit check: always 3 credits for JD analysis ----
+    from payments import CREDITS_PER_JD_ANALYSIS, deduct_credits
+    if user.credits < CREDITS_PER_JD_ANALYSIS:
+        flash(f'You need {CREDITS_PER_JD_ANALYSIS} credits for JD analysis. '
+              f'You have {user.credits}.', 'warning')
+        return redirect(url_for('buy_credits'))
+    if not deduct_credits(user_id, CREDITS_PER_JD_ANALYSIS, action='jd_analysis'):
+        flash(f'Insufficient credits. You need {CREDITS_PER_JD_ANALYSIS} credits.', 'warning')
+        return redirect(url_for('buy_credits'))
+
+    user = User.query.get(user_id)
+    session['user_credits'] = user.credits
+
+    # Process JD input
+    try:
         jd_text = _process_input(
             'jd_file', 'jd_text', url_field='jd_url',
             save_cv=False, url_extractor=_extract_from_jd_url)
     except Exception as e:
-        # Refund credits if input processing failed
-        if credits_charged:
-            _refund_analysis_credits(user_id, CREDITS_PER_ANALYSIS)
-        flash(f'Error reading input: {e}', 'error')
+        _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
+        flash(f'Error reading JD: {e}', 'error')
         return redirect(url_for('index'))
 
-    if not cv_text or not jd_text:
-        # Refund credits if no valid input
-        if credits_charged:
-            _refund_analysis_credits(user_id, CREDITS_PER_ANALYSIS)
-        if not cv_text and not jd_text:
-            flash('Please provide both a CV and a Job Description.', 'error')
-        elif not cv_text:
-            flash('Could not get CV content. Please try uploading a file or pasting text.', 'error')
-        else:
-            flash('Could not get JD content. Please try uploading a file or pasting text.', 'error')
+    if not jd_text:
+        _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
+        flash('Could not get Job Description content. Please try again.', 'error')
         return redirect(url_for('index'))
 
     if len(jd_text.split()) < 10:
@@ -839,16 +945,14 @@ def analyze():
     try:
         results = analyze_cv_against_jd(cv_text, jd_text)
     except Exception as e:
-        # Refund credits if LLM analysis failed
-        if credits_charged:
-            _refund_analysis_credits(user_id, CREDITS_PER_ANALYSIS)
-        logger.error('Analysis error: %s', e, exc_info=True)
+        _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
+        logger.error('JD analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
         return redirect(url_for('index'))
 
-    # Store CV text + JD text + analysis data server-side (too large for cookie session)
-    analysis_data = {
-        'cv_text': cv_text[:20000],
+    # Update session data — add JD results to existing CV data
+    token = session.get('_data_token', '')
+    session['_data_token'] = _update_session_data(token, {
         'jd_text': jd_text[:15000],
         'analysis_results': {
             'ats_score': results.get('ats_score', 0),
@@ -857,15 +961,8 @@ def analyze():
             'missing_verbs': results.get('experience_analysis', {}).get('missing_action_verbs', [])[:10],
             'skill_score': results.get('skill_match', {}).get('skill_score', 0),
         },
-    }
-    session['_data_token'] = _save_session_data(analysis_data)
-
-    # Track usage (increments analysis_count)
-    try:
-        track_analysis(user_id)
-        session['user_credits'] = User.query.get(user_id).credits
-    except Exception:
-        pass  # non-critical
+        'tier': 2,
+    })
 
     return render_template('results.html', results=results)
 
@@ -975,6 +1072,9 @@ def rewrite_cv_action():
         flash(f'Rewrite failed: {e}. Your credits have been refunded.', 'error')
         return redirect(url_for('index'))
 
+    # Compute side-by-side diff
+    cv_diff = _compute_cv_diff(data['cv_text'], rewrite_result['rewritten_cv'])
+
     # Store rewritten CV server-side for download
     token = session.get('_data_token', '')
     session['_data_token'] = _update_session_data(token, {
@@ -984,7 +1084,9 @@ def rewrite_cv_action():
     return render_template('rewrite_results.html',
                            rewrite=rewrite_result,
                            original_ats=analysis.get('ats_score', 0),
-                           credits_remaining=user.credits if user else 0)
+                           credits_remaining=user.credits if user else 0,
+                           cv_diff=cv_diff,
+                           original_cv=data['cv_text'])
 
 
 @app.route('/download-rewritten-cv')
