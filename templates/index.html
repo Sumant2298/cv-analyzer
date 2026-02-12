@@ -226,7 +226,7 @@
             <span id="btnText">{% if session.get('user_id') %}Analyze My CV{% else %}Sign in to Analyze{% endif %}</span>
             <svg id="btnSpinner" class="w-5 h-5 spinner hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
         </button>
-        <p class="text-xs text-slate-400 mt-3">No job description needed &mdash; just your CV</p>
+        <p id="cvHelperText" class="text-xs text-slate-400 mt-3">No job description needed &mdash; just your CV</p>
     </div>
     </div><!-- /cv-form-container -->
 </form>
@@ -274,13 +274,13 @@
             <span id="jdBtnText">Analyse My CV Against JD</span>
             <span class="text-xs bg-white/20 px-2 py-0.5 rounded font-bold">3 credits</span>
         </button>
-        <p class="text-xs text-slate-400 mt-3">Your CV is already loaded from the previous analysis</p>
+        <p id="jdHelperText" class="text-xs text-slate-400 mt-3">Your CV is already loaded from the previous analysis</p>
     </div>
 </form>
 
 <!-- How it works -->
 <div class="max-w-3xl mx-auto px-4 sm:px-6 pt-16 pb-12">
-    <h2 class="text-center text-2xl sm:text-3xl font-extrabold text-slate-800 mb-3">From Upload to Offer-Ready in 3 Steps</h2>
+    <h2 class="text-center text-lg sm:text-xl font-extrabold text-slate-800 mb-3">From Upload to Offer-Ready in 3 Steps</h2>
     <p class="text-center text-sm text-slate-500 mb-8 max-w-lg mx-auto">Score your CV, match it to any job, and let AI rewrite it for maximum impact.</p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
         <div class="text-center">
@@ -392,6 +392,21 @@ document.getElementById('analyze-form').addEventListener('submit', function() {
     btn.classList.add('opacity-80', 'cursor-wait');
     text.textContent = 'Analyzing...';
     spin.classList.remove('hidden');
+    const helper = document.getElementById('cvHelperText');
+    if (helper) helper.textContent = 'Estimated time: 30–60 seconds';
 });
+
+/* Loading state for JD form on index */
+const jdFormEl = document.getElementById('jd-form');
+if (jdFormEl) {
+    jdFormEl.addEventListener('submit', function() {
+        const btn = document.getElementById('jdSubmitBtn');
+        const text = document.getElementById('jdBtnText');
+        if (btn) { btn.disabled = true; btn.classList.add('opacity-80', 'cursor-wait'); }
+        if (text) text.textContent = 'Analyzing...';
+        const helper = document.getElementById('jdHelperText');
+        if (helper) helper.textContent = 'Estimated time: 30–60 seconds';
+    });
+}
 </script>
 {% endblock %}
