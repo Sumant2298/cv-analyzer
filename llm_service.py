@@ -921,7 +921,7 @@ Return this JSON:
     {{"dimension": "Progression Logic", "score": 6, "rationale": "Short explanation"}},
     {{"dimension": "Signal to Noise Ratio", "score": 5, "rationale": "Short explanation"}},
     {{"dimension": "Formatting Discipline", "score": 8, "rationale": "Short explanation"}},
-    {{"dimension": "Red Flags", "score": 3, "rationale": "Short explanation"}},
+    {{"dimension": "Red Flags", "score": 2, "rationale": "Short explanation — low means clean CV"}},
     {{"dimension": "Credibility Markers", "score": 7, "rationale": "Short explanation"}}
   ],
   "section_summaries": {{
@@ -972,7 +972,7 @@ Requirements:
   - Progression Logic: Is there visible career growth and trajectory?
   - Signal to Noise Ratio: How much of the content is impactful vs filler?
   - Formatting Discipline: Is the layout clean, consistent, and scannable?
-  - Red Flags: Are there gaps, inconsistencies, or concerns? (higher = fewer red flags)
+  - Red Flags: Count of gaps, inconsistencies, or concerns. Score 1-3 if the CV is clean with few issues. Score 7-10 if there are many red flags. (LOW score = good/clean CV)
   - Credibility Markers: Are there quantified results, brand names, certifications?
 - section_summaries: One-line description for EACH section found in the CV: [{sections_found_list}]. Describe what's in the section, not generic advice.
 - 3-5 items in working_well

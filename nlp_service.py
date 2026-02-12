@@ -53,17 +53,17 @@ def _ensure_nltk():
 # ---------------------------------------------------------------------------
 
 _SECTION_PATTERNS = {
-    'Summary': r'(?i)^[\s#*]*(?:summary|profile|objective|professional\s+summary|career\s+summary|about\s+me|overview)\s*$',
-    'Experience': r'(?i)^[\s#*]*(?:experience|work\s+experience|employment|professional\s+experience|work\s+history|career\s+history)\s*$',
-    'Education': r'(?i)^[\s#*]*(?:education|academic|qualifications|degrees?|academic\s+background)\s*$',
-    'Skills': r'(?i)^[\s#*]*(?:skills|technical\s+skills|core\s+competencies|technologies|tech\s+stack|proficiencies|key\s+skills)\s*$',
-    'Projects': r'(?i)^[\s#*]*(?:projects|personal\s+projects|key\s+projects|portfolio|side\s+projects)\s*$',
-    'Certifications': r'(?i)^[\s#*]*(?:certifications?|licenses?|credentials?|professional\s+certifications?)\s*$',
-    'Awards': r'(?i)^[\s#*]*(?:awards?|honors?|achievements?|recognition|accomplishments?)\s*$',
-    'Publications': r'(?i)^[\s#*]*(?:publications?|papers?|research)\s*$',
-    'Hobbies': r'(?i)^[\s#*]*(?:hobbies|interests|activities|extracurricular)\s*$',
-    'Volunteer': r'(?i)^[\s#*]*(?:volunteer(?:ing)?|community|social\s+service)\s*$',
-    'Contact': r'(?i)^[\s#*]*(?:contact\s*(?:info|information|details)?|personal\s*(?:info|details|information)?)\s*$',
+    'Summary': r'(?i)^[\s#*]*(?:summary|profile|objective|professional\s+summary|career\s+summary|about\s+me|overview)[\s&/|,\-—]*\w*\s*$',
+    'Experience': r'(?i)^[\s#*]*(?:experience|work\s+experience|employment|professional\s+experience|work\s+history|career\s+history)[\s&/|,\-—]*\w*\s*$',
+    'Education': r'(?i)^[\s#*]*(?:education|academic|qualifications|degrees?|academic\s+background)(?:[\s&/|,\-—]+\w+)*\s*$',
+    'Skills': r'(?i)^[\s#*]*(?:skills|technical\s+skills|core\s+competencies|technologies|tech\s+stack|proficiencies|key\s+skills)[\s&/|,\-—]*\w*\s*$',
+    'Projects': r'(?i)^[\s#*]*(?:projects|personal\s+projects|key\s+projects|portfolio|side\s+projects)[\s&/|,\-—]*\w*\s*$',
+    'Certifications': r'(?i)^[\s#*]*(?:certifications?|licenses?|credentials?|professional\s+certifications?)[\s&/|,\-—]*\w*\s*$',
+    'Awards': r'(?i)^[\s#*]*(?:awards?|honors?|achievements?|recognition|accomplishments?)(?:[\s&/|,\-—]+\w+)*\s*$',
+    'Publications': r'(?i)^[\s#*]*(?:publications?|papers?|research)[\s&/|,\-—]*\w*\s*$',
+    'Hobbies': r'(?i)^[\s#*]*(?:hobbies|interests|activities|extracurricular)[\s&/|,\-—]*\w*\s*$',
+    'Volunteer': r'(?i)^[\s#*]*(?:volunteer(?:ing)?|community|social\s+service)[\s&/|,\-—]*\w*\s*$',
+    'Contact': r'(?i)^[\s#*]*(?:contact\s*(?:info|information|details)?|personal\s*(?:info|details|information)?)[\s&/|,\-—]*\w*\s*$',
 }
 
 _ESSENTIAL_SECTIONS = {'Summary', 'Experience', 'Education', 'Skills'}

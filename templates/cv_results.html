@@ -41,7 +41,11 @@
                     {% for h in results.cv_highlights %}
                     <div class="bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2 text-center" title="{{ h.rationale }}">
                         <span class="text-xs text-white/60 block">{{ h.dimension }}</span>
+                        {% if h.dimension == 'Red Flags' %}
+                        <span class="text-lg font-extrabold {% if h.score <= 3 %}text-emerald-300{% elif h.score <= 6 %}text-amber-300{% else %}text-red-300{% endif %}">{{ h.score }}</span>
+                        {% else %}
                         <span class="text-lg font-extrabold {% if h.score >= 7 %}text-emerald-300{% elif h.score >= 4 %}text-amber-300{% else %}text-red-300{% endif %}">{{ h.score }}</span>
+                        {% endif %}
                         <span class="text-[10px] text-white/40">/10</span>
                     </div>
                     {% endfor %}
@@ -128,6 +132,7 @@
     {% endif %}
 
     <!-- CV Quality Breakdown -->
+    {% if results.cv_highlights %}
     <details open class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-1">
         <summary class="flex items-center justify-between cursor-pointer p-5 hover:bg-slate-50 transition">
             <div class="flex items-center gap-2">
@@ -137,29 +142,41 @@
                 <h3 class="font-semibold text-slate-800 text-sm">Quality Score Breakdown</h3>
             </div>
             <div class="flex gap-0.5">
-                {% for item in results.quality_breakdown|default([]) %}
-                <div class="w-5 h-2.5 rounded-sm {% if item.score >= 70 %}bg-emerald-400{% elif item.score >= 40 %}bg-amber-400{% else %}bg-red-400{% endif %}"></div>
+                {% for h in results.cv_highlights %}
+                {% if h.dimension == 'Red Flags' %}
+                <div class="w-5 h-2.5 rounded-sm {% if h.score <= 3 %}bg-emerald-400{% elif h.score <= 6 %}bg-amber-400{% else %}bg-red-400{% endif %}"></div>
+                {% else %}
+                <div class="w-5 h-2.5 rounded-sm {% if h.score >= 7 %}bg-emerald-400{% elif h.score >= 4 %}bg-amber-400{% else %}bg-red-400{% endif %}"></div>
+                {% endif %}
                 {% endfor %}
             </div>
         </summary>
         <div class="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for item in results.quality_breakdown|default([]) %}
+            {% for h in results.cv_highlights %}
             <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <div class="flex items-center justify-between mb-2">
-                    <span class="text-xs font-semibold text-slate-700">{{ item.label }}</span>
-                    <span class="text-xs text-slate-400">{{ item.weight }}%</span>
+                    <span class="text-xs font-semibold text-slate-700">{{ h.dimension }}</span>
+                    <span class="text-xs text-slate-400">{{ h.score }}/10</span>
                 </div>
                 <div class="flex items-center gap-2 mb-2">
-                    <span class="text-lg font-extrabold {% if item.score >= 70 %}text-emerald-600{% elif item.score >= 40 %}text-amber-600{% else %}text-red-600{% endif %}">{{ item.score }}</span>
+                    {% if h.dimension == 'Red Flags' %}
+                    <span class="text-lg font-extrabold {% if h.score <= 3 %}text-emerald-600{% elif h.score <= 6 %}text-amber-600{% else %}text-red-600{% endif %}">{{ h.score }}</span>
                     <div class="flex-1 bg-slate-200 rounded-full h-1.5">
-                        <div class="h-1.5 rounded-full anim-bar {% if item.score >= 70 %}bg-emerald-400{% elif item.score >= 40 %}bg-amber-400{% else %}bg-red-400{% endif %}" style="width:{{ item.score }}%"></div>
+                        <div class="h-1.5 rounded-full anim-bar {% if h.score <= 3 %}bg-emerald-400{% elif h.score <= 6 %}bg-amber-400{% else %}bg-red-400{% endif %}" style="width:{{ h.score * 10 }}%"></div>
                     </div>
+                    {% else %}
+                    <span class="text-lg font-extrabold {% if h.score >= 7 %}text-emerald-600{% elif h.score >= 4 %}text-amber-600{% else %}text-red-600{% endif %}">{{ h.score }}</span>
+                    <div class="flex-1 bg-slate-200 rounded-full h-1.5">
+                        <div class="h-1.5 rounded-full anim-bar {% if h.score >= 7 %}bg-emerald-400{% elif h.score >= 4 %}bg-amber-400{% else %}bg-red-400{% endif %}" style="width:{{ h.score * 10 }}%"></div>
+                    </div>
+                    {% endif %}
                 </div>
-                <p class="text-[11px] text-slate-500 leading-relaxed">{{ item.rationale }}</p>
+                <p class="text-[11px] text-slate-500 leading-relaxed">{{ h.rationale }}</p>
             </div>
             {% endfor %}
         </div>
     </details>
+    {% endif %}
 
     <!-- Section Analysis -->
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-2">
@@ -278,62 +295,6 @@
             {% endfor %}
         </div>
     </div>
-    {% endif %}
-
-    <!-- Skills Detected -->
-    {% if results.skills.total_skills > 0 %}
-    <details class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-2">
-        <summary class="flex items-center justify-between cursor-pointer p-5 hover:bg-slate-50 transition">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4M7.835 4.697a3.42 3.42 0 001.946-.806 3.42 3.42 0 014.438 0 3.42 3.42 0 001.946.806 3.42 3.42 0 013.138 3.138 3.42 3.42 0 00.806 1.946 3.42 3.42 0 010 4.438 3.42 3.42 0 00-.806 1.946 3.42 3.42 0 01-3.138 3.138 3.42 3.42 0 00-1.946.806 3.42 3.42 0 01-4.438 0 3.42 3.42 0 00-1.946-.806 3.42 3.42 0 01-3.138-3.138 3.42 3.42 0 00-.806-1.946 3.42 3.42 0 010-4.438 3.42 3.42 0 00.806-1.946 3.42 3.42 0 013.138-3.138z"/></svg>
-                </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Skills Detected ({{ results.skills.total_skills }})</h3>
-            </div>
-        </summary>
-        <div class="px-5 pb-5 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% for category, skills_list in results.skills.by_category.items() %}
-            {% if skills_list %}
-            <div>
-                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">{{ category|replace('_', ' ')|title }}</p>
-                <div class="flex flex-wrap gap-1.5">
-                    {% for skill in skills_list %}
-                    <span class="bg-brand-50 text-brand-700 text-xs font-medium px-2.5 py-1 rounded-lg border border-brand-200">{{ skill }}</span>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-            {% endfor %}
-        </div>
-    </details>
-    {% endif %}
-
-    <!-- General Suggestions -->
-    {% if results.suggestions %}
-    <details class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-3">
-        <summary class="flex items-center justify-between cursor-pointer p-5 hover:bg-slate-50 transition">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-amber-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-4 h-4 text-amber-600" fill="currentColor" viewBox="0 0 20 20"><path d="M11 3a1 1 0 10-2 0v1a1 1 0 102 0V3zM15.657 5.757a1 1 0 00-1.414-1.414l-.707.707a1 1 0 001.414 1.414l.707-.707zM18 10a1 1 0 01-1 1h-1a1 1 0 110-2h1a1 1 0 011 1zM5.05 6.464A1 1 0 106.464 5.05l-.707-.707a1 1 0 00-1.414 1.414l.707.707zM5 10a1 1 0 01-1 1H3a1 1 0 110-2h1a1 1 0 011 1z"/><path fill-rule="evenodd" d="M8 10a2 2 0 114 0 2 2 0 01-4 0zm2 4a4 4 0 100-8 4 4 0 000 8z" clip-rule="evenodd"/></svg>
-                </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Improvement Suggestions</h3>
-            </div>
-        </summary>
-        <div class="px-5 pb-5 space-y-3">
-            {% for s in results.suggestions %}
-            <div class="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <div class="flex items-center gap-2 mb-1.5">
-                    <span class="inline-block text-[10px] font-bold uppercase px-2 py-0.5 rounded-full
-                        {% if s.priority == 'high' %}bg-red-100 text-red-600
-                        {% elif s.priority == 'medium' %}bg-amber-100 text-amber-600
-                        {% else %}bg-slate-200 text-slate-500{% endif %}">{{ s.priority }}</span>
-                    <h4 class="font-semibold text-slate-700 text-sm">{{ s.title }}</h4>
-                </div>
-                <p class="text-xs text-slate-500 leading-relaxed">{{ s.body }}</p>
-            </div>
-            {% endfor %}
-        </div>
-    </details>
     {% endif %}
 
     <!-- Become Future Ready (P13) -->
