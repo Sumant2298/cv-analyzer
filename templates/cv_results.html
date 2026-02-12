@@ -297,7 +297,7 @@
 
     <!-- Inline JD Form (hidden by default, revealed on button click) -->
     <div id="jd-inline-form" class="hidden no-print">
-        <form action="{{ url_for('analyze_jd') }}" method="post" enctype="multipart/form-data">
+        <form id="jd-analyze-form" action="{{ url_for('analyze_jd') }}" method="post" enctype="multipart/form-data">
             <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden anim-fade-up-1">
                 <div class="bg-gradient-to-r from-emerald-600 to-brand-500 px-6 py-3 flex items-center justify-between">
                     <h2 class="text-white font-semibold flex items-center gap-2">
@@ -332,9 +332,10 @@
                     </div>
                 </div>
                 <div class="text-center pb-6 px-6">
-                    <button type="submit" class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-3 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all text-base">
+                    <button type="submit" id="jdSubmitBtn" class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-3 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all text-base">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        Analyse My CV Against JD
+                        <span id="jdBtnText">Analyse My CV Against JD</span>
+                        <svg id="jdBtnSpinner" class="hidden animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                         <span class="text-xs bg-white/20 px-2 py-0.5 rounded font-bold">3 credits</span>
                     </button>
                     <p class="text-xs text-slate-400 mt-2">Your CV is already loaded from the analysis above</p>
@@ -396,6 +397,32 @@ if (jdInput) {
         } else {
             label.classList.add('hidden');
         }
+    });
+}
+
+/* Loading state for JD form submit */
+const jdForm = document.getElementById('jd-analyze-form');
+if (jdForm) {
+    jdForm.addEventListener('submit', function(e) {
+        const file = document.querySelector('#jd-analyze-form input[name="jd_file"]').files.length > 0;
+        const text = document.querySelector('#jd-analyze-form textarea[name="jd_text"]');
+        const url = document.querySelector('#jd-analyze-form input[name="jd_url"]');
+        const hasText = text && text.value.trim().length > 0;
+        const hasUrl = url && url.value.trim().length > 0;
+
+        if (!file && !hasText && !hasUrl) {
+            e.preventDefault();
+            alert('Please upload a JD file, paste the job description text, or enter a job URL.');
+            return;
+        }
+
+        const btn = document.getElementById('jdSubmitBtn');
+        const btnText = document.getElementById('jdBtnText');
+        const spinner = document.getElementById('jdBtnSpinner');
+        btn.disabled = true;
+        btn.classList.add('opacity-80', 'cursor-wait');
+        btnText.textContent = 'Analyzing...';
+        spinner.classList.remove('hidden');
     });
 }
 
