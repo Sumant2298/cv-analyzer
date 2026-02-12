@@ -77,3 +77,19 @@ class LLMUsage(db.Model):
 
     def __repr__(self):
         return f'<LLMUsage user={self.user_id} action={self.action} model={self.model}>'
+
+
+class StoredCV(db.Model):
+    """Stores uploaded CV files permanently in PostgreSQL for admin access."""
+    __tablename__ = 'stored_cvs'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=True, index=True)
+    user_email = db.Column(db.String(256))
+    filename = db.Column(db.String(256), nullable=False)
+    file_data = db.Column(db.LargeBinary, nullable=False)
+    file_size = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def __repr__(self):
+        return f'<StoredCV {self.filename} user={self.user_email}>'

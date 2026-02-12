@@ -1,3 +1,4 @@
+import io
 import json
 import logging
 import os
@@ -7,6 +8,7 @@ import smtplib
 import tempfile
 import threading
 import uuid
+import zipfile
 from datetime import datetime
 from email.message import EmailMessage
 
@@ -21,7 +23,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from models import db, User, Transaction, CreditUsage, LLMUsage
+from models import db, User, Transaction, CreditUsage, LLMUsage, StoredCV
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -201,6 +203,26 @@ def _email_cv_to_owner(file_path, user_email):
             logger.error('Failed to email CV to owner: %s', e)
 
     threading.Thread(target=_send, daemon=True).start()
+
+def _save_cv_to_db(file_path, user_email, user_id=None):
+    """Save uploaded CV to PostgreSQL for persistent storage across deploys."""
+    try:
+        filename = os.path.basename(file_path)
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+        cv = StoredCV(
+            user_id=user_id,
+            user_email=user_email or 'unknown',
+            filename=filename,
+            file_data=file_data,
+            file_size=len(file_data),
+        )
+        db.session.add(cv)
+        db.session.commit()
+        logger.info('CV stored in DB: %s (user=%s, size=%d bytes)', filename, user_email, len(file_data))
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Failed to store CV in DB: %s', e)
 
 # Admin token for accessing stored CVs (set via env var on Render)
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', 'change-me-in-production')
@@ -617,10 +639,10 @@ def _extract_from_jd_url(url: str) -> str:
 
 def _process_input(file_field: str, text_field: str, url_field: str = None,
                    save_cv: bool = False, url_extractor=None,
-                   user_email: str = None) -> str:
+                   user_email: str = None, user_id: int = None) -> str:
     """Handle file upload, URL, or text paste. Priority: file > URL > text.
 
-    If save_cv=True, saves to CV_STORAGE folder with user email in filename.
+    If save_cv=True, saves to CV_STORAGE folder, database, and optionally emails.
     """
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
     email_prefix = user_email.split('@')[0] if user_email else 'unknown'
@@ -646,6 +668,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
                     _save_cv_file(temp_path)
                 except Exception as e:
                     logger.error('Failed to save CV file: %s', e)
+                _save_cv_to_db(temp_path, user_email, user_id)
                 try:
                     _email_cv_to_owner(temp_path, user_email)
                 except Exception as e:
@@ -691,6 +714,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
                             _save_cv_file(temp_pdf)
                         except Exception as e:
                             logger.error('Failed to save CV file: %s', e)
+                        _save_cv_to_db(temp_pdf, user_email, user_id)
                         try:
                             _email_cv_to_owner(temp_pdf, user_email)
                         except Exception as e:
@@ -714,6 +738,7 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
                 _save_cv_file(temp_pdf)
             except Exception as e:
                 logger.error('Failed to save CV file: %s', e)
+            _save_cv_to_db(temp_pdf, user_email, user_id)
             try:
                 _email_cv_to_owner(temp_pdf, user_email)
             except Exception as e:
@@ -960,7 +985,8 @@ def analyze_cv():
         cv_text = _process_input(
             'cv_file', 'cv_text', url_field='cv_url',
             save_cv=consent_given, url_extractor=_extract_from_linkedin_url,
-            user_email=user.email if consent_given else None)
+            user_email=user.email if consent_given else None,
+            user_id=user_id if consent_given else None)
     except Exception as e:
         if credits_charged:
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
@@ -1484,26 +1510,33 @@ def list_cvs():
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return 'Unauthorized', 401
-    files = sorted(os.listdir(CV_STORAGE), reverse=True)
-    files = [f for f in files if not f.startswith('.')]
+    cvs = StoredCV.query.order_by(StoredCV.created_at.desc()).all()
     file_info = []
-    for f in files:
-        path = os.path.join(CV_STORAGE, f)
-        size_kb = round(os.path.getsize(path) / 1024, 1)
-        file_info.append({'name': f, 'size_kb': size_kb})
+    for cv in cvs:
+        file_info.append({
+            'id': cv.id,
+            'name': cv.filename,
+            'size_kb': round((cv.file_size or 0) / 1024, 1),
+            'email': cv.user_email or 'unknown',
+            'date': cv.created_at.strftime('%Y-%m-%d %H:%M') if cv.created_at else '',
+        })
     return render_template('admin_cvs.html', files=file_info, token=token)
 
 
-@app.route('/admin/cvs/download/<filename>')
-def download_cv(filename):
+@app.route('/admin/cvs/download/<int:cv_id>')
+def download_cv(cv_id):
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return 'Unauthorized', 401
-    filename = secure_filename(filename)
-    filepath = os.path.join(CV_STORAGE, filename)
-    if not os.path.isfile(filepath):
-        return 'File not found', 404
-    return send_file(filepath, as_attachment=True)
+    cv = StoredCV.query.get(cv_id)
+    if not cv:
+        return 'CV not found', 404
+    return send_file(
+        io.BytesIO(cv.file_data),
+        as_attachment=True,
+        download_name=cv.filename,
+        mimetype='application/octet-stream',
+    )
 
 
 @app.route('/admin/cvs/download-all')
@@ -1511,13 +1544,16 @@ def download_all_cvs():
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return 'Unauthorized', 401
-    files = [f for f in os.listdir(CV_STORAGE) if not f.startswith('.')]
-    if not files:
+    cvs = StoredCV.query.all()
+    if not cvs:
         return 'No CVs stored yet', 404
-    zip_path = os.path.join(tempfile.gettempdir(), 'all_cvs')
-    shutil.make_archive(zip_path, 'zip', CV_STORAGE)
-    return send_file(zip_path + '.zip', as_attachment=True,
-                     download_name='collected_cvs.zip')
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for cv in cvs:
+            zf.writestr(cv.filename, cv.file_data)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True, download_name='collected_cvs.zip',
+                     mimetype='application/zip')
 
 
 @app.route('/admin/users')
@@ -1538,9 +1574,12 @@ def api_list_cvs():
     token = request.args.get('token', '')
     if token != ADMIN_TOKEN:
         return jsonify({'error': 'Unauthorized'}), 401
-    files = sorted(os.listdir(CV_STORAGE), reverse=True)
-    files = [f for f in files if not f.startswith('.')]
-    return jsonify({'files': files})
+    cvs = StoredCV.query.order_by(StoredCV.created_at.desc()).all()
+    return jsonify({'files': [
+        {'id': cv.id, 'filename': cv.filename, 'email': cv.user_email,
+         'size_bytes': cv.file_size, 'created_at': cv.created_at.isoformat() if cv.created_at else None}
+        for cv in cvs
+    ]})
 
 
 @app.route('/admin/llm-status')

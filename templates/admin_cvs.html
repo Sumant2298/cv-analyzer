@@ -19,6 +19,8 @@
         <thead class="bg-gray-50 text-gray-600 text-left">
             <tr>
                 <th class="px-6 py-3 font-medium">Filename</th>
+                <th class="px-6 py-3 font-medium">User</th>
+                <th class="px-6 py-3 font-medium">Date</th>
                 <th class="px-6 py-3 font-medium">Size</th>
                 <th class="px-6 py-3 font-medium">Action</th>
             </tr>
@@ -27,9 +29,11 @@
             {% for f in files %}
             <tr class="hover:bg-gray-50">
                 <td class="px-6 py-3 text-gray-800">{{ f.name }}</td>
+                <td class="px-6 py-3 text-gray-500">{{ f.email }}</td>
+                <td class="px-6 py-3 text-gray-500">{{ f.date }}</td>
                 <td class="px-6 py-3 text-gray-500">{{ f.size_kb }} KB</td>
                 <td class="px-6 py-3">
-                    <a href="{{ url_for('download_cv', filename=f.name, token=token) }}"
+                    <a href="{{ url_for('download_cv', cv_id=f.id, token=token) }}"
                        class="text-indigo-600 hover:text-indigo-800 font-medium">Download</a>
                 </td>
             </tr>
