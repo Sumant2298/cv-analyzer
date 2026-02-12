@@ -2,255 +2,297 @@
 {% block title %}Rewritten CV — LevelUpX{% endblock %}
 {% block content %}
 
-<!-- Hero -->
-<section class="bg-gradient-to-br from-amber-500 via-orange-500 to-red-400 text-white">
-    <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
-        <div class="flex items-center gap-6">
-            <div class="flex-shrink-0">
-                <div class="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-sm">
-                    <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-                </div>
+<div class="max-w-3xl mx-auto px-6 sm:px-8 py-8 space-y-6 anim-fade-in">
+
+    <!-- Zone 1: Status Bar -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 py-1">
+        <div class="flex items-center gap-3">
+            <div class="w-8 h-8 bg-emerald-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
             </div>
             <div>
-                <h1 class="text-2xl font-extrabold mb-1">CV Rewrite Complete</h1>
-                <p class="text-sm text-white/80">Your CV has been optimized for the target role</p>
-                <div class="flex items-center gap-4 mt-2">
-                    <div class="bg-white/15 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                        <span class="text-xs text-white/60">Original ATS</span>
-                        <span class="text-sm font-bold ml-1">{{ original_ats }}%</span>
-                    </div>
-                    <svg class="w-5 h-5 text-white/50" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
-                    <div class="bg-white/25 backdrop-blur-sm rounded-lg px-3 py-1.5">
-                        <span class="text-xs text-white/60">Expected</span>
-                        <span class="text-sm font-bold ml-1">~{{ original_ats + rewrite.expected_ats_improvement }}%</span>
-                        <span class="text-xs text-green-200 ml-1">+{{ rewrite.expected_ats_improvement }}</span>
-                    </div>
-                </div>
+                <h1 class="text-base font-semibold text-slate-800">Rewrite complete</h1>
+                <p class="text-xs text-slate-400">Optimized for the target role</p>
             </div>
+        </div>
+        <div class="flex items-center gap-2 bg-slate-50 rounded-lg px-3 py-1.5 border border-slate-200">
+            <span class="text-xs text-slate-500">ATS</span>
+            <span class="text-sm font-semibold text-slate-400" style="font-variant-numeric:tabular-nums">{{ original_ats }}%</span>
+            <svg class="w-3.5 h-3.5 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/></svg>
+            <span class="text-sm font-bold text-emerald-600" style="font-variant-numeric:tabular-nums">~{{ original_ats + rewrite.expected_ats_improvement }}%</span>
+            <span class="text-[10px] font-medium text-emerald-500 bg-emerald-50 px-1.5 py-0.5 rounded-full">+{{ rewrite.expected_ats_improvement }}</span>
         </div>
     </div>
-</section>
 
-<div class="max-w-5xl mx-auto px-4 sm:px-6 -mt-5 relative z-10 space-y-5 pb-8">
+    <!-- Zone 2: Document Workspace -->
+    <div class="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
 
-    <!-- Changes Summary -->
-    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up">
-        <div class="flex items-center gap-2 mb-3">
-            <div class="w-8 h-8 bg-emerald-100 rounded-lg flex items-center justify-center">
-                <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M6 2a1 1 0 00-1 1v1H4a2 2 0 00-2 2v10a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2h-1V3a1 1 0 10-2 0v1H7V3a1 1 0 00-1-1zm0 5a1 1 0 000 2h8a1 1 0 100-2H6z" clip-rule="evenodd"/></svg>
-            </div>
-            <div>
-                <h3 class="font-semibold text-slate-800 text-sm">What Changed</h3>
-                <p class="text-[10px] text-slate-400">{{ rewrite.changes_summary|length }} improvements made to your CV</p>
-            </div>
-        </div>
-        <ul class="space-y-2">
-            {% for change in rewrite.changes_summary %}
-            <li class="flex items-start gap-2">
-                <svg class="w-4 h-4 text-emerald-500 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
-                <span class="text-sm text-slate-600 leading-relaxed">{{ change }}</span>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-
-    <!-- Side-by-Side Comparison -->
-    {% if cv_diff %}
-    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden anim-fade-up-1">
-        <div class="flex items-center justify-between p-5 border-b border-slate-100">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Side-by-Side Comparison</h3>
-            </div>
-            <!-- Mobile tab toggle -->
-            <div class="flex sm:hidden gap-1 bg-slate-100 rounded-lg p-0.5">
-                <button onclick="showDiffTab('original')" id="diffTabOriginal" class="text-xs font-medium px-3 py-1 rounded-md bg-white shadow text-slate-700">Original</button>
-                <button onclick="showDiffTab('rewritten')" id="diffTabRewritten" class="text-xs font-medium px-3 py-1 rounded-md text-slate-400">Rewritten</button>
-            </div>
-        </div>
-
-        <!-- Desktop: side-by-side -->
-        <div class="hidden sm:grid sm:grid-cols-2 divide-x divide-slate-200 max-h-[600px] overflow-y-auto">
-            <!-- Original Column -->
-            <div>
-                <div class="sticky top-0 bg-red-50 px-4 py-2 border-b border-red-200">
-                    <span class="text-xs font-bold text-red-600">Original CV</span>
-                </div>
-                <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
-                    {% for line in cv_diff %}
-                    {% if line.type == 'unchanged' %}
-                    <div class="text-slate-500 py-0.5 whitespace-pre-wrap">{{ line.original_text }}</div>
-                    {% elif line.type == 'removed' %}
-                    <div class="bg-red-50 text-red-700 py-0.5 px-1 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
-                    {% elif line.type == 'modified' %}
-                    <div class="bg-red-50 text-red-700 py-0.5 px-1 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
-                    {% elif line.type == 'added' %}
-                    <div class="py-0.5 invisible whitespace-pre-wrap">&nbsp;</div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-            <!-- Rewritten Column -->
-            <div>
-                <div class="sticky top-0 bg-emerald-50 px-4 py-2 border-b border-emerald-200">
-                    <span class="text-xs font-bold text-emerald-600">Rewritten CV</span>
-                </div>
-                <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
-                    {% for line in cv_diff %}
-                    {% if line.type == 'unchanged' %}
-                    <div class="text-slate-600 py-0.5 whitespace-pre-wrap">{{ line.new_text }}</div>
-                    {% elif line.type == 'added' %}
-                    <div class="bg-emerald-50 text-emerald-700 py-0.5 px-1 rounded font-medium whitespace-pre-wrap">{{ line.new_text }}</div>
-                    {% elif line.type == 'modified' %}
-                    <div class="bg-emerald-50 text-emerald-700 py-0.5 px-1 rounded font-medium whitespace-pre-wrap">{{ line.new_text }}</div>
-                    {% elif line.type == 'removed' %}
-                    <div class="py-0.5 invisible whitespace-pre-wrap">&nbsp;</div>
-                    {% endif %}
-                    {% endfor %}
-                </div>
-            </div>
-        </div>
-
-        <!-- Mobile: stacked with tabs -->
-        <div class="sm:hidden max-h-[500px] overflow-y-auto">
-            <div id="mobileOriginal" class="p-4 text-sm font-mono leading-relaxed space-y-0">
-                {% for line in cv_diff %}
-                {% if line.type == 'unchanged' %}
-                <div class="text-slate-500 py-0.5 whitespace-pre-wrap">{{ line.original_text }}</div>
-                {% elif line.type == 'removed' or line.type == 'modified' %}
-                <div class="bg-red-50 text-red-700 py-0.5 px-1 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
+        <!-- Toolbar -->
+        <div class="flex flex-wrap items-center justify-between px-5 py-3 border-b border-slate-100 gap-2">
+            <!-- Left: utility actions -->
+            <div class="flex items-center gap-1">
+                {% if rewrite.changes_summary and rewrite.changes_summary|length > 0 %}
+                <button onclick="toggleChangesPanel()" class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition-colors">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                    View changes
+                    <span class="text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded-full font-medium">{{ rewrite.changes_summary|length }}</span>
+                </button>
                 {% endif %}
-                {% endfor %}
             </div>
-            <div id="mobileRewritten" class="p-4 text-sm font-mono leading-relaxed space-y-0 hidden">
-                {% for line in cv_diff %}
-                {% if line.type == 'unchanged' %}
-                <div class="text-slate-600 py-0.5 whitespace-pre-wrap">{{ line.new_text }}</div>
-                {% elif line.type == 'added' or line.type == 'modified' %}
-                <div class="bg-emerald-50 text-emerald-700 py-0.5 px-1 rounded font-medium whitespace-pre-wrap">{{ line.new_text }}</div>
-                {% endif %}
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Full Rewritten CV (copyable) -->
-    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-5 anim-fade-up-1">
-        <div class="flex items-center justify-between mb-4">
-            <div class="flex items-center gap-2">
-                <div class="w-8 h-8 bg-brand-100 rounded-lg flex items-center justify-center">
-                    <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                </div>
-                <h3 class="font-semibold text-slate-800 text-sm">Your Optimized CV</h3>
-            </div>
-            <button onclick="copyCV()" id="copyBtn" class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg transition">
-                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
-                Copy Text
-            </button>
-        </div>
-        <div id="cvContent" contenteditable="true" class="prose prose-sm max-w-none text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-5 border-2 border-slate-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 max-h-[600px] overflow-y-auto whitespace-pre-wrap outline-none transition-colors" spellcheck="true">{{ rewrite.rewritten_cv }}</div>
-        <p class="text-[10px] text-slate-400 mt-1.5">Click into the text above to edit directly. Select text and use the toolbar below to refine with AI.</p>
-
-        <!-- AI Refine Toolbar -->
-        <div class="mt-3 bg-gradient-to-r from-brand-50 to-emerald-50 rounded-xl p-4 border border-brand-200 no-print">
-            <div class="flex items-center gap-2 mb-2">
-                <svg class="w-4 h-4 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                <span class="text-xs font-semibold text-brand-700">Refine with AI</span>
-                <span class="text-[10px] text-brand-500 bg-brand-100 px-1.5 py-0.5 rounded font-medium">1 credit per refinement</span>
-            </div>
-            <div class="flex gap-2">
-                <input type="text" id="refineInstruction" placeholder="e.g. Make this more impactful, Add metrics, Shorten this section..." class="flex-1 text-sm border border-brand-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-brand-300 bg-white">
-                <button onclick="refineWithAI()" id="refineBtn" class="inline-flex items-center gap-1.5 bg-gradient-to-r from-brand-500 to-emerald-500 hover:from-brand-600 hover:to-emerald-600 text-white text-sm font-semibold px-4 py-2 rounded-lg transition-all shadow">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                    Refine
+            <!-- Right: Copy, Print, Download -->
+            <div class="flex items-center gap-1">
+                <button onclick="copyCV()" id="copyBtn" class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition-colors no-print">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                    <span id="copyBtnText">Copy</span>
+                </button>
+                <button onclick="window.print()" class="inline-flex items-center gap-1.5 text-xs font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-50 px-2.5 py-1.5 rounded-lg transition-colors no-print">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                    Print
+                </button>
+                <div class="w-px h-4 bg-slate-200 mx-1 no-print"></div>
+                <button onclick="downloadEditedCV()" id="downloadBtn" class="inline-flex items-center gap-1.5 text-sm font-semibold text-white bg-brand-600 hover:bg-brand-700 active:bg-brand-800 px-4 py-1.5 rounded-lg transition-colors shadow-sm no-print">
+                    <svg class="w-4 h-4" id="downloadIcon" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    <span id="downloadBtnText">Download PDF</span>
                 </button>
             </div>
-            <p id="refineStatus" class="text-[10px] text-brand-500 mt-1.5 hidden"></p>
+        </div>
+
+        <!-- Editable CV Body -->
+        <div id="cvContent" contenteditable="true"
+             class="prose prose-sm max-w-none text-slate-700 leading-relaxed px-6 py-5 min-h-[400px] max-h-[calc(100vh-320px)] overflow-y-auto whitespace-pre-wrap outline-none focus:ring-0"
+             style="-webkit-user-select: text; user-select: text;"
+             spellcheck="true">{{ rewrite.rewritten_cv }}</div>
+        <p class="text-[10px] text-slate-400 px-6 pb-2">Click to edit directly. Select text to refine a specific section.</p>
+
+        <!-- AI Command Bar -->
+        <div class="border-t border-slate-100 px-5 py-3 bg-slate-50/50 no-print">
+            <div class="flex items-center gap-2">
+                <div class="flex-shrink-0 w-6 h-6 bg-brand-50 rounded-md flex items-center justify-center">
+                    <svg class="w-3.5 h-3.5 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+                </div>
+                <input type="text" id="refineInstruction"
+                       placeholder="Ask AI to refine... e.g. 'Make the summary more concise'"
+                       class="flex-1 text-sm bg-transparent border-0 focus:ring-0 focus:outline-none placeholder:text-slate-400 text-slate-700 py-1">
+                <span class="text-[10px] text-slate-400 font-medium hidden sm:inline flex-shrink-0">1 credit</span>
+                <button onclick="refineWithAI()" id="refineBtn"
+                        class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition-colors flex-shrink-0">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 10l7-7m0 0l7 7m-7-7v18"/></svg>
+                    <span id="refineBtnText">Refine</span>
+                </button>
+            </div>
+            <p id="refineStatus" class="text-[10px] text-slate-400 mt-1 pl-8 hidden"></p>
         </div>
     </div>
 
-    <!-- Action buttons -->
-    <div class="flex flex-wrap justify-center gap-4 py-3 no-print">
-        <button onclick="downloadEditedCV()" id="downloadBtn" class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            Download CV (PDF)
-        </button>
-        <a href="{{ url_for('index') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Analyse Another CV
+    <!-- Zone 3: Collapsible Detail Panels -->
+
+    <!-- Changes Summary -->
+    {% if rewrite.changes_summary and rewrite.changes_summary|length > 0 %}
+    <details id="changesDetails" class="group">
+        <summary class="flex items-center justify-between py-3 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+                <span>{{ rewrite.changes_summary|length }} improvements made</span>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="pb-4">
+            <div class="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100 overflow-hidden">
+                {% for change in rewrite.changes_summary %}
+                <div class="flex items-start gap-3 px-4 py-3">
+                    <div class="w-5 h-5 bg-emerald-50 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                        <svg class="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                    </div>
+                    <span class="text-sm text-slate-600 leading-relaxed">{{ change|replace('**', '') }}</span>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- Compare with Original -->
+    {% if cv_diff %}
+    <details id="diffDetails" class="group">
+        <summary class="flex items-center justify-between py-3 cursor-pointer select-none list-none [&::-webkit-details-marker]:hidden text-sm font-medium text-slate-500 hover:text-slate-700 transition-colors">
+            <div class="flex items-center gap-2">
+                <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+                <span>Compare with original</span>
+            </div>
+            <svg class="w-4 h-4 text-slate-400 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+        </summary>
+        <div class="pb-4">
+            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
+
+                <!-- Mobile toggle -->
+                <div class="flex sm:hidden border-b border-slate-200">
+                    <button onclick="showDiffTab('original')" id="diffTabOriginal" class="flex-1 text-xs font-medium text-center py-2.5 border-b-2 border-brand-500 text-brand-600 transition-colors">Original</button>
+                    <button onclick="showDiffTab('rewritten')" id="diffTabRewritten" class="flex-1 text-xs font-medium text-center py-2.5 border-b-2 border-transparent text-slate-400 transition-colors">Rewritten</button>
+                </div>
+
+                <!-- Desktop: side-by-side -->
+                <div class="hidden sm:grid sm:grid-cols-2 divide-x divide-slate-200 max-h-[480px] overflow-y-auto">
+                    <!-- Original Column -->
+                    <div>
+                        <div class="sticky top-0 bg-slate-50 px-4 py-2 border-b border-slate-100">
+                            <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Original</span>
+                        </div>
+                        <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
+                            {% for line in cv_diff %}
+                            {% if line.type == 'unchanged' %}
+                            <div class="text-slate-400 py-0.5 whitespace-pre-wrap">{{ line.original_text }}</div>
+                            {% elif line.type == 'removed' or line.type == 'modified' %}
+                            <div class="bg-red-50/50 text-red-400 py-0.5 px-1.5 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
+                            {% elif line.type == 'added' %}
+                            <div class="py-0.5 invisible whitespace-pre-wrap">&nbsp;</div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <!-- Rewritten Column -->
+                    <div>
+                        <div class="sticky top-0 bg-slate-50 px-4 py-2 border-b border-slate-100">
+                            <span class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Rewritten</span>
+                        </div>
+                        <div class="p-4 text-sm font-mono leading-relaxed space-y-0">
+                            {% for line in cv_diff %}
+                            {% if line.type == 'unchanged' %}
+                            <div class="text-slate-500 py-0.5 whitespace-pre-wrap">{{ line.new_text }}</div>
+                            {% elif line.type == 'added' or line.type == 'modified' %}
+                            <div class="bg-emerald-50/50 text-emerald-600 py-0.5 px-1.5 rounded whitespace-pre-wrap">{{ line.new_text }}</div>
+                            {% elif line.type == 'removed' %}
+                            <div class="py-0.5 invisible whitespace-pre-wrap">&nbsp;</div>
+                            {% endif %}
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Mobile: stacked with tabs -->
+                <div class="sm:hidden max-h-[400px] overflow-y-auto">
+                    <div id="mobileOriginal" class="p-4 text-sm font-mono leading-relaxed space-y-0">
+                        {% for line in cv_diff %}
+                        {% if line.type == 'unchanged' %}
+                        <div class="text-slate-400 py-0.5 whitespace-pre-wrap">{{ line.original_text }}</div>
+                        {% elif line.type == 'removed' or line.type == 'modified' %}
+                        <div class="bg-red-50/50 text-red-400 py-0.5 px-1.5 rounded line-through whitespace-pre-wrap">{{ line.original_text }}</div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                    <div id="mobileRewritten" class="p-4 text-sm font-mono leading-relaxed space-y-0 hidden">
+                        {% for line in cv_diff %}
+                        {% if line.type == 'unchanged' %}
+                        <div class="text-slate-500 py-0.5 whitespace-pre-wrap">{{ line.new_text }}</div>
+                        {% elif line.type == 'added' or line.type == 'modified' %}
+                        <div class="bg-emerald-50/50 text-emerald-600 py-0.5 px-1.5 rounded whitespace-pre-wrap">{{ line.new_text }}</div>
+                        {% endif %}
+                        {% endfor %}
+                    </div>
+                </div>
+            </div>
+        </div>
+    </details>
+    {% endif %}
+
+    <!-- Zone 4: Secondary Actions Footer -->
+    <div class="flex items-center justify-between py-2 no-print">
+        <a href="{{ url_for('index') }}" class="text-sm font-medium text-slate-500 hover:text-brand-600 transition-colors">
+            &larr; Analyse another CV
         </a>
-        <button onclick="window.print()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Print
-        </button>
+        <span class="text-xs text-slate-400">
+            {% if credits_remaining == 0 %}
+            0 credits remaining.
+            <a href="{{ url_for('buy_credits') }}" class="text-brand-600 hover:text-brand-700 font-medium">Buy more</a>
+            {% else %}
+            {{ credits_remaining }} credits remaining
+            {% endif %}
+        </span>
     </div>
 
-    <div class="text-center text-xs text-slate-400">
-        <p>Credits remaining: <span class="font-semibold text-slate-600">{{ credits_remaining }}</span></p>
-    </div>
 </div>
 
 <script>
+/* --- Copy to Clipboard --- */
 function copyCV() {
     const text = document.getElementById('cvContent').innerText;
     navigator.clipboard.writeText(text).then(() => {
         const btn = document.getElementById('copyBtn');
-        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Copied!';
+        const btnText = document.getElementById('copyBtnText');
+        btn.classList.remove('text-slate-500');
+        btn.classList.add('text-emerald-500');
+        btnText.textContent = 'Copied';
         setTimeout(() => {
-            btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg> Copy Text';
+            btn.classList.remove('text-emerald-500');
+            btn.classList.add('text-slate-500');
+            btnText.textContent = 'Copy';
         }, 2000);
     });
 }
 
+/* --- Mobile Diff Tab Toggle --- */
 function showDiffTab(tab) {
     const origBtn = document.getElementById('diffTabOriginal');
     const rewBtn = document.getElementById('diffTabRewritten');
     const origDiv = document.getElementById('mobileOriginal');
     const rewDiv = document.getElementById('mobileRewritten');
+    if (!origBtn || !rewBtn) return;
 
     if (tab === 'original') {
-        origBtn.classList.add('bg-white', 'shadow', 'text-slate-700');
-        origBtn.classList.remove('text-slate-400');
-        rewBtn.classList.remove('bg-white', 'shadow', 'text-slate-700');
-        rewBtn.classList.add('text-slate-400');
+        origBtn.classList.add('border-brand-500', 'text-brand-600');
+        origBtn.classList.remove('border-transparent', 'text-slate-400');
+        rewBtn.classList.remove('border-brand-500', 'text-brand-600');
+        rewBtn.classList.add('border-transparent', 'text-slate-400');
         origDiv.classList.remove('hidden');
         rewDiv.classList.add('hidden');
     } else {
-        rewBtn.classList.add('bg-white', 'shadow', 'text-slate-700');
-        rewBtn.classList.remove('text-slate-400');
-        origBtn.classList.remove('bg-white', 'shadow', 'text-slate-700');
-        origBtn.classList.add('text-slate-400');
+        rewBtn.classList.add('border-brand-500', 'text-brand-600');
+        rewBtn.classList.remove('border-transparent', 'text-slate-400');
+        origBtn.classList.remove('border-brand-500', 'text-brand-600');
+        origBtn.classList.add('border-transparent', 'text-slate-400');
         rewDiv.classList.remove('hidden');
         origDiv.classList.add('hidden');
     }
 }
 
+/* --- Toggle Changes Panel --- */
+function toggleChangesPanel() {
+    const details = document.getElementById('changesDetails');
+    if (details) {
+        details.open = !details.open;
+        if (details.open) {
+            details.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }
+}
+
+/* --- AI Refine --- */
 function refineWithAI() {
     const instruction = document.getElementById('refineInstruction').value.trim();
     if (!instruction) {
-        alert('Please enter an instruction for the AI (e.g., "Make this more impactful")');
+        const input = document.getElementById('refineInstruction');
+        input.classList.add('ring-2', 'ring-red-300');
+        input.focus();
+        setTimeout(() => input.classList.remove('ring-2', 'ring-red-300'), 1500);
         return;
     }
 
-    // Get selected text or full content
     const selection = window.getSelection();
     let selectedText = selection.toString().trim();
     const cvContent = document.getElementById('cvContent');
     const fullText = cvContent.innerText;
-
-    if (!selectedText) {
-        selectedText = fullText;
-    }
+    if (!selectedText) selectedText = fullText;
 
     const btn = document.getElementById('refineBtn');
+    const btnText = document.getElementById('refineBtnText');
+    const input = document.getElementById('refineInstruction');
     const status = document.getElementById('refineStatus');
+
     btn.disabled = true;
-    btn.textContent = 'Refining...';
+    btnText.textContent = 'Refining...';
+    input.classList.add('opacity-50', 'pointer-events-none');
     status.classList.remove('hidden');
-    status.textContent = 'AI is refining your text...';
+    status.className = 'text-[10px] text-slate-400 mt-1 pl-8';
+    status.textContent = 'Refining your CV...';
 
     fetch('/refine-section', {
         method: 'POST',
@@ -264,42 +306,53 @@ function refineWithAI() {
     .then(r => r.json())
     .then(data => {
         if (data.success) {
-            // Replace the selected text in the contenteditable div
             const currentHTML = cvContent.innerText;
-            const refined = data.refined_text;
-            // Simple replacement
-            cvContent.innerText = currentHTML.replace(selectedText, refined);
-            status.textContent = 'Refined! Credits remaining: ' + data.credits_remaining;
-            status.classList.remove('text-brand-500');
+            cvContent.innerText = currentHTML.replace(selectedText, data.refined_text);
+            status.textContent = 'Done. ' + data.credits_remaining + ' credits remaining.';
+            status.classList.remove('text-slate-400');
             status.classList.add('text-emerald-600');
-            document.getElementById('refineInstruction').value = '';
+            input.value = '';
         } else {
             status.textContent = 'Error: ' + (data.error || 'Unknown error');
-            status.classList.remove('text-brand-500');
+            status.classList.remove('text-slate-400');
             status.classList.add('text-red-500');
         }
     })
     .catch(err => {
         status.textContent = 'Error: ' + err;
+        status.classList.remove('text-slate-400');
         status.classList.add('text-red-500');
     })
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg> Refine';
+        btnText.textContent = 'Refine';
+        input.classList.remove('opacity-50', 'pointer-events-none');
         setTimeout(() => {
             status.classList.add('hidden');
-            status.className = 'text-[10px] text-brand-500 mt-1.5 hidden';
+            status.className = 'text-[10px] text-slate-400 mt-1 pl-8 hidden';
         }, 5000);
     });
 }
 
+/* Enter key triggers refine */
+document.getElementById('refineInstruction')?.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        refineWithAI();
+    }
+});
+
+/* --- Download Edited CV --- */
 function downloadEditedCV() {
     const btn = document.getElementById('downloadBtn');
+    const btnText = document.getElementById('downloadBtnText');
+    const btnIcon = document.getElementById('downloadIcon');
     const cvText = document.getElementById('cvContent').innerText;
-    btn.disabled = true;
-    btn.textContent = 'Preparing...';
 
-    // Save edited content, then redirect to download
+    btn.disabled = true;
+    btn.classList.add('opacity-80', 'cursor-wait');
+    btnText.textContent = 'Preparing...';
+
     fetch('/update-rewritten-cv', {
         method: 'POST',
         headers: {'Content-Type': 'application/json'},
@@ -316,9 +369,20 @@ function downloadEditedCV() {
     .catch(err => alert('Error: ' + err))
     .finally(() => {
         btn.disabled = false;
-        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg> Download CV (PDF)';
+        btn.classList.remove('opacity-80', 'cursor-wait');
+        btnText.textContent = 'Download PDF';
     });
 }
+
+/* Disable refine if zero credits */
+{% if credits_remaining == 0 %}
+(function() {
+    const btn = document.getElementById('refineBtn');
+    const input = document.getElementById('refineInstruction');
+    if (btn) { btn.disabled = true; btn.classList.add('opacity-50', 'cursor-not-allowed'); }
+    if (input) { input.placeholder = 'You need credits to refine. Buy credits to continue.'; input.disabled = true; }
+})();
+{% endif %}
 </script>
 
 {% endblock %}

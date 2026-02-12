@@ -37,6 +37,7 @@
         .anim-fade-up-3 { animation: fadeInUp .5s ease-out .3s both; }
         .anim-fade-up-4 { animation: fadeInUp .5s ease-out .4s both; }
         .anim-fade       { animation: fadeIn .4s ease-out both; }
+        .anim-fade-in    { animation: fadeIn .2s ease-out both; }
         .anim-scale      { animation: scaleIn .4s ease-out both; }
         .anim-slide-down { animation: slideDown .3s ease-out both; }
         .anim-bar        { animation: fillBar 1s ease-out both; }
@@ -45,7 +46,8 @@
         @media print {
             nav, footer, .no-print { display: none !important; }
             body { background: white !important; }
-            .shadow, .shadow-lg, .shadow-xl { box-shadow: none !important; }
+            .shadow, .shadow-lg, .shadow-xl, .shadow-sm { box-shadow: none !important; }
+            details[open] > summary { display: none; }
         }
     </style>
 </head>
