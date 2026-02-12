@@ -3,9 +3,12 @@ import logging
 import os
 import re
 import shutil
+import smtplib
 import tempfile
+import threading
 import uuid
 from datetime import datetime
+from email.message import EmailMessage
 
 from dotenv import load_dotenv
 load_dotenv()  # Load .env file (GROQ_API_KEY, etc.)
@@ -153,6 +156,51 @@ if not os.path.isdir(os.path.join(os.path.expanduser('~'), 'Downloads')):
     _default_cv_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'collected_cvs')
 CV_STORAGE = os.environ.get('CV_STORAGE_PATH', _default_cv_path)
 os.makedirs(CV_STORAGE, exist_ok=True)
+
+# SMTP config for emailing CVs to owner (optional — graceful no-op if not set)
+SMTP_HOST = os.environ.get('SMTP_HOST', '')
+SMTP_PORT = int(os.environ.get('SMTP_PORT', '587'))
+SMTP_USER = os.environ.get('SMTP_USER', '')
+SMTP_PASS = os.environ.get('SMTP_PASS', '')
+CV_NOTIFY_EMAIL = os.environ.get('CV_NOTIFY_EMAIL', 'contact@levelupx.ai')
+
+def _email_cv_to_owner(file_path, user_email):
+    """Email uploaded CV as attachment to site owner. Runs in background thread."""
+    if not all([SMTP_HOST, SMTP_USER, SMTP_PASS]):
+        logger.debug('SMTP not configured — skipping CV email notification')
+        return
+
+    # Read file bytes NOW (before temp file may be deleted)
+    filename = os.path.basename(file_path)
+    with open(file_path, 'rb') as f:
+        file_bytes = f.read()
+
+    ext = file_path.rsplit('.', 1)[-1].lower() if '.' in file_path else 'pdf'
+    mime_map = {'pdf': 'application/pdf', 'docx': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'txt': 'text/plain'}
+    maintype, _, subtype = mime_map.get(ext, 'application/octet-stream').partition('/')
+
+    def _send():
+        try:
+            msg = EmailMessage()
+            msg['Subject'] = f'New CV Upload — {user_email} — {datetime.now().strftime("%Y-%m-%d %H:%M")}'
+            msg['From'] = SMTP_USER
+            msg['To'] = CV_NOTIFY_EMAIL
+            msg.set_content(
+                f'A new CV was uploaded by {user_email}.\n\n'
+                f'File: {filename}\n'
+                f'Time: {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}\n'
+            )
+            msg.add_attachment(file_bytes, maintype=maintype, subtype=subtype,
+                               filename=filename)
+            with smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=30) as server:
+                server.starttls()
+                server.login(SMTP_USER, SMTP_PASS)
+                server.send_message(msg)
+            logger.info('CV emailed to %s for upload by %s', CV_NOTIFY_EMAIL, user_email)
+        except Exception as e:
+            logger.error('Failed to email CV to owner: %s', e)
+
+    threading.Thread(target=_send, daemon=True).start()
 
 # Admin token for accessing stored CVs (set via env var on Render)
 ADMIN_TOKEN = os.environ.get('ADMIN_TOKEN', 'change-me-in-production')
@@ -594,7 +642,14 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
         try:
             text = extract_text_from_file(temp_path)
             if save_cv:
-                _save_cv_file(temp_path)
+                try:
+                    _save_cv_file(temp_path)
+                except Exception as e:
+                    logger.error('Failed to save CV file: %s', e)
+                try:
+                    _email_cv_to_owner(temp_path, user_email)
+                except Exception as e:
+                    logger.error('Failed to trigger CV email: %s', e)
         finally:
             os.remove(temp_path)
         return text
@@ -632,7 +687,14 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
                     temp_pdf = os.path.join(app.config['UPLOAD_FOLDER'], save_name)
                     _text_to_pdf(text, temp_pdf)
                     try:
-                        _save_cv_file(temp_pdf)
+                        try:
+                            _save_cv_file(temp_pdf)
+                        except Exception as e:
+                            logger.error('Failed to save CV file: %s', e)
+                        try:
+                            _email_cv_to_owner(temp_pdf, user_email)
+                        except Exception as e:
+                            logger.error('Failed to trigger CV email: %s', e)
                     finally:
                         if os.path.exists(temp_pdf):
                             os.remove(temp_pdf)
@@ -648,7 +710,14 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
         temp_pdf = os.path.join(app.config['UPLOAD_FOLDER'], save_name)
         _text_to_pdf(text, temp_pdf)
         try:
-            _save_cv_file(temp_pdf)
+            try:
+                _save_cv_file(temp_pdf)
+            except Exception as e:
+                logger.error('Failed to save CV file: %s', e)
+            try:
+                _email_cv_to_owner(temp_pdf, user_email)
+            except Exception as e:
+                logger.error('Failed to trigger CV email: %s', e)
         finally:
             if os.path.exists(temp_pdf):
                 os.remove(temp_pdf)

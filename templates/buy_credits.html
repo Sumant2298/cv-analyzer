@@ -31,7 +31,7 @@
                 &middot; ~{{ "\u20b9%.0f"|format(tier.amount_paise / 100 / (tier.credits / 5)) }}/rewrite
             </div>
             <div class="flex-1"></div>
-            <a href="mailto:Sumantbvp@gmail.com?subject=LevelUpX%20Credit%20Request%20-%20{{ tier.label|urlencode }}&body=Hi%2C%0A%0AI%20would%20like%20to%20purchase%20the%20{{ tier.label|urlencode }}%20plan%20({{ tier.credits }}%20credits)%20for%20{{ tier.price|urlencode }}.%0A%0AMy%20registered%20email%3A%20{{ user.email|urlencode }}%0A%0AThank%20you!"
+            <a href="mailto:contact@levelupx.ai?subject=LevelUpX%20Credit%20Request%20-%20{{ tier.label|urlencode }}&body=Hi%2C%0A%0AI%20would%20like%20to%20purchase%20the%20{{ tier.label|urlencode }}%20plan%20({{ tier.credits }}%20credits)%20for%20{{ tier.price|urlencode }}.%0A%0AMy%20registered%20email%3A%20{{ user.email|urlencode }}%0A%0AThank%20you!"
                 class="w-full py-2.5 rounded-xl font-semibold text-sm transition-all shadow text-center block
                 {{ 'bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white' if tier_key == 'popular' else 'bg-slate-100 hover:bg-slate-200 text-slate-700' }}">
                 <span class="inline-flex items-center gap-1.5">
