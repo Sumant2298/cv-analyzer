@@ -18,6 +18,11 @@ import os
 import time
 import urllib.parse
 
+from token_budget import (
+    TASK_BUDGETS, get_cache, get_tracker, get_date_context,
+    check_payload_size, truncate_cv, truncate_jd, truncate_list,
+)
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -112,14 +117,28 @@ def _call_provider(provider: dict, system: str, prompt: str,
 
 def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
               temperature: float = 0.3, timeout: float = 120.0,
-              _retries: int = 2) -> dict:
-    """Call Gemini LLM with retry on failure.
+              _retries: int = 2, task: str = 'unknown',
+              use_cache: bool = True) -> dict:
+    """Call Gemini LLM with retry, caching, and token tracking.
 
     Retries up to _retries times on JSON validation failures.
     On rate limit errors, waits and retries with exponential backoff.
     """
     if not _PROVIDERS:
         raise RuntimeError('No LLM backend configured — set GEMINI_API_KEY')
+
+    # Check payload size guardrail
+    check_payload_size(system, prompt, task)
+
+    # Check cache first
+    cache = get_cache()
+    tracker = get_tracker()
+    if use_cache:
+        cached = cache.get(system, prompt, max_tokens, temperature)
+        if cached is not None:
+            tracker.log_call(task, len(system) + len(prompt), 0, 0.0,
+                             cached=True, model=_PROVIDERS[0]['model'])
+            return cached
 
     provider = _PROVIDERS[0]  # Gemini
     name = provider['name']
@@ -145,7 +164,17 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
             logger.info('[%s] response in %.1fs: %d chars (attempt %d)',
                         name, elapsed, len(raw), attempt)
 
-            return _parse_raw_json(raw)
+            result = _parse_raw_json(raw)
+
+            # Track token usage
+            tracker.log_call(task, len(system) + len(prompt), len(raw),
+                             elapsed, cached=False, model=provider['model'])
+
+            # Store in cache
+            if use_cache:
+                cache.put(system, prompt, max_tokens, temperature, result)
+
+            return result
 
         except Exception as e:
             last_error = e
@@ -186,110 +215,42 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
 # ---------------------------------------------------------------------------
 
 # [7h] Stronger JSON enforcement + [7e] alias mappings
-_SKILLS_SYSTEM = """You are an ATS (Applicant Tracking System) JSON API. You analyse CVs against job descriptions and return ONLY structured JSON.
+_SKILLS_SYSTEM_TEMPLATE = """You are an ATS JSON API. Analyse CVs against JDs, return ONLY structured JSON.
+{date_context}
 
-CRITICAL RULES:
-- Your response must be a single valid JSON object. Nothing else.
-- Your output must parse with json.loads(). No trailing commas, no comments, no extra text.
-- All numeric scores must be integers (not strings). Example: "score": 55, NOT "score": "55".
-- All string values must be properly escaped. No literal newlines inside strings.
-- NEVER output any text from the CV or JD in your response — only structured analysis.
-- NEVER echo, quote, or reproduce the CV content. Only reference it in short rationale strings.
-- If you start writing CV text instead of JSON, STOP and restart with the JSON object.
-- Be thorough: check skill aliases and abbreviations:
-  JS=JavaScript, TS=TypeScript, K8s=Kubernetes, Postgres=PostgreSQL, Mongo=MongoDB,
-  GCP=Google Cloud Platform, ML=Machine Learning, DL=Deep Learning, NLP=Natural Language Processing,
-  CI/CD=Continuous Integration/Deployment, OOP=Object-Oriented Programming, REST=RESTful API,
-  React.js=React, Node.js=Node, Next.js=NextJS, Vue.js=Vue, .NET=dotnet, C#=CSharp,
-  AWS=Amazon Web Services, AI=Artificial Intelligence, DS=Data Science, DE=Data Engineering,
-  DevOps=Development Operations, SRE=Site Reliability Engineering, QA=Quality Assurance
-- Be realistic with scores — most unoptimized CVs score 30-50 ATS."""
+RULES:
+- Output a single valid JSON object. json.loads() must succeed.
+- Scores: integers (not strings). Strings: properly escaped, no raw newlines.
+- NEVER echo/reproduce CV or JD text. Only short rationale references.
+- Check skill aliases: JS=JavaScript, TS=TypeScript, K8s=Kubernetes, Postgres=PostgreSQL, Mongo=MongoDB, GCP=Google Cloud, ML=Machine Learning, CI/CD, REST=RESTful API, React.js=React, Node.js=Node, AWS=Amazon Web Services, AI=Artificial Intelligence
+- Be realistic — most unoptimized CVs score 30-50 ATS."""
 
 
 def _build_skills_prompt(cv_text: str, jd_text: str) -> str:
-    return f"""I will give you a CV and JD to analyse. Read them, then respond with ONLY the JSON structure specified below. Do NOT repeat or echo any CV/JD content.
+    cv = truncate_cv(cv_text, 'skills')
+    jd = truncate_jd(jd_text, 'skills')
+    return f"""Analyse CV against JD. Return ONLY the JSON below.
 
---- BEGIN JD ---
-{jd_text[:4000]}
---- END JD ---
+<JD>
+{jd}
+</JD>
 
---- BEGIN CV ---
-{cv_text[:6000]}
---- END CV ---
+<CV>
+{cv}
+</CV>
 
-Now analyse the above and return ONLY this JSON (replace example values with real analysis):
-{{
-  "ats_breakdown": {{
-    "skill_coverage": {{"score": 55, "rationale": "Covers 8/12 required skills but missing critical ones like Kubernetes and Terraform"}},
-    "experience_alignment": {{"score": 60, "rationale": "5 years experience meets the 3+ requirement; senior-level project work aligns well"}},
-    "keyword_optimization": {{"score": 40, "rationale": "CV uses generic terms; missing JD-specific phrases like 'CI/CD pipeline' and 'microservices'"}},
-    "education_match": {{"score": 80, "rationale": "BS Computer Science matches the required Bachelors in CS or related field"}},
-    "action_verb_quality": {{"score": 45, "rationale": "Uses basic verbs like 'managed' and 'worked on'; missing impact verbs like 'architected' and 'scaled'"}},
-    "section_structure": {{"score": 70, "rationale": "Has standard sections but summary is missing; bullet points are well-formatted"}},
-    "overall_relevance": {{"score": 50, "rationale": "Moderate fit — strong backend skills but weak on the DevOps/cloud focus of this role"}}
-  }},
-  "quick_match": {{
-    "experience": {{"cv_value": "5 years", "jd_value": "3+ years", "match_quality": "Strong Match"}},
-    "education": {{"cv_value": "Bachelors", "jd_value": "Bachelors", "match_quality": "Strong Match"}},
-    "skills": {{"cv_value": "8/12 key skills", "jd_value": "12 required", "match_quality": "Good Match"}},
-    "location": {{"cv_value": "New York, NY", "jd_value": "Remote / US-based", "match_quality": "Strong Match"}}
-  }},
-  "skill_match": {{
-    "matched": ["Python", "AWS"],
-    "missing": ["Kubernetes"],
-    "extra": ["Vue.js"],
-    "skill_score": 66.7,
-    "matched_by_category": {{"Programming Languages": ["Python"]}},
-    "missing_by_category": {{"Cloud & DevOps": ["Kubernetes"]}},
-    "extra_by_category": {{"Frameworks": ["Vue.js"]}},
-    "category_breakdown": {{
-      "Programming Languages": {{"matched": ["Python"], "missing": ["Go"], "score": 50.0}}
-    }}
-  }},
-  "top_skill_groups": [
-    {{
-      "category": "Programming Languages",
-      "importance": "Must-have",
-      "skills": [{{"skill": "Python", "found": true}}, {{"skill": "Go", "found": false}}],
-      "matched": 1,
-      "total": 2
-    }}
-  ],
-  "experience_analysis": {{
-    "verb_alignment": 55.0,
-    "common_action_verbs": ["develop", "manage"],
-    "missing_action_verbs": ["architect", "scale"],
-    "section_relevance": [
-      {{"section": "Experience", "relevance": 65.0}},
-      {{"section": "Summary", "relevance": 50.0}},
-      {{"section": "Education", "relevance": 40.0}},
-      {{"section": "Skills", "relevance": 70.0}},
-      {{"section": "Soft Skills", "relevance": 35.0}},
-      {{"section": "Future-Ready Skills", "relevance": 25.0}}
-    ]
-  }},
-  "role_relevancy_score": 55,
-  "jd_keywords": ["keyword1", "keyword2"],
-  "cv_keywords": ["keyword1", "keyword2"]
-}}
+Return JSON:
+{{"ats_breakdown":{{"skill_coverage":{{"score":INT,"rationale":"1 sentence"}},"experience_alignment":{{"score":INT,"rationale":"..."}},"keyword_optimization":{{"score":INT,"rationale":"..."}},"education_match":{{"score":INT,"rationale":"..."}},"action_verb_quality":{{"score":INT,"rationale":"..."}},"section_structure":{{"score":INT,"rationale":"..."}},"overall_relevance":{{"score":INT,"rationale":"..."}}}},"quick_match":{{"experience":{{"cv_value":"...","jd_value":"...","match_quality":"Strong Match|Good Match|Weak Match"}},"education":{{"cv_value":"...","jd_value":"...","match_quality":"..."}},"skills":{{"cv_value":"...","jd_value":"...","match_quality":"..."}},"location":{{"cv_value":"...","jd_value":"...","match_quality":"..."}}}},"skill_match":{{"matched":["..."],"missing":["..."],"extra":["..."],"skill_score":FLOAT,"matched_by_category":{{"Cat":["..."]}},"missing_by_category":{{"Cat":["..."]}},"extra_by_category":{{"Cat":["..."]}},"category_breakdown":{{"Cat":{{"matched":["..."],"missing":["..."],"score":FLOAT}}}}}},"top_skill_groups":[{{"category":"...","importance":"Must-have|Nice-to-have","skills":[{{"skill":"...","found":BOOL}}],"matched":INT,"total":INT}}],"experience_analysis":{{"verb_alignment":FLOAT,"common_action_verbs":["..."],"missing_action_verbs":["..."],"section_relevance":[{{"section":"Experience","relevance":FLOAT}},{{"section":"Summary","relevance":FLOAT}},{{"section":"Education","relevance":FLOAT}},{{"section":"Skills","relevance":FLOAT}},{{"section":"Soft Skills","relevance":FLOAT}},{{"section":"Future-Ready Skills","relevance":FLOAT}}]}},"role_relevancy_score":INT,"jd_keywords":["top 15"],"cv_keywords":["top 15"]}}
 
-Instructions:
-- ats_breakdown: Score each of the 7 components 0-100. Be REALISTIC — most unoptimized CVs score 30-50 per component. Each rationale must be 1 sentence referencing specific CV/JD content.
-  - skill_coverage (weight 30%): % of required JD skills found in CV
-  - experience_alignment (weight 20%): years + seniority + domain fit
-  - keyword_optimization (weight 15%): JD term density, placement, exact phrasing
-  - education_match (weight 10%): degree, field, certifications alignment
-  - action_verb_quality (weight 10%): achievement-oriented language vs passive/generic
-  - section_structure (weight 10%): ATS-parsable format, standard sections, readability
-  - overall_relevance (weight 5%): holistic fit — would a recruiter shortlist this candidate?
-- quick_match: Extract REAL values from the CV and JD. match_quality: "Strong Match"/"Good Match"/"Weak Match"
-  - location: Extract the candidate's location from the CV (look for city, state, country, or "Remote" mentions near the top or in contact info). Extract the job location from the JD (look for "Location:", "Based in:", or remote/hybrid/onsite mentions). If the CV doesn't mention location, use "Not mentioned" for cv_value. If the JD doesn't mention location, use "Not mentioned" for jd_value. Compare them for match_quality.
-- skill_match: ALL skills from JD classified as matched/missing. ALL extra CV skills. Group by category. skill_score = matched/total*100
-- top_skill_groups: 6-8 groups from JD, ordered by importance. Mark each skill found/not-found in CV
-- experience_analysis: verb_alignment 0-100, list common and missing action verbs. section_relevance MUST have exactly 6 sections: Experience, Summary, Education, Skills, Soft Skills, Future-Ready Skills — each scored 0-100 for relevance to the JD
-- role_relevancy_score: A single integer 0-100 representing how relevant the candidate's overall profile is to this specific role. Consider industry alignment, seniority match, domain expertise, and career trajectory. Be realistic: most unoptimized CVs score 30-60.
-- jd_keywords/cv_keywords: Top 15 important keywords each
-- NEVER echo back the CV or JD text. Return ONLY the JSON."""
+Scoring rules:
+- ats_breakdown: 7 components, 0-100 each. Weights: skill_coverage 30%, experience_alignment 20%, keyword_optimization 15%, education_match 10%, action_verb_quality 10%, section_structure 10%, overall_relevance 5%. Realistic: most CVs score 30-50.
+- quick_match: Extract REAL values. location: check CV contact area and JD location mentions. Use "Not mentioned" if absent.
+- skill_match: ALL JD skills as matched/missing. ALL extra CV skills. Group by category. skill_score = matched/total*100
+- top_skill_groups: 6-8 groups from JD by importance. Mark found/not-found.
+- experience_analysis: EXACTLY 6 sections in section_relevance. verb_alignment 0-100.
+- role_relevancy_score: 0-100 holistic fit. Realistic: 30-60 for unoptimized CVs.
+- jd_keywords/cv_keywords: Top 15 each.
+- NEVER echo CV/JD text."""
 
 
 # ---------------------------------------------------------------------------
@@ -297,79 +258,41 @@ Instructions:
 # ---------------------------------------------------------------------------
 
 # [7h] Stronger JSON enforcement
-_RECRUITER_SYSTEM = """You are a senior technical recruiter and career development advisor with 15+ years of hiring experience. You evaluate candidates directly and specifically — no fluff. You also recommend specific skills and learning paths to close career gaps. Address the candidate in 2nd person (you/your).
+_RECRUITER_SYSTEM_TEMPLATE = """You are a senior technical recruiter (15+ yrs). Evaluate candidates directly — no fluff. Recommend specific skills and learning paths. Address candidate as "you/your".
+{date_context}
 
 RULES:
-- Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
-- Your output must parse with json.loads(). No trailing commas, no comments.
-- All string values must be properly escaped. No literal newlines inside strings.
-- Do NOT echo or repeat the CV or JD content.
-- Reference specific items from the CV, not generic advice.
-- Be honest: a weak fit is a weak fit."""
+- Output ONLY valid JSON. No text outside JSON. json.loads() must succeed.
+- NEVER echo CV/JD content. Reference specific CV items, not generic advice.
+- Be honest: weak fit = weak fit."""
 
 
 def _build_recruiter_prompt(cv_text: str, jd_text: str,
                             ats_score: int, matched: list, missing: list,
                             skill_score: float) -> str:
-    matched_str = ', '.join(matched[:15]) or 'None'
-    missing_str = ', '.join(missing[:15]) or 'None'
+    matched_str = ', '.join(truncate_list(matched, 15)) or 'None'
+    missing_str = ', '.join(truncate_list(missing, 15)) or 'None'
+    cv = truncate_cv(cv_text, 'recruiter')
+    jd = truncate_jd(jd_text, 'recruiter')
 
-    return f"""Evaluate this candidate. ATS Score: {ats_score}%. Skill Match: {skill_score:.0f}%. Matched: {matched_str}. Missing: {missing_str}.
+    return f"""ATS: {ats_score}%. Skill Match: {skill_score:.0f}%. Matched: {matched_str}. Missing: {missing_str}.
 
 <JD>
-{jd_text[:4000]}
+{jd}
 </JD>
 
 <CV>
-{cv_text[:6000]}
+{cv}
 </CV>
 
-Return this JSON:
-{{
-  "profile_summary": "3-5 sentences in 2nd person. Start with overall verdict, reference specific CV content, end with top action item.",
-  "working_well": ["Strength 1 referencing CV content", "Strength 2"],
-  "needs_improvement": ["Gap 1 referencing missing skill/experience", "Gap 2"],
-  "suggestions": [
-    {{
-      "type": "skill_acquisition",
-      "skill": "Kubernetes",
-      "title": "Learn Kubernetes for Container Orchestration",
-      "body": "The JD requires container orchestration experience. Kubernetes is the industry standard and critical for this DevOps role.",
-      "course_name": "Kubernetes for the Absolute Beginners - Hands-on",
-      "platform": "Udemy",
-      "priority": "high"
-    }}
-  ],
-  "skill_gap_tips": [
-    {{
-      "skill": "SkillName",
-      "tip": "One actionable sentence to demonstrate this skill.",
-      "original_text": "Managed database operations for the team",
-      "improved_text": "Architected and optimized PostgreSQL database cluster serving 2M+ daily queries with 99.9% uptime"
-    }}
-  ]
-}}
+Return JSON:
+{{"profile_summary":"3-5 sentences, 2nd person, specific, honest","working_well":["3-5 strengths for THIS role"],"needs_improvement":["3-5 real gaps"],"suggestions":[{{"type":"skill_acquisition","skill":"SkillName","title":"Concise learning goal","body":"1-2 sentences why this matters for THIS role","course_name":"Specific course name","platform":"Udemy|Coursera|Simplilearn|LinkedIn Learning|edX|Pluralsight","priority":"high|medium|low"}}],"skill_gap_tips":[{{"skill":"SkillName","tip":"One actionable sentence","original_text":"Real CV bullet or 'Not present in CV'","improved_text":"Rewritten version with the skill"}}]}}
 
-Instructions:
-- profile_summary: 3-5 sentences, 2nd person, specific, honest
-- working_well: 3-5 genuine strengths for THIS role
-- needs_improvement: 3-5 real gaps, be direct
-- suggestions: EXACTLY 5-7 skill acquisition recommendations based on the candidate's skill gaps against this JD. Each must:
-  - Focus on a SPECIFIC skill the candidate is MISSING or WEAK in (from the missing skills list above)
-  - type: always "skill_acquisition"
-  - skill: the exact skill name from the missing skills list
-  - title: a concise actionable learning goal (e.g., "Master Docker and Container Orchestration")
-  - body: 1-2 sentences explaining WHY this skill matters for THIS role, referencing the JD
-  - course_name: recommend a specific, well-known course or certification program (e.g., "AWS Certified Solutions Architect", "Google Project Management Certificate", "The Complete Python Bootcamp"). Use your knowledge of popular courses.
-  - platform: which platform offers it (Udemy, Coursera, Simplilearn, LinkedIn Learning, edX, Pluralsight)
-  - priority: first 2 "high" (most critical missing skills), next 2 "medium", rest "low"
-  - Do NOT give CV writing advice like "Tailor Your CV" or "Quantify Achievements". Focus ONLY on what skills to LEARN/ACQUIRE.
-- skill_gap_tips: Top 3-5 missing or weak skills. Each must include:
-  - skill: the skill name
-  - tip: one actionable sentence explaining how to address this gap
-  - original_text: a REAL bullet point or phrase from the candidate's CV that could be improved to showcase this skill (or "Not present in CV" if the skill is completely absent from their experience)
-  - improved_text: a rewritten version of that bullet point incorporating the missing skill naturally. Make it specific, quantified, and compelling. If original_text is "Not present in CV", write a NEW bullet point the candidate could add based on their existing experience.
-- NEVER echo the CV or JD. Return ONLY the JSON."""
+Rules:
+- suggestions: 5-7 items. Focus on MISSING skills only (from missing list above). No CV writing advice. Priority: first 2 high, next 2 medium, rest low. Use well-known courses.
+- skill_gap_tips: 3-5 items. original_text must be a REAL CV bullet or "Not present in CV". improved_text: specific, quantified.
+- working_well/needs_improvement: reference specific CV content.
+- NEVER echo CV/JD."""
 
 
 # ---------------------------------------------------------------------------
@@ -468,13 +391,15 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
         raise RuntimeError('LLM is not configured (set GEMINI_API_KEY)')
 
     # --- Call 1: Skills & Scoring ---
+    budget_skills = TASK_BUDGETS['skills']
     skills_prompt = _build_skills_prompt(cv_text, jd_text)
+    skills_system = _SKILLS_SYSTEM_TEMPLATE.format(date_context=get_date_context())
     logger.info('LLM call 1: skills & scoring (%d chars)', len(skills_prompt))
-    # [7d] Lower temperature for more deterministic output
-    # Gemini 2.5 Flash is a thinking model — thinking tokens consume part of
-    # max_tokens budget, so we need ~3-4x the expected output size
-    skills_data = _call_llm(_SKILLS_SYSTEM, skills_prompt, max_tokens=16000,
-                            temperature=0.2, timeout=120.0)
+    skills_data = _call_llm(skills_system, skills_prompt,
+                            max_tokens=budget_skills['max_tokens'],
+                            temperature=budget_skills['temperature'],
+                            timeout=budget_skills['timeout'],
+                            task='skills')
 
     # --- Build results from call 1 ---
     results = {}
@@ -602,10 +527,14 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
             results['skill_match']['missing'],
             skill_score,
         )
+        budget_recruiter = TASK_BUDGETS['recruiter']
+        recruiter_system = _RECRUITER_SYSTEM_TEMPLATE.format(date_context=get_date_context())
         logger.info('LLM call 2: recruiter insights (%d chars)', len(recruiter_prompt))
-        # [7d] Lower temperature for consistency
-        recruiter_data = _call_llm(_RECRUITER_SYSTEM, recruiter_prompt,
-                                    max_tokens=12000, temperature=0.25, timeout=120.0)
+        recruiter_data = _call_llm(recruiter_system, recruiter_prompt,
+                                    max_tokens=budget_recruiter['max_tokens'],
+                                    temperature=budget_recruiter['temperature'],
+                                    timeout=budget_recruiter['timeout'],
+                                    task='recruiter')
 
         results['llm_insights'] = {}
         if isinstance(recruiter_data.get('profile_summary'), str) and recruiter_data['profile_summary'].strip():
@@ -737,26 +666,22 @@ def analyze_with_llm(cv_text: str, jd_text: str) -> dict:
 # Call 3: CV Rewrite (on-demand, paid feature)
 # ---------------------------------------------------------------------------
 
-_REWRITE_SYSTEM = """You are an expert CV writer and ATS optimization specialist with 15+ years of experience. You rewrite CVs to maximize ATS scores and recruiter appeal for a specific job description.
+_REWRITE_SYSTEM_TEMPLATE = """Expert CV writer and ATS optimizer. Rewrite CVs for max ATS score and recruiter appeal.
+{date_context}
 
-CRITICAL RULES:
-- Output ONLY a valid JSON object. Do NOT include any text outside the JSON.
-- NEVER fabricate experience, degrees, companies, job titles, or skills the candidate doesn't have.
-- ONLY reorganize, reword, and optimize what already exists in the original CV.
-- You MUST preserve EVERY section and EVERY job/experience entry from the original CV. Do NOT drop any roles, internships, projects, education entries, or sections — even short or old ones.
-- Naturally weave in JD keywords where truthful.
-- Use strong, specific action verbs and quantify achievements where possible.
-- The candidate's name and all contact information must appear EXACTLY as in the original — do NOT alter, rearrange, or garble the name.
-- Keep ALL dates, ALL company names, ALL job titles exactly as they are.
-- Address the candidate in 2nd person in the changes_summary.
-- The rewritten CV must be AT LEAST as long as the original. Never shorten or truncate it."""
+RULES:
+- Output ONLY valid JSON. json.loads() must succeed.
+- NEVER fabricate experience, degrees, companies, titles, or skills.
+- ONLY reorganize, reword, optimize existing content.
+- Preserve EVERY section, job entry, internship, project, education entry.
+- Keep name, contact info, dates, company names, job titles EXACTLY as original.
+- Weave JD keywords where truthful. Use strong action verbs. Quantify achievements.
+- Rewritten CV must be AT LEAST as long as original. Never truncate.
+- changes_summary: address candidate in 2nd person."""
 
-_REWRITE_PROMPT = """Rewrite this CV to be optimized for the target role below. You MUST preserve every single section, job entry, internship, project, and detail from the original CV.
+_REWRITE_PROMPT = """Rewrite CV for the target role. Preserve every section, job, internship, project, detail.
 
-Matched skills (already in CV): {matched}
-Missing skills (DO NOT fabricate — only mention if the candidate has related transferable experience): {missing}
-Missing action verbs to incorporate where truthful: {missing_verbs}
-Current ATS score: {ats_score}%
+Matched: {matched} | Missing (don't fabricate): {missing} | Missing verbs: {missing_verbs} | ATS: {ats_score}%
 
 <JD>
 {jd_text}
@@ -766,59 +691,11 @@ Current ATS score: {ats_score}%
 {cv_text}
 </ORIGINAL_CV>
 
-Return this JSON:
-{{
-  "rewritten_cv": "The COMPLETE rewritten CV text. Every section, every job, every bullet point from the original must be present.",
-  "changes_summary": [
-    "Specific change 1 — what was improved and why",
-    "Specific change 2 — what was improved and why"
-  ],
-  "expected_ats_improvement": 15
-}}
+Return JSON:
+{{"rewritten_cv":"COMPLETE rewritten CV (plain text, CAPS headings, * bullets, no markdown ##/**). Every section+job from original must appear.","changes_summary":["5-10 specific changes, 2nd person"],"expected_ats_improvement":INT_0_40}}
 
-STRICT Instructions for rewritten_cv:
-- Use this EXACT format structure:
-  CANDIDATE NAME (exactly as original)
-  TITLE LINE (e.g., "EXPERIENCED ENGINEER | AI | DATA SCIENCE")
-
-  CONTACT
-  Phone: ...
-  Email: ...
-  LinkedIn: ...
-  GitHub: ... (if present)
-
-  SUMMARY
-  (Rewrite the summary to be more targeted to the JD. Keep all factual claims.)
-
-  EXPERIENCE
-  COMPANY NAME — Date Range
-  Job Title
-  * Bullet point 1 (improved with action verbs + metrics)
-  * Bullet point 2
-  (Repeat for EVERY company/role in the original CV — do NOT skip any!)
-
-  EDUCATION
-  DEGREE — UNIVERSITY
-  Concentration/Details
-  (Repeat for ALL degrees)
-
-  PROJECTS
-  Project Name
-  * Detail 1
-  * Detail 2
-  (Include ALL projects from original)
-
-  (Include any other sections from the original: HOBBIES, CERTIFICATIONS, etc.)
-
-- You MUST include EVERY job/internship from the original, even short summer internships. Count the number of roles in the original CV and ensure the same count appears in the output.
-- Improve wording: replace weak verbs (worked on, helped, did) with strong verbs (architected, spearheaded, engineered, optimized, delivered)
-- Add JD keywords ONLY where the candidate genuinely has the experience
-- Quantify achievements wherever possible (numbers, percentages, scale)
-- Do NOT use markdown syntax like ## or ** or ### in the output — use PLAIN TEXT with CAPS for section headings and company names
-- Bullet points should use * or - prefix
-- changes_summary: 5-10 specific bullet points explaining what you changed and why
-- expected_ats_improvement: Estimated point increase (0-40) from original score. Be realistic.
-- NEVER echo the JD text. Return ONLY the JSON."""
+Format: NAME (exact) → TITLE LINE → CONTACT → SUMMARY → EXPERIENCE (every role, * bullets with action verbs + metrics) → EDUCATION → PROJECTS → other sections.
+Replace weak verbs (managed, helped) with strong (architected, spearheaded, engineered). Add JD keywords only where truthful. Quantify. NEVER echo JD."""
 
 
 def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
@@ -831,17 +708,20 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
     if not LLM_ENABLED:
         raise RuntimeError('LLM is not configured (set GEMINI_API_KEY)')
 
+    budget = TASK_BUDGETS['rewrite']
     prompt = _REWRITE_PROMPT.format(
-        matched=', '.join(matched[:15]) or 'None',
-        missing=', '.join(missing[:15]) or 'None',
-        missing_verbs=', '.join(missing_verbs[:10]) or 'None',
+        matched=', '.join(truncate_list(matched, 15)) or 'None',
+        missing=', '.join(truncate_list(missing, 15)) or 'None',
+        missing_verbs=', '.join(truncate_list(missing_verbs, 10)) or 'None',
         ats_score=ats_score,
-        jd_text=jd_text[:3000],
-        cv_text=cv_text[:8000],
+        jd_text=truncate_jd(jd_text, 'rewrite'),
+        cv_text=truncate_cv(cv_text, 'rewrite'),
     )
+    system = _REWRITE_SYSTEM_TEMPLATE.format(date_context=get_date_context())
 
     logger.info('LLM call 3: CV rewrite (%d chars)', len(prompt))
-    data = _call_llm(_REWRITE_SYSTEM, prompt, max_tokens=24000, timeout=180.0)
+    data = _call_llm(system, prompt, max_tokens=budget['max_tokens'],
+                     timeout=budget['timeout'], task='rewrite', use_cache=False)
 
     result = {
         'rewritten_cv': str(data.get('rewritten_cv', '')),
@@ -866,15 +746,14 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
 # Call 0: CV-Only Review (Tier 1 — NLP-heavy, small LLM call)
 # ---------------------------------------------------------------------------
 
-_CV_ONLY_SYSTEM = """You are an expert CV reviewer and career coach with 15+ years of hiring experience. You evaluate CVs for quality, structure, and professional presentation WITHOUT comparing to any job description.
+_CV_ONLY_SYSTEM_TEMPLATE = """Expert CV reviewer (15+ yrs). Evaluate CV quality, structure, presentation. No JD comparison.
+{date_context}
 
 RULES:
-- Output ONLY a valid JSON object.
-- Address the candidate in 2nd person (you/your).
-- Be specific: reference actual content from the CV.
-- Be constructive: identify strengths AND actionable improvements.
-- Do NOT discuss job fit, ATS matching, or JD alignment — this is a standalone CV quality review.
-- Do NOT reproduce or echo CV text."""
+- Output ONLY valid JSON. Address candidate as "you/your".
+- Be specific: reference actual CV content. Be constructive.
+- No job fit/ATS/JD discussion — standalone quality review.
+- NEVER echo CV text."""
 
 
 def _build_cv_only_prompt(cv_text: str, nlp_results: dict) -> str:
@@ -903,89 +782,24 @@ def _build_cv_only_prompt(cv_text: str, nlp_results: dict) -> str:
 
     sections_found_list = ', '.join(f'"{s}"' for s in sections.get('sections_found', []))
 
-    return f"""Review this CV for overall quality and professional presentation. I've already run NLP analysis — use it as context, but add your qualitative insights.
+    cv = truncate_cv(cv_text, 'cv_only')
+    return f"""Review CV quality. NLP context provided — add qualitative insights.
 
 {nlp_summary}
 
 <CV>
-{cv_text[:5000]}
+{cv}
 </CV>
 
-Return this JSON:
-{{
-  "candidate_name": "Full name of the candidate as it appears on the CV",
-  "one_liner_summary": "One sentence, max 15 words, summarising the candidate's profile and strongest positioning",
-  "profile_summary": "3-4 sentences assessing the CV's overall quality, structure, and presentation. Be specific about what stands out.",
-  "cv_highlights": [
-    {{"dimension": "Strategic Clarity", "score": 7, "rationale": "Short explanation"}},
-    {{"dimension": "Progression Logic", "score": 6, "rationale": "Short explanation"}},
-    {{"dimension": "Signal to Noise Ratio", "score": 5, "rationale": "Short explanation"}},
-    {{"dimension": "Formatting Discipline", "score": 8, "rationale": "Short explanation"}},
-    {{"dimension": "Red Flags", "score": 2, "rationale": "Short explanation — low means clean CV"}},
-    {{"dimension": "Credibility Markers", "score": 7, "rationale": "Short explanation"}}
-  ],
-  "section_summaries": {{
-    "Summary": "One-line description of how this section reads in the CV",
-    "Experience": "One-line description of the experience section"
-  }},
-  "working_well": [
-    "Strength 1 referencing specific CV content",
-    "Strength 2",
-    "Strength 3"
-  ],
-  "needs_improvement": [
-    "Issue 1 with specific actionable advice",
-    "Issue 2",
-    "Issue 3"
-  ],
-  "bullet_rewrites": [
-    {{
-      "original_text": "Exact weak bullet from the CV",
-      "improved_text": "Rewritten version with stronger verbs and metrics",
-      "improvement_reason": "Why this is better"
-    }}
-  ],
-  "future_ready_suggestions": [
-    {{
-      "skill": "Docker",
-      "title": "Learn Containerization",
-      "body": "Containers are becoming standard for deployment. Learning Docker will future-proof your ops skills.",
-      "course_name": "Docker for Beginners",
-      "platform": "Udemy",
-      "priority": "high"
-    }}
-  ],
-  "general_suggestions": [
-    {{
-      "title": "Short title for the suggestion",
-      "body": "2-3 sentences explaining why this matters and how to fix it",
-      "priority": "high"
-    }}
-  ]
-}}
+Return JSON:
+{{"candidate_name":"Full name (verify/correct NLP: '{candidate_name}')","one_liner_summary":"Max 15 words","profile_summary":"3-4 sentences on quality/structure","cv_highlights":[{{"dimension":"Strategic Clarity","score":INT_1_10,"rationale":"short"}},{{"dimension":"Progression Logic","score":INT,"rationale":"short"}},{{"dimension":"Signal to Noise Ratio","score":INT,"rationale":"short"}},{{"dimension":"Formatting Discipline","score":INT,"rationale":"short"}},{{"dimension":"Red Flags","score":INT,"rationale":"LOW=clean, HIGH=many flags"}},{{"dimension":"Credibility Markers","score":INT,"rationale":"short"}}],"section_summaries":{{per section in [{sections_found_list}]: "one-line description"}},"working_well":["3-5 strengths with CV references"],"needs_improvement":["3-5 issues with actionable advice"],"bullet_rewrites":[{{"original_text":"exact weak bullet","improved_text":"rewritten","improvement_reason":"why better"}}],"future_ready_suggestions":[{{"skill":"...","title":"...","body":"why it matters","course_name":"specific course","platform":"Udemy|Coursera|Simplilearn","priority":"high|medium|low"}}],"general_suggestions":[{{"title":"...","body":"2-3 sentences","priority":"high|medium|low"}}]}}
 
-Requirements:
-- candidate_name: Extract the full name from the CV. If NLP detected "{candidate_name}", verify or correct it.
-- one_liner_summary: Max 15 words. Example: "Experienced full-stack developer with strong React and Node.js expertise"
-- cv_highlights: EXACTLY 6 dimensions, each scored 1-10:
-  - Strategic Clarity: Does the CV tell a coherent career story?
-  - Progression Logic: Is there visible career growth and trajectory?
-  - Signal to Noise Ratio: How much of the content is impactful vs filler?
-  - Formatting Discipline: Is the layout clean, consistent, and scannable?
-  - Red Flags: Count of gaps, inconsistencies, or concerns. Score 1-3 if the CV is clean with few issues. Score 7-10 if there are many red flags. (LOW score = good/clean CV)
-  - Credibility Markers: Are there quantified results, brand names, certifications?
-- section_summaries: One-line description for EACH section found in the CV: [{sections_found_list}]. Describe what's in the section, not generic advice.
-- 3-5 items in working_well
-- 3-5 items in needs_improvement
-- bullet_rewrites: Pick the 3-5 WEAKEST bullet points from the CV and rewrite them. NEVER fabricate experience — only improve wording, add impact verbs, suggest where metrics could go.
-- future_ready_suggestions: 3-5 trending skills relevant to the candidate's DOMAIN (not JD-based). Each must have a specific course recommendation.
-  - priority: first 2 "high", next 1-2 "medium", rest "low"
-  - These should be forward-looking industry trends, not basic skills the candidate already has.
-- 5-7 items in general_suggestions (first 2 high priority, next 2 medium, rest low)
-- Be specific to THIS CV — no generic advice
-- Do NOT suggest matching to a job description (user hasn't provided one yet)
-- Focus on: writing quality, structure, impact, clarity, completeness
-- NEVER use markdown formatting (no **, no ##, no *). All text must be plain text only."""
+Rules:
+- cv_highlights: EXACTLY 6 dimensions, scored 1-10. Red Flags: 1-3=clean, 7-10=many issues.
+- bullet_rewrites: 3-5 WEAKEST bullets. Never fabricate. Improve wording only.
+- future_ready_suggestions: 3-5 trending skills for candidate's DOMAIN. Not JD-based. First 2 high priority.
+- general_suggestions: 5-7 items. First 2 high, next 2 medium, rest low.
+- Be specific to THIS CV. No generic advice. No JD mentions. Plain text only (no markdown)."""
 
 
 def analyze_cv_only(cv_text: str) -> dict:
@@ -1006,10 +820,13 @@ def analyze_cv_only(cv_text: str) -> dict:
     # 2. LLM call for qualitative feedback (optional — degrades gracefully)
     try:
         if LLM_ENABLED:
+            budget = TASK_BUDGETS['cv_only']
             prompt = _build_cv_only_prompt(cv_text, nlp_results)
+            system = _CV_ONLY_SYSTEM_TEMPLATE.format(date_context=get_date_context())
             logger.info('LLM call 0: CV-only review (%d chars)', len(prompt))
-            llm_data = _call_llm(_CV_ONLY_SYSTEM, prompt, max_tokens=8000,
-                                  temperature=0.3, timeout=90.0)
+            llm_data = _call_llm(system, prompt, max_tokens=budget['max_tokens'],
+                                  temperature=budget['temperature'],
+                                  timeout=budget['timeout'], task='cv_only')
 
             # Candidate name: prefer LLM, fallback to NLP
             llm_name = str(llm_data.get('candidate_name', '')).strip()
@@ -1251,14 +1068,10 @@ def _normalise_section_relevance(raw: list) -> list:
 # Refine CV Section (P14 — inline editing with AI)
 # ---------------------------------------------------------------------------
 
-_REFINE_SYSTEM = """You are an expert CV editor. You refine specific sections of a CV based on user instructions.
+_REFINE_SYSTEM_TEMPLATE = """Expert CV editor. Refine CV sections per user instructions.
+{date_context}
 
-RULES:
-- Output ONLY a valid JSON object with a single key "refined_text".
-- Preserve the candidate's real experience — NEVER fabricate.
-- Apply the user's instruction precisely.
-- Keep the same general length unless the instruction says otherwise.
-- Use strong action verbs and quantified achievements where possible."""
+RULES: Output ONLY JSON {{"refined_text":"..."}}. Never fabricate. Apply instruction precisely. Keep same length. Use strong verbs."""
 
 
 def refine_cv_section(selected_text: str, instruction: str,
@@ -1270,32 +1083,30 @@ def refine_cv_section(selected_text: str, instruction: str,
     if not LLM_ENABLED:
         raise RuntimeError('LLM is not configured')
 
-    prompt = f"""Refine the following selected text from a CV based on the user's instruction.
+    budget = TASK_BUDGETS['refine']
+    sel = truncate_cv(selected_text, 'refine_selected')
+    ctx = truncate_cv(full_cv_context, 'refine_context') if full_cv_context else ''
+
+    prompt = f"""Refine selected CV text per user instruction.
 
 <SELECTED_TEXT>
-{selected_text[:2000]}
+{sel}
 </SELECTED_TEXT>
 
 <USER_INSTRUCTION>
 {instruction[:500]}
 </USER_INSTRUCTION>
 
-{f'<CV_CONTEXT>{full_cv_context[:3000]}</CV_CONTEXT>' if full_cv_context else ''}
+{f'<CV_CONTEXT>{ctx}</CV_CONTEXT>' if ctx else ''}
 
-Return this JSON:
-{{
-  "refined_text": "The refined version of the selected text"
-}}
+Return JSON: {{"refined_text":"refined version"}}
+Rules: Apply instruction precisely. Keep format. Never fabricate. Improve verbs+impact."""
 
-Rules:
-- Apply the user's instruction precisely
-- Keep the same format (bullet points stay as bullet points, etc.)
-- NEVER fabricate experience, skills, or companies
-- Improve wording, action verbs, and impact where relevant
-- Return ONLY the JSON"""
-
-    data = _call_llm(_REFINE_SYSTEM, prompt, max_tokens=2000,
-                     temperature=0.3, timeout=30.0)
+    system = _REFINE_SYSTEM_TEMPLATE.format(date_context=get_date_context())
+    data = _call_llm(system, prompt, max_tokens=budget['max_tokens'],
+                     temperature=budget['temperature'],
+                     timeout=budget['timeout'], task='refine',
+                     use_cache=False)
     refined = str(data.get('refined_text', '')).strip()
     if not refined:
         raise RuntimeError('LLM returned empty refined text')
