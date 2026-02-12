@@ -1296,13 +1296,10 @@ def update_rewritten_cv():
 
 @app.route('/buy-credits')
 def buy_credits():
-    if not session.get('user_id'):
-        session['_login_next'] = url_for('buy_credits')
-        flash('Please sign in to buy credits.', 'warning')
-        return redirect(url_for('login_page'))
-
     from payments import TIERS, PAYMENTS_ENABLED, RAZORPAY_KEY_ID
-    user = User.query.get(session['user_id'])
+    user = None
+    if session.get('user_id'):
+        user = User.query.get(session['user_id'])
     return render_template('buy_credits.html',
                            tiers=TIERS,
                            payments_enabled=PAYMENTS_ENABLED,
