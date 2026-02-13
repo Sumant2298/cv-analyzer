@@ -1,0 +1,175 @@
+{% extends "base.html" %}
+
+{% block title %}My Resumes — Store & Manage Up to 5 CVs | LevelUpX{% endblock %}
+{% block meta_description %}Store, manage, and organize up to 5 resume versions on LevelUpX. Set a primary resume for quick job matching and analysis.{% endblock %}
+
+{% block content %}
+<section class="max-w-5xl mx-auto px-4 sm:px-6 py-10 md:py-16">
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-3xl md:text-4xl font-bold text-slate-900">My Resumes</h1>
+            <p class="mt-1 text-slate-500">Store up to 5 resume versions. Set one as primary for quick matching.</p>
+        </div>
+        {% if resumes|length < 5 %}
+        <button onclick="document.getElementById('uploadModal').classList.remove('hidden')" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm whitespace-nowrap shadow-lg shadow-indigo-200">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            Upload Resume
+        </button>
+        {% endif %}
+    </div>
+
+    <!-- Flash messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+    {% for category, message in messages %}
+    <div class="mb-6 p-4 rounded-xl text-sm font-medium
+        {% if category == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-200
+        {% elif category == 'error' %}bg-red-50 text-red-700 border border-red-200
+        {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
+        {{ message }}
+    </div>
+    {% endfor %}
+    {% endif %}
+    {% endwith %}
+
+    <!-- Usage indicator -->
+    <div class="mb-8 flex items-center gap-3">
+        <div class="flex-1 bg-slate-100 rounded-full h-2.5 max-w-xs">
+            <div class="bg-indigo-500 h-2.5 rounded-full transition-all" style="width: {{ (resumes|length / 5 * 100)|int }}%"></div>
+        </div>
+        <span class="text-sm text-slate-500 font-medium">{{ resumes|length }}/5 resumes</span>
+    </div>
+
+    {% if resumes|length == 0 %}
+    <!-- Empty state -->
+    <div class="bg-white rounded-2xl shadow-lg p-12 text-center">
+        <div class="w-20 h-20 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+            <svg class="w-10 h-10 text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        </div>
+        <h3 class="text-xl font-bold text-slate-900 mb-2">No Resumes Stored Yet</h3>
+        <p class="text-slate-500 mb-6 max-w-sm mx-auto">Upload your first resume to get started. You can store up to 5 different versions.</p>
+        <button onclick="document.getElementById('uploadModal').classList.remove('hidden')" class="inline-flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition text-sm shadow-lg shadow-indigo-200">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Upload Your First Resume
+        </button>
+    </div>
+    {% else %}
+    <!-- Resume cards grid -->
+    <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
+        {% for resume in resumes %}
+        <div class="bg-white rounded-2xl shadow-md hover:shadow-lg transition p-5 relative {% if resume.is_primary %}ring-2 ring-indigo-500 ring-offset-2{% endif %}">
+            {% if resume.is_primary %}
+            <div class="absolute -top-2 -right-2">
+                <span class="inline-flex items-center gap-1 bg-indigo-600 text-white text-xs font-bold px-2.5 py-1 rounded-full shadow-lg">
+                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+                    Primary
+                </span>
+            </div>
+            {% endif %}
+
+            <!-- File icon -->
+            <div class="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center mb-4">
+                <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+
+            <!-- Label (editable) -->
+            <h3 class="font-bold text-slate-900 mb-1 text-lg truncate" title="{{ resume.label }}">{{ resume.label }}</h3>
+            <p class="text-slate-400 text-xs mb-1 truncate" title="{{ resume.filename }}">{{ resume.filename }}</p>
+            <p class="text-slate-400 text-xs mb-4">
+                {% if resume.file_size %}{{ (resume.file_size / 1024)|round(0)|int }} KB{% endif %}
+                &middot; {{ resume.created_at.strftime('%b %d, %Y') }}
+            </p>
+
+            <!-- Actions -->
+            <div class="flex flex-wrap gap-2">
+                <!-- Download -->
+                <a href="/my-resumes/{{ resume.id }}/download" class="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/></svg>
+                    Download
+                </a>
+
+                {% if not resume.is_primary %}
+                <!-- Set Primary -->
+                <form action="/my-resumes/{{ resume.id }}/set-primary" method="POST" class="inline">
+                    <button type="submit" class="inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 px-3 py-1.5 rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z"/></svg>
+                        Set Primary
+                    </button>
+                </form>
+                {% endif %}
+
+                <!-- Delete -->
+                <form action="/my-resumes/{{ resume.id }}/delete" method="POST" class="inline" onsubmit="return confirm('Delete this resume? This cannot be undone.')">
+                    <button type="submit" class="inline-flex items-center gap-1 text-xs font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 px-3 py-1.5 rounded-lg transition">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        Delete
+                    </button>
+                </form>
+            </div>
+        </div>
+        {% endfor %}
+
+        {% if resumes|length < 5 %}
+        <!-- Add New Card -->
+        <button onclick="document.getElementById('uploadModal').classList.remove('hidden')" class="bg-slate-50 hover:bg-indigo-50 border-2 border-dashed border-slate-200 hover:border-indigo-300 rounded-2xl p-5 flex flex-col items-center justify-center gap-3 transition min-h-[200px] cursor-pointer group">
+            <div class="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm group-hover:shadow-md transition">
+                <svg class="w-6 h-6 text-slate-400 group-hover:text-indigo-500 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
+            </div>
+            <span class="text-sm font-medium text-slate-400 group-hover:text-indigo-600 transition">Add Resume</span>
+        </button>
+        {% endif %}
+    </div>
+    {% endif %}
+</section>
+
+<!-- Upload Modal -->
+<div id="uploadModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
+    <div class="flex items-center justify-center min-h-screen px-4">
+        <!-- Backdrop -->
+        <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('uploadModal').classList.add('hidden')"></div>
+
+        <!-- Modal content -->
+        <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 max-w-md w-full relative z-10">
+            <div class="flex items-center justify-between mb-6">
+                <h2 class="text-xl font-bold text-slate-900">Upload Resume</h2>
+                <button onclick="document.getElementById('uploadModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 transition">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+                </button>
+            </div>
+
+            <form action="/my-resumes/upload" method="POST" enctype="multipart/form-data">
+                <!-- Label -->
+                <div class="mb-4">
+                    <label for="label" class="block text-sm font-medium text-slate-700 mb-1.5">Label</label>
+                    <input type="text" name="label" id="label" placeholder="e.g., Tech Resume, Marketing CV" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition" maxlength="100">
+                </div>
+
+                <!-- File upload -->
+                <div class="mb-4">
+                    <label for="resume_file" class="block text-sm font-medium text-slate-700 mb-1.5">Resume File</label>
+                    <div class="border-2 border-dashed border-slate-200 rounded-xl p-6 text-center hover:border-indigo-300 transition cursor-pointer" onclick="document.getElementById('resume_file').click()">
+                        <svg class="w-10 h-10 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                        <p class="text-sm text-slate-500 mb-1" id="uploadFileName">Click to select a file</p>
+                        <p class="text-xs text-slate-400">PDF, DOC, DOCX (max 5 MB)</p>
+                    </div>
+                    <input type="file" name="resume_file" id="resume_file" accept=".pdf,.doc,.docx" class="hidden" required onchange="document.getElementById('uploadFileName').textContent = this.files[0] ? this.files[0].name : 'Click to select a file'">
+                </div>
+
+                <!-- Set as primary -->
+                <div class="mb-6">
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" name="is_primary" value="1" class="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500">
+                        <span class="text-sm text-slate-600">Set as primary resume</span>
+                    </label>
+                </div>
+
+                <!-- Submit -->
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold px-6 py-3 rounded-xl transition shadow-lg shadow-indigo-200 text-sm">
+                    Upload Resume
+                </button>
+            </form>
+        </div>
+    </div>
+</div>
+{% endblock %}

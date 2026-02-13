@@ -23,7 +23,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from models import db, User, Transaction, CreditUsage, LLMUsage, StoredCV
+from models import db, User, Transaction, CreditUsage, LLMUsage, StoredCV, UserResume
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -1428,6 +1428,187 @@ def resume_tips():
 
 
 # ---------------------------------------------------------------------------
+# Pillar landing pages
+# ---------------------------------------------------------------------------
+
+@app.route('/resume-ai')
+def resume_ai():
+    return render_template('resume_ai.html')
+
+
+@app.route('/job-match')
+def job_match():
+    return render_template('job_match.html')
+
+
+@app.route('/upskills')
+def upskills():
+    return render_template('upskills.html')
+
+
+@app.route('/blog')
+def blog():
+    return render_template('blog.html')
+
+
+# ---------------------------------------------------------------------------
+# My Resumes — store up to 5 resumes per user
+# ---------------------------------------------------------------------------
+
+@app.route('/my-resumes')
+def my_resumes():
+    """List user's stored resumes."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('my_resumes')
+        flash('Please sign in to manage your resumes.', 'warning')
+        return redirect(url_for('login_page'))
+
+    resumes = UserResume.query.filter_by(user_id=session['user_id'])\
+        .order_by(UserResume.created_at.desc()).all()
+    return render_template('my_resumes.html', resumes=resumes)
+
+
+@app.route('/my-resumes/upload', methods=['POST'])
+def upload_resume():
+    """Upload a new resume (max 5 per user)."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    user_id = session['user_id']
+
+    # Check limit
+    count = UserResume.query.filter_by(user_id=user_id).count()
+    if count >= 5:
+        flash('You can store up to 5 resumes. Please delete one before uploading a new one.', 'warning')
+        return redirect(url_for('my_resumes'))
+
+    file = request.files.get('resume_file')
+    if not file or not file.filename:
+        flash('Please select a file to upload.', 'error')
+        return redirect(url_for('my_resumes'))
+
+    if not allowed_file(file.filename):
+        flash('Only PDF, DOCX, and TXT files are supported.', 'error')
+        return redirect(url_for('my_resumes'))
+
+    filename = secure_filename(file.filename)
+    file_data = file.read()
+
+    # Size check (5 MB)
+    if len(file_data) > 5 * 1024 * 1024:
+        flash('File too large. Maximum size is 5 MB.', 'error')
+        return redirect(url_for('my_resumes'))
+
+    # Extract text for caching
+    temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+    try:
+        with open(temp_path, 'wb') as f:
+            f.write(file_data)
+        extracted_text = extract_text_from_file(temp_path)
+    except Exception as e:
+        logger.warning('Could not extract text from uploaded resume: %s', e)
+        extracted_text = ''
+    finally:
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+
+    label = request.form.get('label', '').strip() or 'My Resume'
+    is_primary = request.form.get('is_primary') == '1'
+
+    # If setting as primary, un-primary all others
+    if is_primary:
+        UserResume.query.filter_by(user_id=user_id, is_primary=True)\
+            .update({'is_primary': False})
+
+    # If this is the first resume, make it primary automatically
+    if count == 0:
+        is_primary = True
+
+    resume = UserResume(
+        user_id=user_id,
+        label=label[:100],
+        is_primary=is_primary,
+        filename=filename,
+        file_data=file_data,
+        extracted_text=extracted_text[:50000] if extracted_text else None,
+        file_size=len(file_data),
+    )
+    db.session.add(resume)
+    db.session.commit()
+
+    flash(f'Resume "{label}" uploaded successfully!', 'success')
+    return redirect(url_for('my_resumes'))
+
+
+@app.route('/my-resumes/<int:resume_id>/set-primary', methods=['POST'])
+def set_primary_resume(resume_id):
+    """Set a resume as the primary one."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('my_resumes'))
+
+    # Un-primary all, then set this one
+    UserResume.query.filter_by(user_id=session['user_id'], is_primary=True)\
+        .update({'is_primary': False})
+    resume.is_primary = True
+    db.session.commit()
+
+    flash(f'"{resume.label}" is now your primary resume.', 'success')
+    return redirect(url_for('my_resumes'))
+
+
+@app.route('/my-resumes/<int:resume_id>/delete', methods=['POST'])
+def delete_resume(resume_id):
+    """Delete a stored resume."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('my_resumes'))
+
+    was_primary = resume.is_primary
+    label = resume.label
+    db.session.delete(resume)
+    db.session.commit()
+
+    # If we deleted the primary, set the most recent one as primary
+    if was_primary:
+        remaining = UserResume.query.filter_by(user_id=session['user_id'])\
+            .order_by(UserResume.created_at.desc()).first()
+        if remaining:
+            remaining.is_primary = True
+            db.session.commit()
+
+    flash(f'Resume "{label}" deleted.', 'success')
+    return redirect(url_for('my_resumes'))
+
+
+@app.route('/my-resumes/<int:resume_id>/download')
+def download_resume(resume_id):
+    """Download a specific stored resume."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('my_resumes'))
+
+    return send_file(
+        io.BytesIO(resume.file_data),
+        as_attachment=True,
+        download_name=resume.filename,
+        mimetype='application/octet-stream',
+    )
+
+
+# ---------------------------------------------------------------------------
 # Admin endpoints — protected by ADMIN_TOKEN
 # ---------------------------------------------------------------------------
 
@@ -1609,6 +1790,10 @@ def sitemap():
     """Dynamic sitemap for search engine discovery."""
     pages = [
         {'loc': '/',            'changefreq': 'weekly',  'priority': '1.0'},
+        {'loc': '/resume-ai',   'changefreq': 'weekly',  'priority': '0.9'},
+        {'loc': '/job-match',   'changefreq': 'weekly',  'priority': '0.9'},
+        {'loc': '/upskills',    'changefreq': 'weekly',  'priority': '0.9'},
+        {'loc': '/blog',        'changefreq': 'weekly',  'priority': '0.9'},
         {'loc': '/resume-tips', 'changefreq': 'monthly', 'priority': '0.8'},
         {'loc': '/buy-credits', 'changefreq': 'monthly', 'priority': '0.7'},
         {'loc': '/experts',     'changefreq': 'monthly', 'priority': '0.6'},
@@ -1647,6 +1832,7 @@ Disallow: /grant-free-credits
 Disallow: /payment/
 Disallow: /refine-section
 Disallow: /update-rewritten-cv
+Disallow: /my-resumes
 
 Sitemap: https://levelupx.ai/sitemap.xml
 """

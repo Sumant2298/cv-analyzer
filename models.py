@@ -93,3 +93,24 @@ class StoredCV(db.Model):
 
     def __repr__(self):
         return f'<StoredCV {self.filename} user={self.user_email}>'
+
+
+class UserResume(db.Model):
+    """User's stored resumes — up to 5 per user, one marked as primary."""
+    __tablename__ = 'user_resumes'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    label = db.Column(db.String(100), default='My Resume')
+    is_primary = db.Column(db.Boolean, default=False)
+    filename = db.Column(db.String(256), nullable=False)
+    file_data = db.Column(db.LargeBinary, nullable=False)
+    extracted_text = db.Column(db.Text)
+    file_size = db.Column(db.Integer)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('resumes', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<UserResume {self.label} user={self.user_id} primary={self.is_primary}>'

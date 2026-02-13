@@ -1,6 +1,6 @@
 {% extends "base.html" %}
-{% block title %}LevelUpX — Free AI Resume Analyzer & ATS Score Checker{% endblock %}
-{% block meta_description %}Free AI resume analyzer — get your ATS compatibility score, keyword analysis, and tailored resume rewrite in seconds. Beat the ATS and land more interviews.{% endblock %}
+{% block title %}LevelUpX — AI-Powered Career Platform | Resume Analysis, Job Matching & Upskilling{% endblock %}
+{% block meta_description %}LevelUpX is your AI career copilot. Analyze resumes, match against job descriptions, search jobs, upskill with curated courses, and land more interviews.{% endblock %}
 {% block content %}
 
 <!-- Hero -->
@@ -17,16 +17,16 @@
                     <svg class="w-3.5 h-3.5 text-emerald-300" fill="currentColor" viewBox="0 0 20 20">
                         <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/>
                     </svg>
-                    Resume intelligence that gets you shortlisted
+                    Your AI-Powered Career Platform
                 </div>
                 <h1 class="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight mb-4 leading-tight">
-                    Know your Resume's<br>
-                    <span class="text-emerald-300">true strength</span><br>
-                    before you apply.
+                    Build, Analyze &<br>
+                    <span class="text-emerald-300">Land Your Dream Job</span><br>
+                    with AI.
                 </h1>
                 <p class="text-base sm:text-lg text-white/70 mb-6 max-w-xl leading-relaxed">
-                    Upload your resume and get an instant quality analysis with actionable feedback.
-                    Then match it against any job description.
+                    From resume analysis to job matching, interview prep to skill building &mdash;
+                    LevelUpX is your complete AI career copilot.
                 </p>
                 <div class="flex flex-wrap gap-4 items-center mb-8">
                     <button type="button" onclick="revealForm()" class="inline-flex items-center gap-2 bg-white text-brand-700 font-bold py-3 px-7 rounded-xl shadow-lg hover:shadow-xl hover:bg-slate-50 transition-all">
@@ -127,9 +127,72 @@
     </div>
 </section>
 
+<!-- 4 Pillars Showcase -->
+<section class="max-w-7xl mx-auto px-4 sm:px-6 py-12 sm:py-16">
+    <div class="text-center mb-10 anim-fade-up">
+        <h2 class="text-2xl sm:text-3xl font-extrabold text-slate-800 mb-3">One Platform. Four AI Superpowers.</h2>
+        <p class="text-sm sm:text-base text-slate-500 max-w-2xl mx-auto">Everything you need to go from job search to offer letter, powered by AI.</p>
+    </div>
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+        <!-- ResumeAI -->
+        <a href="/resume-ai" class="group bg-white rounded-2xl shadow-lg border border-slate-100 p-6 hover:shadow-xl hover:border-indigo-200 transition-all anim-fade-up-1">
+            <div class="w-12 h-12 bg-indigo-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-indigo-200 transition">
+                <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+            </div>
+            <h3 class="font-bold text-slate-800 text-lg mb-2 group-hover:text-indigo-700 transition">ResumeAI</h3>
+            <p class="text-sm text-slate-500 leading-relaxed mb-3">Analyze, rewrite and perfect your resume. Store up to 5 versions and get expert tips.</p>
+            <div class="flex flex-wrap gap-1.5">
+                <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">ATS Score</span>
+                <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">AI Rewrite</span>
+                <span class="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-0.5 rounded-full font-medium">Tips</span>
+            </div>
+        </a>
+
+        <!-- JobMatchAI -->
+        <a href="/job-match" class="group bg-white rounded-2xl shadow-lg border border-slate-100 p-6 hover:shadow-xl hover:border-emerald-200 transition-all anim-fade-up-2">
+            <div class="w-12 h-12 bg-emerald-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-emerald-200 transition">
+                <svg class="w-6 h-6 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <h3 class="font-bold text-slate-800 text-lg mb-2 group-hover:text-emerald-700 transition">JobMatchAI</h3>
+            <p class="text-sm text-slate-500 leading-relaxed mb-3">Match your resume to any JD, search jobs, prep for interviews, and track applications.</p>
+            <div class="flex flex-wrap gap-1.5">
+                <span class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">JD Match</span>
+                <span class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">Job Search</span>
+                <span class="text-[10px] bg-emerald-50 text-emerald-600 px-2 py-0.5 rounded-full font-medium">Tracker</span>
+            </div>
+        </a>
+
+        <!-- UpskillsAI -->
+        <a href="/upskills" class="group bg-white rounded-2xl shadow-lg border border-slate-100 p-6 hover:shadow-xl hover:border-amber-200 transition-all anim-fade-up-3">
+            <div class="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-amber-200 transition">
+                <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
+            </div>
+            <h3 class="font-bold text-slate-800 text-lg mb-2 group-hover:text-amber-700 transition">UpskillsAI</h3>
+            <p class="text-sm text-slate-500 leading-relaxed mb-3">Bridge your skill gaps with AI-curated courses and connect with real industry mentors.</p>
+            <div class="flex flex-wrap gap-1.5">
+                <span class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">Courses</span>
+                <span class="text-[10px] bg-amber-50 text-amber-600 px-2 py-0.5 rounded-full font-medium">Mentors</span>
+            </div>
+        </a>
+
+        <!-- BlogAI -->
+        <a href="/blog" class="group bg-white rounded-2xl shadow-lg border border-slate-100 p-6 hover:shadow-xl hover:border-cyan-200 transition-all anim-fade-up-4">
+            <div class="w-12 h-12 bg-cyan-100 rounded-xl flex items-center justify-center mb-4 group-hover:bg-cyan-200 transition">
+                <svg class="w-6 h-6 text-cyan-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 20H5a2 2 0 01-2-2V6a2 2 0 012-2h10a2 2 0 012 2v1m2 13a2 2 0 01-2-2V7m2 13a2 2 0 002-2V9a2 2 0 00-2-2h-2m-4-3H9M7 16h6M7 8h6v4H7V8z"/></svg>
+            </div>
+            <h3 class="font-bold text-slate-800 text-lg mb-2 group-hover:text-cyan-700 transition">BlogAI</h3>
+            <p class="text-sm text-slate-500 leading-relaxed mb-3">Stay ahead with the latest on AI in hiring, career strategies, and platform updates.</p>
+            <div class="flex flex-wrap gap-1.5">
+                <span class="text-[10px] bg-cyan-50 text-cyan-600 px-2 py-0.5 rounded-full font-medium">AI News</span>
+                <span class="text-[10px] bg-cyan-50 text-cyan-600 px-2 py-0.5 rounded-full font-medium">Career Tips</span>
+            </div>
+        </a>
+    </div>
+</section>
+
 <!-- Sign-in banner for anonymous users -->
 {% if not session.get('user_id') %}
-<div class="max-w-3xl mx-auto px-4 sm:px-6 -mt-4 mb-4 relative z-10">
+<div class="max-w-3xl mx-auto px-4 sm:px-6 mb-4 relative z-10">
     <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-5 shadow-lg">
         <div class="flex items-start gap-4">
             <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
@@ -157,7 +220,7 @@
 
 <!-- Form — CV Only -->
 <form id="analyze-form" action="{{ url_for('analyze_cv') }}" method="post" enctype="multipart/form-data"
-      class="max-w-3xl mx-auto px-4 sm:px-6 {% if session.get('user_id') %}-mt-8{% else %}-mt-2{% endif %} relative z-10"
+      class="max-w-3xl mx-auto px-4 sm:px-6 relative z-10"
       {% if not session.get('user_id') %}onsubmit="event.preventDefault(); window.location.href='{{ url_for('login_page') }}';"{% endif %}>
 
     <div id="cv-form-container" class="hidden">
@@ -280,7 +343,7 @@
 </form>
 
 <!-- How it works -->
-<div class="max-w-3xl mx-auto px-4 sm:px-6 pt-16 pb-12">
+<div class="max-w-3xl mx-auto px-4 sm:px-6 pt-8 pb-12">
     <h2 class="text-center text-lg sm:text-xl font-extrabold text-slate-800 mb-3">From Upload to Offer-Ready in 3 Steps</h2>
     <p class="text-center text-sm text-slate-500 mb-8 max-w-lg mx-auto">Score your resume, match it to any job, and let AI rewrite it for maximum impact.</p>
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
