@@ -833,7 +833,13 @@ def _compute_cv_diff(original: str, rewritten: str) -> list:
 
 @app.route('/')
 def index():
-    # Pass user info to template for credit/analysis display
+    """Marketing landing page — no forms, pure conversion."""
+    return render_template('index.html')
+
+
+@app.route('/analyze')
+def analyze_page():
+    """Dedicated analysis page — CV upload, paste, LinkedIn URL forms."""
     user_data = None
     if _oauth_enabled and session.get('user_id'):
         user = User.query.get(session['user_id'])
@@ -845,7 +851,7 @@ def index():
                 'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
                 'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
             }
-    return render_template('index.html', user_data=user_data)
+    return render_template('analyze.html', user_data=user_data)
 
 
 # ---------------------------------------------------------------------------
@@ -943,8 +949,8 @@ def account():
 
 
 @app.route('/analyze', methods=['POST'])
-def analyze():
-    """Legacy route — redirect to new CV-only analysis."""
+def analyze_post():
+    """Legacy POST route — redirect to new CV-only analysis."""
     return redirect(url_for('analyze_cv'), code=307)
 
 
@@ -953,7 +959,7 @@ def analyze_cv():
     """Tier 1: CV-only analysis (NLP + small LLM call)."""
     # ---- Login gate ----
     if not _oauth_enabled or not session.get('user_id'):
-        session['_login_next'] = url_for('index')
+        session['_login_next'] = url_for('analyze_page')
         flash('Please sign in to analyze your CV. First analysis is FREE!', 'warning')
         return redirect(url_for('login_page'))
 
@@ -991,13 +997,13 @@ def analyze_cv():
         if credits_charged:
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
         flash(f'Error reading input: {e}', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     if not cv_text:
         if credits_charged:
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
         flash('Could not get CV content. Please try uploading a file or pasting text.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     try:
         from llm_service import analyze_cv_only
@@ -1008,7 +1014,7 @@ def analyze_cv():
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
         logger.error('CV analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     # Store CV text + analysis data server-side
     session['_data_token'] = _save_session_data({
@@ -1033,7 +1039,7 @@ def analyze_jd():
     """Tier 2: CV vs JD analysis (full LLM pipeline)."""
     # ---- Login gate ----
     if not _oauth_enabled or not session.get('user_id'):
-        session['_login_next'] = url_for('index')
+        session['_login_next'] = url_for('analyze_page')
         flash('Please sign in to analyze against a job description.', 'warning')
         return redirect(url_for('login_page'))
 
@@ -1048,7 +1054,7 @@ def analyze_jd():
     cv_text = data.get('cv_text', '')
     if not cv_text:
         flash('Please analyze your CV first before matching against a job description.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     # ---- Credit check: always 3 credits for JD analysis ----
     from payments import CREDITS_PER_JD_ANALYSIS, deduct_credits
@@ -1071,12 +1077,12 @@ def analyze_jd():
     except Exception as e:
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         flash(f'Error reading JD: {e}', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     if not jd_text:
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         flash('Could not get Job Description content. Please try again.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     if len(jd_text.split()) < 10:
         flash('Job description seems very short. Results may be unreliable.', 'warning')
@@ -1088,7 +1094,7 @@ def analyze_jd():
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         logger.error('JD analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     # Update session data — add JD results to existing CV data
     token = session.get('_data_token', '')
@@ -1118,7 +1124,7 @@ def download_cv_text():
     cv_text = data.get('cv_text', '')
     if not cv_text:
         flash('No CV available to download. Please run an analysis first.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cv_download.pdf')
     _text_to_pdf(cv_text, pdf_path)
@@ -1137,7 +1143,7 @@ def rewrite_cv_page():
     data = _load_session_data(session.get('_data_token', ''))
     if not data.get('cv_text') or not data.get('jd_text'):
         flash('Please run a CV analysis first before requesting a rewrite.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     # Must be logged in
     if not session.get('user_id'):
@@ -1174,7 +1180,7 @@ def rewrite_cv_action():
     data = _load_session_data(session.get('_data_token', ''))
     if not data.get('cv_text') or not data.get('jd_text'):
         flash('No analysis data found. Please run analysis first.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     from payments import deduct_credits, CREDITS_PER_REWRITE
 
@@ -1212,7 +1218,7 @@ def rewrite_cv_action():
         except Exception:
             pass
         flash(f'Rewrite failed: {e}. Your credits have been refunded.', 'error')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     # Compute side-by-side diff
     cv_diff = _compute_cv_diff(data['cv_text'], rewrite_result['rewritten_cv'])
@@ -1238,7 +1244,7 @@ def download_rewritten_cv():
     rewritten_text = data.get('rewritten_cv', '')
     if not rewritten_text:
         flash('No rewritten CV available. Please perform a rewrite first.', 'warning')
-        return redirect(url_for('index'))
+        return redirect(url_for('analyze_page'))
 
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'rewritten_cv.pdf')
     _rewritten_cv_to_pdf(rewritten_text, pdf_path)
@@ -1762,6 +1768,7 @@ def sitemap():
     """Dynamic sitemap for search engine discovery."""
     pages = [
         {'loc': '/',            'changefreq': 'weekly',  'priority': '1.0'},
+        {'loc': '/analyze',     'changefreq': 'weekly',  'priority': '0.9'},
         {'loc': '/resume-tips', 'changefreq': 'monthly', 'priority': '0.8'},
         {'loc': '/buy-credits', 'changefreq': 'monthly', 'priority': '0.7'},
         {'loc': '/experts',     'changefreq': 'monthly', 'priority': '0.6'},
@@ -1790,7 +1797,6 @@ Disallow: /api/
 Disallow: /auth/
 Disallow: /logout
 Disallow: /account
-Disallow: /analyze
 Disallow: /analyze-cv
 Disallow: /analyze-jd
 Disallow: /rewrite-cv
