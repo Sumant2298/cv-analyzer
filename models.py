@@ -17,6 +17,7 @@ class User(db.Model):
     picture = db.Column(db.String(512))
     analysis_count = db.Column(db.Integer, default=0)
     credits = db.Column(db.Integer, default=0, nullable=False)
+    onboarding_completed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, default=datetime.utcnow)
 

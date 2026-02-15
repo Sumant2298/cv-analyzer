@@ -1,5 +1,6 @@
-{% extends "base.html" %}
+{% extends "dashboard_base.html" %}
 {% block title %}Resume Quality Analysis — LevelUpX{% endblock %}
+{% block page_title %}Resume Analysis Results{% endblock %}
 {% block content %}
 
 {% set score = results.cv_quality_score|default(50) %}

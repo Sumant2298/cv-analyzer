@@ -1,59 +1,27 @@
-{% extends "base.html" %}
+{% extends "dashboard_base.html" %}
 {% block title %}Analyze Your Resume — AI-Powered ATS Score & Job Match | LevelUpX{% endblock %}
 {% block meta_description %}Upload your resume for instant AI analysis. Get ATS compatibility score, keyword insights, and match against any job description. Free first analysis.{% endblock %}
+{% block page_title %}Analyze Resume{% endblock %}
 
 {% block content %}
 <!-- Page Header -->
-<section class="bg-gradient-to-br from-brand-700 via-brand-600 to-emerald-500 text-white">
-    <div class="max-w-3xl mx-auto px-4 sm:px-6 py-10 sm:py-14 text-center">
-        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight mb-3 anim-fade-up">Analyze Your Resume</h1>
-        <p class="text-base text-white/70 max-w-lg mx-auto anim-fade-up-1">Upload your resume for an instant AI-powered quality analysis, ATS score, and actionable improvement suggestions.</p>
-        {% if session.get('user_id') and user_data %}
-            {% if user_data.first_free %}
-            <p class="mt-4 text-sm text-emerald-300 font-semibold anim-fade-up-2">Your first analysis is FREE</p>
-            {% elif user_data.credits >= user_data.credits_per_cv %}
-            <p class="mt-4 text-sm text-white/60 anim-fade-up-2">{{ user_data.credits_per_cv }} credits/analysis &middot; {{ user_data.credits }} credits available</p>
-            {% else %}
-            <p class="mt-4 text-sm text-amber-300 font-semibold anim-fade-up-2">{{ user_data.credits_per_cv }} credits needed &mdash; <a href="{{ url_for('buy_credits') }}" class="underline hover:text-amber-100">buy credits</a></p>
-            {% endif %}
-        {% elif not session.get('user_id') %}
-        <p class="mt-4 text-sm text-white/60 anim-fade-up-2">Sign in to get your first analysis FREE</p>
+<div class="mb-6 anim-fade-up">
+    <h1 class="text-2xl font-bold text-slate-800">Analyze Your Resume</h1>
+    <p class="text-sm text-slate-500 mt-1">Upload your resume for an instant AI-powered quality analysis, ATS score, and actionable improvement suggestions.</p>
+    {% if user_data %}
+        {% if user_data.first_free %}
+        <p class="mt-2 text-sm text-emerald-600 font-semibold">Your first analysis is FREE</p>
+        {% elif user_data.credits >= user_data.credits_per_cv %}
+        <p class="mt-2 text-sm text-slate-400">{{ user_data.credits_per_cv }} credits/analysis &middot; {{ user_data.credits }} credits available</p>
+        {% else %}
+        <p class="mt-2 text-sm text-amber-600 font-semibold">{{ user_data.credits_per_cv }} credits needed &mdash; <a href="{{ url_for('buy_credits') }}" class="underline hover:text-amber-700">buy credits</a></p>
         {% endif %}
-    </div>
-</section>
-
-<!-- Sign-in banner for anonymous users -->
-{% if not session.get('user_id') %}
-<div class="max-w-3xl mx-auto px-4 sm:px-6 -mt-4 mb-4 relative z-10">
-    <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 rounded-2xl p-5 shadow-lg">
-        <div class="flex items-start gap-4">
-            <div class="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center flex-shrink-0">
-                <svg class="w-5 h-5 text-amber-600" fill="currentColor" viewBox="0 0 20 20">
-                    <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"/>
-                </svg>
-            </div>
-            <div class="flex-1">
-                <h3 class="font-bold text-slate-800 text-lg mb-1">Sign in to analyze your Resume</h3>
-                <p class="text-sm text-slate-600 mb-3">
-                    Get your <span class="font-bold text-amber-600">first resume analysis FREE</span> when you sign up.
-                    Then match against job descriptions and rewrite your resume.
-                </p>
-                <a href="{{ url_for('login_page') }}" class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg transition-all text-sm">
-                    <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                        <path d="M12.545,10.239v3.821h5.445c-0.712,2.315-2.647,3.972-5.445,3.972c-3.332,0-6.033-2.701-6.033-6.032s2.701-6.032,6.033-6.032c1.498,0,2.866,0.549,3.921,1.453l2.814-2.814C17.503,2.988,15.139,2,12.545,2C7.021,2,2.543,6.477,2.543,12s4.478,10,10.002,10c8.396,0,10.249-7.85,9.426-11.748L12.545,10.239z"/>
-                    </svg>
-                    Sign in with Google
-                </a>
-            </div>
-        </div>
-    </div>
+    {% endif %}
 </div>
-{% endif %}
 
 <!-- Form — CV Only -->
 <form id="analyze-form" action="{{ url_for('analyze_cv') }}" method="post" enctype="multipart/form-data"
-      class="max-w-3xl mx-auto px-4 sm:px-6 {% if session.get('user_id') %}-mt-6{% else %}-mt-2{% endif %} relative z-10"
-      {% if not session.get('user_id') %}onsubmit="event.preventDefault(); window.location.href='{{ url_for('login_page') }}';"{% endif %}>
+      class="max-w-3xl">
 
     <!-- ===================== CV Panel ===================== -->
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden anim-fade-up-1 mb-6">
@@ -114,11 +82,11 @@
     </div>
 
     <!-- Submit -->
-    <div class="text-center mb-12 anim-fade-up-3">
+    <div class="text-center mb-8 anim-fade-up-3">
         <button type="submit" id="submitBtn"
                 class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-3.5 px-12 rounded-xl shadow-lg hover:shadow-xl transition-all text-lg">
             <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"/></svg>
-            <span id="btnText">{% if session.get('user_id') %}Analyze My Resume{% else %}Sign in to Analyze{% endif %}</span>
+            <span id="btnText">Analyze My Resume</span>
             <svg id="btnSpinner" class="w-5 h-5 spinner hidden" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
         </button>
         <p id="cvHelperText" class="text-xs text-slate-400 mt-3">No job description needed &mdash; just your resume</p>
@@ -127,7 +95,7 @@
 
 <!-- JD Form — shown when mode=jd (CV already in session from Tier 1) -->
 <form id="jd-form" action="{{ url_for('analyze_jd') }}" method="post" enctype="multipart/form-data"
-      class="max-w-3xl mx-auto px-4 sm:px-6 -mt-8 relative z-10 hidden">
+      class="max-w-3xl hidden">
 
     <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden anim-fade-up-1 mb-6">
         <div class="bg-gradient-to-r from-emerald-600 to-brand-500 px-6 py-3">

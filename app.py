@@ -119,6 +119,19 @@ with app.app_context():
         logger.info('Migration check: %s', e)
         db.session.rollback()
 
+    # Migration: add 'onboarding_completed' column to users table if missing
+    try:
+        from sqlalchemy import text, inspect as sa_inspect
+        insp = sa_inspect(db.engine)
+        cols = [c['name'] for c in insp.get_columns('users')]
+        if 'onboarding_completed' not in cols:
+            db.session.execute(text('ALTER TABLE users ADD COLUMN onboarding_completed BOOLEAN DEFAULT FALSE NOT NULL'))
+            db.session.commit()
+            logger.info('Migration: added onboarding_completed column to users table')
+    except Exception as e:
+        logger.info('Migration check (onboarding): %s', e)
+        db.session.rollback()
+
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — only if credentials are set)
 # ---------------------------------------------------------------------------
@@ -834,7 +847,31 @@ def _compute_cv_diff(original: str, rewritten: str) -> list:
 @app.route('/')
 def index():
     """Marketing landing page — no forms, pure conversion."""
+    if session.get('user_id'):
+        return redirect(url_for('dashboard'))
     return render_template('index.html')
+
+
+@app.route('/dashboard')
+def dashboard():
+    """Authenticated dashboard hub — stats, quick actions, recent activity."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    resume_count = UserResume.query.filter_by(user_id=user.id).count()
+    recent_activity = CreditUsage.query.filter_by(user_id=user.id)\
+        .order_by(CreditUsage.created_at.desc()).limit(5).all()
+
+    return render_template('dashboard.html',
+                           user=user,
+                           resume_count=resume_count,
+                           recent_activity=recent_activity,
+                           active_section='dashboard')
 
 
 @app.route('/analyze')
@@ -851,7 +888,7 @@ def analyze_page():
                 'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
                 'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
             }
-    return render_template('analyze.html', user_data=user_data)
+    return render_template('analyze.html', user_data=user_data, active_section='resumes')
 
 
 # ---------------------------------------------------------------------------
@@ -898,7 +935,7 @@ def google_callback():
         flash('Sign-in failed. Please try again.', 'error')
     # Redirect to the page user was trying to visit before login
     next_url = session.pop('_login_next', None)
-    return redirect(next_url or url_for('index'))
+    return redirect(next_url or url_for('dashboard'))
 
 
 @app.route('/logout')
@@ -945,7 +982,8 @@ def account():
                            usage_history=usage_history,
                            transactions=transactions,
                            total_credits_purchased=total_credits_purchased,
-                           total_credits_used=total_credits_used)
+                           total_credits_used=total_credits_used,
+                           active_section='profile')
 
 
 @app.route('/analyze', methods=['POST'])
@@ -1031,7 +1069,8 @@ def analyze_cv():
         pass
 
     return render_template('cv_results.html', results=results,
-                           credits_remaining=user.credits if user else 0)
+                           credits_remaining=user.credits if user else 0,
+                           active_section='resumes')
 
 
 @app.route('/analyze-jd', methods=['POST'])
@@ -1110,7 +1149,7 @@ def analyze_jd():
         'tier': 2,
     })
 
-    return render_template('results.html', results=results)
+    return render_template('results.html', results=results, active_section='resumes')
 
 
 # ---------------------------------------------------------------------------
@@ -1168,7 +1207,8 @@ def rewrite_cv_page():
                            credits_needed=CREDITS_PER_REWRITE,
                            ats_score=analysis.get('ats_score', 0),
                            matched_count=len(analysis.get('matched', [])),
-                           missing_count=len(analysis.get('missing', [])))
+                           missing_count=len(analysis.get('missing', [])),
+                           active_section='resumes')
 
 
 @app.route('/rewrite-cv', methods=['POST'])
@@ -1234,7 +1274,8 @@ def rewrite_cv_action():
                            original_ats=analysis.get('ats_score', 0),
                            credits_remaining=user.credits if user else 0,
                            cv_diff=cv_diff,
-                           original_cv=data['cv_text'])
+                           original_cv=data['cv_text'],
+                           active_section='resumes')
 
 
 @app.route('/download-rewritten-cv')
@@ -1447,7 +1488,7 @@ def my_resumes():
 
     resumes = UserResume.query.filter_by(user_id=session['user_id'])\
         .order_by(UserResume.created_at.desc()).all()
-    return render_template('my_resumes.html', resumes=resumes)
+    return render_template('my_resumes.html', resumes=resumes, active_section='resumes')
 
 
 @app.route('/my-resumes/upload', methods=['POST'])
@@ -1584,6 +1625,18 @@ def download_resume(resume_id):
         download_name=resume.filename,
         mimetype='application/octet-stream',
     )
+
+
+# ---------------------------------------------------------------------------
+# Settings placeholder
+# ---------------------------------------------------------------------------
+
+@app.route('/settings')
+def settings():
+    """Placeholder settings page."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('settings.html', active_section='settings')
 
 
 # ---------------------------------------------------------------------------

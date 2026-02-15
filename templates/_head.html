@@ -1,0 +1,85 @@
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}LevelUpX — Free AI Resume Analyzer & ATS Score Checker{% endblock %}</title>
+    <meta name="description" content="{% block meta_description %}Free AI-powered resume analyzer. Get your ATS compatibility score, smart keyword insights, and tailored resume rewrites to land more interviews.{% endblock %}">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://levelupx.ai{{ request.path }}">
+    <!-- Open Graph -->
+    <meta property="og:type" content="website">
+    <meta property="og:site_name" content="LevelUpX">
+    <meta property="og:title" content="{% block og_title %}LevelUpX — Free AI Resume Analyzer{% endblock %}">
+    <meta property="og:description" content="{% block og_description %}Free AI-powered resume analyzer. Get ATS score, keyword insights, and tailored rewrites.{% endblock %}">
+    <meta property="og:url" content="https://levelupx.ai{{ request.path }}">
+    <!-- Twitter Card -->
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="LevelUpX — Free AI Resume Analyzer">
+    <meta name="twitter:description" content="Get your ATS score, keyword analysis, and AI-powered resume rewrite in seconds.">
+    <!-- Structured Data -->
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "LevelUpX",
+        "url": "https://levelupx.ai",
+        "description": "AI-powered resume analyzer that checks ATS compatibility, provides keyword insights, and generates tailored resume rewrites.",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "INR",
+            "description": "First resume analysis is free"
+        },
+        "creator": {
+            "@type": "Organization",
+            "name": "LevelUpX",
+            "url": "https://levelupx.ai"
+        }
+    }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <script>
+    tailwind.config = {
+        theme: {
+            extend: {
+                fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'] },
+                colors: {
+                    brand: {
+                        50: '#eef2ff', 100: '#e0e7ff', 200: '#c7d2fe',
+                        300: '#a5b4fc', 400: '#818cf8', 500: '#6366f1',
+                        600: '#4f46e5', 700: '#4338ca', 800: '#3730a3', 900: '#312e81'
+                    }
+                }
+            }
+        }
+    }
+    </script>
+    <style>
+        @keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
+        @keyframes scaleIn { from { opacity:0; transform:scale(0.9); } to { opacity:1; transform:scale(1); } }
+        @keyframes slideDown { from { opacity:0; transform:translateY(-10px); } to { opacity:1; transform:translateY(0); } }
+        @keyframes fillBar { from { width:0%; } }
+        @keyframes drawRing { from { stroke-dashoffset:283; } }
+        @keyframes spin { to { transform:rotate(360deg); } }
+        .anim-fade-up   { animation: fadeInUp .5s ease-out both; }
+        .anim-fade-up-1 { animation: fadeInUp .5s ease-out .1s both; }
+        .anim-fade-up-2 { animation: fadeInUp .5s ease-out .2s both; }
+        .anim-fade-up-3 { animation: fadeInUp .5s ease-out .3s both; }
+        .anim-fade-up-4 { animation: fadeInUp .5s ease-out .4s both; }
+        .anim-fade       { animation: fadeIn .4s ease-out both; }
+        .anim-fade-in    { animation: fadeIn .2s ease-out both; }
+        .anim-scale      { animation: scaleIn .4s ease-out both; }
+        .anim-slide-down { animation: slideDown .3s ease-out both; }
+        .anim-bar        { animation: fillBar 1s ease-out both; }
+        .anim-ring       { animation: drawRing 1.2s ease-out both; }
+        .spinner         { animation: spin .8s linear infinite; }
+        @media print {
+            nav, footer, .no-print { display: none !important; }
+            body { background: white !important; }
+            .shadow, .shadow-lg, .shadow-xl, .shadow-sm { box-shadow: none !important; }
+            details[open] > summary { display: none; }
+        }
+    </style>

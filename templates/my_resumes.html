@@ -1,10 +1,11 @@
-{% extends "base.html" %}
+{% extends "dashboard_base.html" %}
 
 {% block title %}My Resumes — Store & Manage Up to 5 CVs | LevelUpX{% endblock %}
 {% block meta_description %}Store, manage, and organize up to 5 resume versions on LevelUpX. Set a primary resume for quick job matching and analysis.{% endblock %}
+{% block page_title %}My Resumes{% endblock %}
 
 {% block content %}
-<section class="max-w-5xl mx-auto px-4 sm:px-6 py-10 md:py-16">
+<section class="max-w-5xl">
     <!-- Header -->
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
         <div>
@@ -18,20 +19,6 @@
         </button>
         {% endif %}
     </div>
-
-    <!-- Flash messages -->
-    {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-    {% for category, message in messages %}
-    <div class="mb-6 p-4 rounded-xl text-sm font-medium
-        {% if category == 'success' %}bg-emerald-50 text-emerald-700 border border-emerald-200
-        {% elif category == 'error' %}bg-red-50 text-red-700 border border-red-200
-        {% else %}bg-blue-50 text-blue-700 border border-blue-200{% endif %}">
-        {{ message }}
-    </div>
-    {% endfor %}
-    {% endif %}
-    {% endwith %}
 
     <!-- Usage indicator -->
     <div class="mb-8 flex items-center gap-3">
@@ -118,7 +105,7 @@
     {% endif %}
 </section>
 
-<!-- Upload Modal -->
+<!-- Upload Modal (Overlay — outside section) -->
 <div id="uploadModal" class="hidden fixed inset-0 z-50 overflow-y-auto">
     <div class="flex items-center justify-center min-h-screen px-4">
         <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('uploadModal').classList.add('hidden')"></div>
