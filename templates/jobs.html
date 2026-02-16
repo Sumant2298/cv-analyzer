@@ -20,7 +20,7 @@
             </div>
             <div class="flex-1 min-w-0">
                 <p class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Primary Resume</p>
-                <p class="text-sm font-bold text-slate-800 truncate">{{ primary_resume.display_name or primary_resume.original_filename }}</p>
+                <p class="text-sm font-bold text-slate-800 truncate">{{ primary_resume.label or primary_resume.filename }}</p>
                 {% if primary_resume.ats_score %}
                 <div class="flex items-center gap-2 mt-1">
                     <span class="text-xs font-semibold text-slate-500">ATS Score:</span>
@@ -136,6 +136,140 @@
             </div>
         </div>
     </form>
+    {% endif %}
+
+    <!-- ═══════════════ JD Analysis History Table ═══════════════ -->
+    {% if jd_histories %}
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
+            <div>
+                <h2 class="text-base font-bold text-slate-800">Past Analyses</h2>
+                <p class="text-xs text-slate-400 mt-0.5">{{ jd_histories|length }} analysis{{ 'es' if jd_histories|length > 1 else '' }}</p>
+            </div>
+        </div>
+
+        <!-- Desktop Table -->
+        <div class="hidden sm:block overflow-x-auto">
+            <table class="w-full text-sm">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
+                    <tr>
+                        <th class="text-left px-4 py-3.5 font-medium">Job Description</th>
+                        <th class="text-center px-4 py-3.5 font-medium">ATS Match</th>
+                        <th class="text-left px-4 py-3.5 font-medium whitespace-nowrap">Date</th>
+                        <th class="text-right px-4 py-3.5 font-medium whitespace-nowrap">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for jd in jd_histories %}
+                    <tr class="hover:bg-slate-50/50 transition group">
+                        <!-- JD Preview -->
+                        <td class="px-4 py-3">
+                            <div class="max-w-[280px]">
+                                <p class="text-sm font-medium text-slate-700 truncate" title="{{ jd.jd_text[:200] if jd.jd_text else 'No text' }}">
+                                    {{ jd.jd_text[:80] if jd.jd_text else 'Job Description' }}{{ '...' if jd.jd_text and jd.jd_text|length > 80 else '' }}
+                                </p>
+                            </div>
+                        </td>
+                        <!-- ATS Match Score -->
+                        <td class="px-4 py-3 text-center">
+                            {% if jd.status == 'completed' and jd.results_json %}
+                                {% set score = jd_scores.get(jd.id, 0) %}
+                                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
+                                    {% if score >= 70 %}bg-emerald-100 text-emerald-700
+                                    {% elif score >= 40 %}bg-amber-100 text-amber-700
+                                    {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                                <span class="block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block
+                                    {% if score >= 90 %}bg-emerald-100 text-emerald-700
+                                    {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                    {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                    {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                    {% else %}bg-red-100 text-red-700{% endif %}">
+                                    {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Impr.{% else %}Overhaul{% endif %}
+                                </span>
+                            {% elif jd.status == 'analyzing' %}
+                                <span class="inline-flex items-center gap-1.5 text-xs text-brand-600 font-medium">
+                                    <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    Analyzing...
+                                </span>
+                            {% elif jd.status == 'failed' %}
+                                <span class="inline-flex items-center gap-1 text-xs text-red-600 font-medium">
+                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+                                    Failed
+                                </span>
+                            {% else %}
+                                <span class="text-xs text-slate-400">—</span>
+                            {% endif %}
+                        </td>
+                        <!-- Date -->
+                        <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                            {{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '—' }}
+                        </td>
+                        <!-- Actions -->
+                        <td class="px-4 py-3 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end gap-1">
+                                {% if jd.status == 'completed' %}
+                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Results">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </a>
+                                {% elif jd.status == 'analyzing' %}
+                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Progress">
+                                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                </a>
+                                {% endif %}
+                                <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline"
+                                      onsubmit="return confirm('Delete this analysis?')">
+                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="sm:hidden divide-y divide-slate-100">
+            {% for jd in jd_histories %}
+            <div class="px-4 py-4">
+                <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-medium text-slate-700 truncate">
+                            {{ jd.jd_text[:60] if jd.jd_text else 'Job Description' }}{{ '...' if jd.jd_text and jd.jd_text|length > 60 else '' }}
+                        </p>
+                        <p class="text-xs text-slate-400 mt-0.5">{{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '' }}</p>
+                    </div>
+                    <div class="flex-shrink-0 text-center">
+                        {% if jd.status == 'completed' and jd.results_json %}
+                            {% set score = jd_scores.get(jd.id, 0) %}
+                            <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs
+                                {% if score >= 70 %}bg-emerald-100 text-emerald-700
+                                {% elif score >= 40 %}bg-amber-100 text-amber-700
+                                {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                        {% elif jd.status == 'analyzing' %}
+                            <svg class="animate-spin w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {% elif jd.status == 'failed' %}
+                            <span class="text-xs text-red-500 font-bold">Failed</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 mt-2">
+                    {% if jd.status == 'completed' %}
+                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
+                    {% elif jd.status == 'analyzing' %}
+                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Progress</a>
+                    {% endif %}
+                    <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline"
+                          onsubmit="return confirm('Delete this analysis?')">
+                        <button type="submit" class="text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-lg transition">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
     {% endif %}
 
 </div>

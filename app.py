@@ -1288,11 +1288,24 @@ def jobs_page():
     # Get primary resume
     primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
 
+    # Get JD analysis history with pre-computed ATS scores
+    jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
+        .order_by(JDAnalysis.created_at.desc()).all()
+    jd_scores = {}
+    for jd in jd_histories:
+        if jd.status == 'completed' and jd.results_json:
+            try:
+                jd_scores[jd.id] = json.loads(jd.results_json).get('ats_score', 0)
+            except (json.JSONDecodeError, AttributeError):
+                jd_scores[jd.id] = 0
+
     from payments import CREDITS_PER_JD_ANALYSIS
     return render_template('jobs.html',
                            primary_resume=primary,
                            credits_per_jd=CREDITS_PER_JD_ANALYSIS,
                            credits_remaining=user.credits,
+                           jd_histories=jd_histories,
+                           jd_scores=jd_scores,
                            active_section='jobs')
 
 
@@ -1455,6 +1468,64 @@ def jobs_results():
     })
 
     return render_template('results.html', results=results, active_section='jobs')
+
+
+@app.route('/jobs/<int:jd_id>/results')
+def jd_analysis_results(jd_id):
+    """View a specific past JD analysis by ID."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    row = JDAnalysis.query.filter_by(id=jd_id, user_id=session['user_id']).first()
+    if not row:
+        flash('Analysis not found.', 'error')
+        return redirect(url_for('jobs_page'))
+
+    if row.status == 'analyzing':
+        session['_jd_analysis_id'] = row.id
+        return redirect(url_for('jobs_waiting'))
+
+    if row.status != 'completed' or not row.results_json:
+        flash('No completed analysis results available.', 'warning')
+        return redirect(url_for('jobs_page'))
+
+    results = json.loads(row.results_json)
+
+    # Set up session data so "Rewrite Resume for This Role" works
+    primary = UserResume.query.filter_by(user_id=session['user_id'], is_primary=True).first()
+    cv_text = primary.extracted_text if primary else ''
+    token = session.get('_data_token', '')
+    session['_data_token'] = _update_session_data(token, {
+        'cv_text': cv_text,
+        'jd_text': row.jd_text or '',
+        'analysis_results': {
+            'ats_score': results.get('ats_score', 0),
+            'matched': results.get('skill_match', {}).get('matched', [])[:20],
+            'missing': results.get('skill_match', {}).get('missing', [])[:20],
+            'missing_verbs': results.get('experience_analysis', {}).get('missing_action_verbs', [])[:10],
+            'skill_score': results.get('skill_match', {}).get('skill_score', 0),
+        },
+        'tier': 2,
+    })
+
+    return render_template('results.html', results=results, active_section='jobs')
+
+
+@app.route('/jobs/<int:jd_id>/delete', methods=['POST'])
+def jd_analysis_delete(jd_id):
+    """Delete a specific JD analysis."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    row = JDAnalysis.query.filter_by(id=jd_id, user_id=session['user_id']).first()
+    if row:
+        db.session.delete(row)
+        db.session.commit()
+        flash('Analysis deleted.', 'success')
+    else:
+        flash('Analysis not found.', 'error')
+
+    return redirect(url_for('jobs_page'))
 
 
 # ---------------------------------------------------------------------------
