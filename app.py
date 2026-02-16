@@ -153,6 +153,20 @@ with app.app_context():
         logger.info('Migration check (user_resumes analysis): %s', e)
         db.session.rollback()
 
+    # Migration: add jd_text column to jd_analyses table if missing
+    try:
+        from sqlalchemy import text as _sa_text, inspect as _sa_inspect
+        _jda_insp = _sa_inspect(db.engine)
+        if 'jd_analyses' in _jda_insp.get_table_names():
+            jda_cols = [c['name'] for c in _jda_insp.get_columns('jd_analyses')]
+            if 'jd_text' not in jda_cols:
+                db.session.execute(_sa_text('ALTER TABLE jd_analyses ADD COLUMN jd_text TEXT'))
+                db.session.commit()
+                logger.info('Migration: added jd_text column to jd_analyses')
+    except Exception as e:
+        logger.info('Migration check (jd_analyses jd_text): %s', e)
+        db.session.rollback()
+
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — only if credentials are set)
 # ---------------------------------------------------------------------------
@@ -1339,7 +1353,7 @@ def jobs_analyze():
     session['user_credits'] = user.credits
 
     # Create JD analysis record in database
-    jd_analysis = JDAnalysis(user_id=user_id, status='analyzing')
+    jd_analysis = JDAnalysis(user_id=user_id, status='analyzing', jd_text=jd_text[:15000])
     db.session.add(jd_analysis)
     db.session.commit()
     jd_analysis_id = jd_analysis.id
@@ -1422,6 +1436,24 @@ def jobs_results():
         return redirect(url_for('jobs_page'))
 
     results = json.loads(row.results_json)
+
+    # Set up session data so "Rewrite Resume for This Role" works
+    primary = UserResume.query.filter_by(user_id=session['user_id'], is_primary=True).first()
+    cv_text = primary.extracted_text if primary else ''
+    token = session.get('_data_token', '')
+    session['_data_token'] = _update_session_data(token, {
+        'cv_text': cv_text,
+        'jd_text': row.jd_text or '',
+        'analysis_results': {
+            'ats_score': results.get('ats_score', 0),
+            'matched': results.get('skill_match', {}).get('matched', [])[:20],
+            'missing': results.get('skill_match', {}).get('missing', [])[:20],
+            'missing_verbs': results.get('experience_analysis', {}).get('missing_action_verbs', [])[:10],
+            'skill_score': results.get('skill_match', {}).get('skill_score', 0),
+        },
+        'tier': 2,
+    })
+
     return render_template('results.html', results=results, active_section='jobs')
 
 

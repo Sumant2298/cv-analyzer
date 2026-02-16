@@ -136,6 +136,7 @@ class JDAnalysis(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     status = db.Column(db.String(20), default='analyzing')  # analyzing | completed | failed
     error_message = db.Column(db.Text)
+    jd_text = db.Column(db.Text)                            # Original JD text for rewrite flow
     results_json = db.Column(db.Text)                       # Full results as JSON
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
