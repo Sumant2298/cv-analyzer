@@ -62,10 +62,17 @@ def build_jsearch_params(prefs: dict) -> dict:
     emp_types = prefs.get('employment_types', [])
     employment_type = ','.join(emp_types) if emp_types else ''
 
-    # --- Experience level ---
+    # --- Experience level (map UI values to JSearch API values) ---
+    exp_map = {
+        'no_experience': 'no_experience',
+        'under_3_years': 'under_3_years_experience',
+        'more_than_3_years': 'more_than_3_years_experience',
+        'under_3_years_experience': 'under_3_years_experience',
+        'more_than_3_years_experience': 'more_than_3_years_experience',
+        'no_degree': 'no_degree',
+    }
     experience = prefs.get('experience_level', 'any')
-    if experience == 'any':
-        experience = ''
+    experience = exp_map.get(experience, '') if experience != 'any' else ''
 
     # --- Work mode: remote ---
     work_mode = prefs.get('work_mode', 'any')

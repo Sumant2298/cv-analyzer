@@ -88,7 +88,7 @@ def search_jobs(query, location='', employment_type='',
         logger.error('JSearch API timeout')
         return {'jobs': [], 'total_count': 0, 'error': 'Job search timed out. Please try again.'}
     except http_requests.exceptions.HTTPError as e:
-        logger.error('JSearch API HTTP error: %s', e)
+        logger.error('JSearch API HTTP error: %s | params: %s', e, api_params)
         if resp.status_code == 429:
             return {'jobs': [], 'total_count': 0, 'error': 'API rate limit reached. Please try again later.'}
         return {'jobs': [], 'total_count': 0, 'error': f'Job search error: {resp.status_code}'}
