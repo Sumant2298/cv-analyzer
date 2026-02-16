@@ -111,6 +111,13 @@ class UserResume(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Analysis persistence fields (unified resumes page)
+    target_job = db.Column(db.String(200), default='General')
+    ats_score = db.Column(db.Integer)                                  # NULL = not yet analyzed
+    analysis_status = db.Column(db.String(20), default='none')         # none | completed | failed
+    analysis_results_json = db.Column(db.Text)                         # Full results as JSON
+    last_analyzed_at = db.Column(db.DateTime)
+
     user = db.relationship('User', backref=db.backref('resumes', lazy='dynamic'))
 
     def __repr__(self):

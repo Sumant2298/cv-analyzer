@@ -132,6 +132,27 @@ with app.app_context():
         logger.info('Migration check (onboarding): %s', e)
         db.session.rollback()
 
+    # Migration: add analysis persistence columns to user_resumes table
+    try:
+        from sqlalchemy import text, inspect as _insp_fn
+        _ur_insp = _insp_fn(db.engine)
+        ur_cols = [c['name'] for c in _ur_insp.get_columns('user_resumes')]
+        _new_ur_cols = {
+            'target_job': "ALTER TABLE user_resumes ADD COLUMN target_job VARCHAR(200) DEFAULT 'General'",
+            'ats_score': 'ALTER TABLE user_resumes ADD COLUMN ats_score INTEGER',
+            'analysis_status': "ALTER TABLE user_resumes ADD COLUMN analysis_status VARCHAR(20) DEFAULT 'none'",
+            'analysis_results_json': 'ALTER TABLE user_resumes ADD COLUMN analysis_results_json TEXT',
+            'last_analyzed_at': 'ALTER TABLE user_resumes ADD COLUMN last_analyzed_at TIMESTAMP',
+        }
+        for col_name, ddl in _new_ur_cols.items():
+            if col_name not in ur_cols:
+                db.session.execute(text(ddl))
+                logger.info('Migration: added %s column to user_resumes', col_name)
+        db.session.commit()
+    except Exception as e:
+        logger.info('Migration check (user_resumes analysis): %s', e)
+        db.session.rollback()
+
 # ---------------------------------------------------------------------------
 # Google OAuth (optional — only if credentials are set)
 # ---------------------------------------------------------------------------
@@ -766,6 +787,65 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _auto_analyze_resume(resume_id: int, user_id: int, cv_text: str):
+    """Run CV-only analysis on a stored resume and persist results.
+
+    Called after upload or on re-analyze. Handles credit deduction internally.
+    Returns True if analysis succeeded, False otherwise.
+    """
+    resume = UserResume.query.get(resume_id)
+    if not resume:
+        return False
+
+    user = User.query.get(user_id)
+    if not user:
+        return False
+
+    from payments import CREDITS_PER_CV_ANALYSIS, FREE_CV_ANALYSIS_LIMIT, deduct_credits
+
+    # Credit check: first analysis free, then 2 credits
+    credits_charged = False
+    if user.analysis_count >= FREE_CV_ANALYSIS_LIMIT:
+        if user.credits < CREDITS_PER_CV_ANALYSIS:
+            resume.analysis_status = 'failed'
+            db.session.commit()
+            return False
+        if not deduct_credits(user_id, CREDITS_PER_CV_ANALYSIS, action='cv_analysis'):
+            resume.analysis_status = 'failed'
+            db.session.commit()
+            return False
+        credits_charged = True
+
+    try:
+        from llm_service import analyze_cv_only
+        results = analyze_cv_only(cv_text)
+        _log_llm_usage(user_id, 'cv_analysis')
+
+        # Persist results to resume record
+        resume.ats_score = results.get('cv_quality_score', 0)
+        resume.analysis_status = 'completed'
+        resume.analysis_results_json = json.dumps(results)
+        resume.last_analyzed_at = datetime.utcnow()
+        db.session.commit()
+
+        # Track analysis count
+        try:
+            from auth import track_analysis
+            track_analysis(user_id)
+        except Exception:
+            pass
+
+        return True
+
+    except Exception as e:
+        logger.error('Auto-analyze failed for resume %d: %s', resume_id, e, exc_info=True)
+        if credits_charged:
+            _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
+        resume.analysis_status = 'failed'
+        db.session.commit()
+        return False
+
+
 def _refund_analysis_credits(user_id: int, credits: int, action: str = 'refund_cv_analysis'):
     """Refund credits when analysis fails after deduction."""
     try:
@@ -876,19 +956,32 @@ def dashboard():
 
 @app.route('/analyze')
 def analyze_page():
-    """Dedicated analysis page — CV upload, paste, LinkedIn URL forms."""
-    user_data = None
-    if _oauth_enabled and session.get('user_id'):
-        user = User.query.get(session['user_id'])
-        if user:
-            from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS
-            user_data = {
-                'analysis_count': user.analysis_count,
-                'credits': user.credits,
-                'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
-                'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
-            }
-    return render_template('analyze.html', user_data=user_data, active_section='resumes')
+    """Unified resumes page — table of uploaded CVs with analysis results."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('analyze_page')
+        flash('Please sign in to manage and analyze your resumes.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS
+    user_data = {
+        'analysis_count': user.analysis_count,
+        'credits': user.credits,
+        'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
+        'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
+    }
+
+    resumes = UserResume.query.filter_by(user_id=user.id)\
+        .order_by(UserResume.created_at.desc()).all()
+
+    return render_template('resumes.html',
+                           resumes=resumes,
+                           user_data=user_data,
+                           active_section='resumes')
 
 
 # ---------------------------------------------------------------------------
@@ -1480,20 +1573,13 @@ def resume_tips():
 
 @app.route('/my-resumes')
 def my_resumes():
-    """List user's stored resumes."""
-    if not session.get('user_id'):
-        session['_login_next'] = url_for('my_resumes')
-        flash('Please sign in to manage your resumes.', 'warning')
-        return redirect(url_for('login_page'))
-
-    resumes = UserResume.query.filter_by(user_id=session['user_id'])\
-        .order_by(UserResume.created_at.desc()).all()
-    return render_template('my_resumes.html', resumes=resumes, active_section='resumes')
+    """Redirect to unified resumes page."""
+    return redirect(url_for('analyze_page'))
 
 
 @app.route('/my-resumes/upload', methods=['POST'])
 def upload_resume():
-    """Upload a new resume (max 5 per user)."""
+    """Upload a new resume (max 5 per user) and auto-analyze."""
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
 
@@ -1501,23 +1587,23 @@ def upload_resume():
     count = UserResume.query.filter_by(user_id=user_id).count()
     if count >= 5:
         flash('You can store up to 5 resumes. Please delete one before uploading a new one.', 'warning')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     file = request.files.get('resume_file')
     if not file or not file.filename:
         flash('Please select a file to upload.', 'error')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     if not allowed_file(file.filename):
         flash('Only PDF, DOCX, and TXT files are supported.', 'error')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     filename = secure_filename(file.filename)
     file_data = file.read()
 
     if len(file_data) > 5 * 1024 * 1024:
         flash('File too large. Maximum size is 5 MB.', 'error')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     # Extract text for caching
     temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -1533,6 +1619,7 @@ def upload_resume():
             os.remove(temp_path)
 
     label = request.form.get('label', '').strip() or 'My Resume'
+    target_job = request.form.get('target_job', '').strip() or 'General'
     is_primary = request.form.get('is_primary') == '1'
 
     # If setting as primary, un-primary all others
@@ -1552,12 +1639,31 @@ def upload_resume():
         file_data=file_data,
         extracted_text=extracted_text[:50000] if extracted_text else None,
         file_size=len(file_data),
+        target_job=target_job[:200],
     )
     db.session.add(resume)
     db.session.commit()
 
-    flash(f'Resume "{label}" uploaded successfully!', 'success')
-    return redirect(url_for('my_resumes'))
+    # Auto-analyze if we have extracted text
+    if extracted_text:
+        flash(f'Resume "{label}" uploaded. Running analysis...', 'info')
+        success = _auto_analyze_resume(resume.id, user_id, extracted_text)
+        if success:
+            # Refresh session credits
+            user = User.query.get(user_id)
+            if user:
+                session['user_credits'] = user.credits
+            flash(f'Resume "{label}" analyzed successfully!', 'success')
+        else:
+            user = User.query.get(user_id)
+            if user and user.analysis_count >= 1 and user.credits < 2:
+                flash(f'Resume "{label}" uploaded but analysis requires credits. Buy credits to analyze.', 'warning')
+            else:
+                flash(f'Resume "{label}" uploaded but analysis failed. You can re-analyze later.', 'warning')
+    else:
+        flash(f'Resume "{label}" uploaded. Could not extract text for analysis.', 'warning')
+
+    return redirect(url_for('analyze_page'))
 
 
 @app.route('/my-resumes/<int:resume_id>/set-primary', methods=['POST'])
@@ -1569,7 +1675,7 @@ def set_primary_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     UserResume.query.filter_by(user_id=session['user_id'], is_primary=True)\
         .update({'is_primary': False})
@@ -1577,7 +1683,7 @@ def set_primary_resume(resume_id):
     db.session.commit()
 
     flash(f'"{resume.label}" is now your primary resume.', 'success')
-    return redirect(url_for('my_resumes'))
+    return redirect(url_for('analyze_page'))
 
 
 @app.route('/my-resumes/<int:resume_id>/delete', methods=['POST'])
@@ -1589,7 +1695,7 @@ def delete_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     was_primary = resume.is_primary
     label = resume.label
@@ -1605,7 +1711,7 @@ def delete_resume(resume_id):
             db.session.commit()
 
     flash(f'Resume "{label}" deleted.', 'success')
-    return redirect(url_for('my_resumes'))
+    return redirect(url_for('analyze_page'))
 
 
 @app.route('/my-resumes/<int:resume_id>/download')
@@ -1617,7 +1723,7 @@ def download_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('my_resumes'))
+        return redirect(url_for('analyze_page'))
 
     return send_file(
         io.BytesIO(resume.file_data),
@@ -1625,6 +1731,94 @@ def download_resume(resume_id):
         download_name=resume.filename,
         mimetype='application/octet-stream',
     )
+
+
+@app.route('/my-resumes/<int:resume_id>/results')
+def resume_results(resume_id):
+    """View stored analysis results for a resume."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('analyze_page'))
+
+    if resume.analysis_status != 'completed' or not resume.analysis_results_json:
+        flash('No analysis results available for this resume. Try analyzing it first.', 'warning')
+        return redirect(url_for('analyze_page'))
+
+    results = json.loads(resume.analysis_results_json)
+
+    # Bridge to session so existing JD matching flow works
+    session['_data_token'] = _save_session_data({
+        'cv_text': resume.extracted_text[:20000] if resume.extracted_text else '',
+        'cv_analysis_results': results,
+        'tier': 1,
+    })
+
+    return render_template('cv_results.html', results=results,
+                           credits_remaining=session.get('user_credits', 0),
+                           resume_id=resume_id,
+                           active_section='resumes')
+
+
+@app.route('/my-resumes/<int:resume_id>/analyze', methods=['POST'])
+def reanalyze_resume(resume_id):
+    """Re-analyze an existing resume (uses stored extracted_text)."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    user_id = session['user_id']
+    resume = UserResume.query.filter_by(id=resume_id, user_id=user_id).first()
+    if not resume:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('analyze_page'))
+
+    if not resume.extracted_text:
+        flash('No text available for this resume. Please re-upload it.', 'error')
+        return redirect(url_for('analyze_page'))
+
+    success = _auto_analyze_resume(resume.id, user_id, resume.extracted_text)
+    if success:
+        user = User.query.get(user_id)
+        if user:
+            session['user_credits'] = user.credits
+        flash(f'Resume "{resume.label}" re-analyzed successfully!', 'success')
+    else:
+        user = User.query.get(user_id)
+        if user and user.credits < 2:
+            flash('Insufficient credits for analysis. Please buy more credits.', 'warning')
+            return redirect(url_for('buy_credits'))
+        flash('Analysis failed. Please try again later.', 'error')
+
+    return redirect(url_for('analyze_page'))
+
+
+@app.route('/my-resumes/<int:resume_id>/update', methods=['POST'])
+def update_resume(resume_id):
+    """Update resume label and/or target job."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('analyze_page'))
+
+    new_label = request.form.get('label', '').strip()
+    new_target_job = request.form.get('target_job', '').strip()
+
+    if new_label:
+        resume.label = new_label[:100]
+    if new_target_job:
+        resume.target_job = new_target_job[:200]
+
+    resume.updated_at = datetime.utcnow()
+    db.session.commit()
+
+    flash(f'Resume "{resume.label}" updated.', 'success')
+    return redirect(url_for('analyze_page'))
 
 
 # ---------------------------------------------------------------------------
