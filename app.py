@@ -788,62 +788,68 @@ def _process_input(file_field: str, text_field: str, url_field: str = None,
 # ---------------------------------------------------------------------------
 
 def _auto_analyze_resume(resume_id: int, user_id: int, cv_text: str):
-    """Run CV-only analysis on a stored resume and persist results.
+    """Spawn background thread for CV analysis. Returns immediately.
 
-    Called after upload or on re-analyze. Handles credit deduction internally.
-    Returns True if analysis succeeded, False otherwise.
+    Sets analysis_status='analyzing' and kicks off a daemon thread that
+    runs the LLM call outside the request cycle (avoids Railway timeout).
     """
     resume = UserResume.query.get(resume_id)
     if not resume:
         return False
 
-    user = User.query.get(user_id)
-    if not user:
-        return False
+    # Mark as analyzing so the UI can show a spinner
+    resume.analysis_status = 'analyzing'
+    db.session.commit()
 
-    from payments import CREDITS_PER_CV_ANALYSIS, FREE_CV_ANALYSIS_LIMIT, deduct_credits
+    def _run_analysis():
+        with app.app_context():
+            _resume = UserResume.query.get(resume_id)
+            _user = User.query.get(user_id)
+            if not _resume or not _user:
+                return
 
-    # Credit check: first analysis free, then 2 credits
-    credits_charged = False
-    if user.analysis_count >= FREE_CV_ANALYSIS_LIMIT:
-        if user.credits < CREDITS_PER_CV_ANALYSIS:
-            resume.analysis_status = 'failed'
-            db.session.commit()
-            return False
-        if not deduct_credits(user_id, CREDITS_PER_CV_ANALYSIS, action='cv_analysis'):
-            resume.analysis_status = 'failed'
-            db.session.commit()
-            return False
-        credits_charged = True
+            from payments import CREDITS_PER_CV_ANALYSIS, FREE_CV_ANALYSIS_LIMIT, deduct_credits
 
-    try:
-        from llm_service import analyze_cv_only
-        results = analyze_cv_only(cv_text)
-        _log_llm_usage(user_id, 'cv_analysis')
+            # Credit check: first analysis free, then 2 credits
+            credits_charged = False
+            if _user.analysis_count >= FREE_CV_ANALYSIS_LIMIT:
+                if _user.credits < CREDITS_PER_CV_ANALYSIS:
+                    _resume.analysis_status = 'failed'
+                    db.session.commit()
+                    return
+                if not deduct_credits(user_id, CREDITS_PER_CV_ANALYSIS, action='cv_analysis'):
+                    _resume.analysis_status = 'failed'
+                    db.session.commit()
+                    return
+                credits_charged = True
 
-        # Persist results to resume record
-        resume.ats_score = results.get('cv_quality_score', 0)
-        resume.analysis_status = 'completed'
-        resume.analysis_results_json = json.dumps(results)
-        resume.last_analyzed_at = datetime.utcnow()
-        db.session.commit()
+            try:
+                from llm_service import analyze_cv_only
+                results = analyze_cv_only(cv_text)
+                _log_llm_usage(user_id, 'cv_analysis')
 
-        # Track analysis count
-        try:
-            from auth import track_analysis
-            track_analysis(user_id)
-        except Exception:
-            pass
+                _resume.ats_score = results.get('cv_quality_score', 0)
+                _resume.analysis_status = 'completed'
+                _resume.analysis_results_json = json.dumps(results)
+                _resume.last_analyzed_at = datetime.utcnow()
+                db.session.commit()
 
-        return True
+                # Track analysis count
+                try:
+                    from auth import track_analysis
+                    track_analysis(user_id)
+                except Exception:
+                    pass
 
-    except Exception as e:
-        logger.error('Auto-analyze failed for resume %d: %s', resume_id, e, exc_info=True)
-        if credits_charged:
-            _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
-        resume.analysis_status = 'failed'
-        db.session.commit()
-        return False
+            except Exception as e:
+                logger.error('Background analysis failed for resume %d: %s', resume_id, e, exc_info=True)
+                if credits_charged:
+                    _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
+                _resume.analysis_status = 'failed'
+                db.session.commit()
+
+    threading.Thread(target=_run_analysis, daemon=True).start()
+    return True
 
 
 def _refund_analysis_credits(user_id: int, credits: int, action: str = 'refund_cv_analysis'):
@@ -1644,24 +1650,12 @@ def upload_resume():
     db.session.add(resume)
     db.session.commit()
 
-    # Auto-analyze if we have extracted text
+    # Auto-analyze in background thread (returns immediately)
     if extracted_text:
-        flash(f'Resume "{label}" uploaded. Running analysis...', 'info')
-        success = _auto_analyze_resume(resume.id, user_id, extracted_text)
-        if success:
-            # Refresh session credits
-            user = User.query.get(user_id)
-            if user:
-                session['user_credits'] = user.credits
-            flash(f'Resume "{label}" analyzed successfully!', 'success')
-        else:
-            user = User.query.get(user_id)
-            if user and user.analysis_count >= 1 and user.credits < 2:
-                flash(f'Resume "{label}" uploaded but analysis requires credits. Buy credits to analyze.', 'warning')
-            else:
-                flash(f'Resume "{label}" uploaded but analysis failed. You can re-analyze later.', 'warning')
+        _auto_analyze_resume(resume.id, user_id, extracted_text)
+        flash(f'Resume "{label}" uploaded! Analysis is running...', 'success')
     else:
-        flash(f'Resume "{label}" uploaded. Could not extract text for analysis.', 'warning')
+        flash(f'Resume "{label}" uploaded.', 'success')
 
     return redirect(url_for('analyze_page'))
 
@@ -1819,6 +1813,20 @@ def update_resume(resume_id):
 
     flash(f'Resume "{resume.label}" updated.', 'success')
     return redirect(url_for('analyze_page'))
+
+
+@app.route('/my-resumes/<int:resume_id>/status')
+def resume_status(resume_id):
+    """Lightweight JSON endpoint for polling analysis progress."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume:
+        return jsonify({'error': 'Not found'}), 404
+    return jsonify({
+        'status': resume.analysis_status or 'none',
+        'ats_score': resume.ats_score,
+    })
 
 
 # ---------------------------------------------------------------------------

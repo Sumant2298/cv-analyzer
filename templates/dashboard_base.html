@@ -9,6 +9,12 @@
         @media (min-width: 1024px) {
             #sidebar.sidebar-hidden { transform: translateX(0); }
         }
+        /* Smooth page content transition — eliminates jarring pop on navigation */
+        @keyframes fadeSlideIn {
+            from { opacity: 0; transform: translateY(6px); }
+            to   { opacity: 1; transform: translateY(0); }
+        }
+        main { animation: fadeSlideIn 0.2s ease-out forwards; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen font-sans text-slate-800">
