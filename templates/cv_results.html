@@ -6,6 +6,14 @@
 {% set score = results.cv_quality_score|default(50) %}
 {% set color = 'emerald' if score >= 70 else ('amber' if score >= 40 else 'red') %}
 
+<!-- Back to Resumes -->
+<div class="max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-2 no-print">
+    <a href="{{ url_for('analyze_page') }}" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 transition font-medium">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+        Back to Resumes
+    </a>
+</div>
+
 <!-- Score Hero -->
 <section class="bg-gradient-to-br from-brand-700 via-brand-600 to-emerald-500 text-white">
     <div class="max-w-5xl mx-auto px-4 sm:px-6 py-6">
@@ -22,7 +30,7 @@
                 </svg>
                 <div class="absolute inset-0 flex flex-col items-center justify-center">
                     <span class="text-3xl font-extrabold">{{ score }}%</span>
-                    <span class="text-[9px] text-white/60 font-semibold uppercase">ATS Score</span>
+                    <span class="text-[9px] text-white/60 font-semibold uppercase">{% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Improvement{% else %}Drastic Overhaul{% endif %}</span>
                 </div>
             </div>
             <!-- Info -->
@@ -296,147 +304,7 @@
     </details>
     {% endif %}
 
-    <!-- Inline JD Form (hidden by default, revealed on button click) -->
-    <div id="jd-inline-form" class="hidden no-print">
-        <form id="jd-analyze-form" action="{{ url_for('analyze_jd') }}" method="post" enctype="multipart/form-data">
-            <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden anim-fade-up-1">
-                <div class="bg-gradient-to-r from-emerald-600 to-brand-500 px-6 py-3 flex items-center justify-between">
-                    <h2 class="text-white font-semibold flex items-center gap-2">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                        Paste the Job Description
-                    </h2>
-                    <button type="button" onclick="closeJDForm()" class="text-white/70 hover:text-white transition">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
-                    </button>
-                </div>
-                <div class="flex border-b border-slate-200" role="tablist">
-                    <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-emerald-500 text-emerald-600" onclick="switchTab('jd', this, 'jd-upload')">Upload File</button>
-                    <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" onclick="switchTab('jd', this, 'jd-paste')">Paste Text</button>
-                    <button type="button" class="jd-tab flex-1 py-2.5 text-sm font-medium text-center transition border-b-2 border-transparent text-slate-400 hover:text-slate-600" onclick="switchTab('jd', this, 'jd-url')">Job URL</button>
-                </div>
-                <div class="p-6">
-                    <div id="jd-upload" class="jd-panel">
-                        <label class="flex flex-col items-center justify-center w-full h-36 border-2 border-dashed border-slate-300 rounded-xl cursor-pointer hover:border-emerald-400 hover:bg-emerald-50/30 transition group">
-                            <svg class="w-10 h-10 text-slate-300 group-hover:text-emerald-400 transition mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                            <span class="text-sm text-slate-500 group-hover:text-emerald-600 transition font-medium">Drop a file or click to browse</span>
-                            <span class="text-xs text-slate-400 mt-1">PDF, DOCX, or TXT (max 10 MB)</span>
-                            <input type="file" name="jd_file" accept=".pdf,.docx,.txt" class="hidden" id="jd_file_input">
-                        </label>
-                        <p class="text-xs text-emerald-600 font-medium mt-2 hidden" id="jd_file_label"></p>
-                    </div>
-                    <div id="jd-paste" class="jd-panel hidden">
-                        <textarea name="jd_text" rows="8" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent resize-y placeholder:text-slate-400" placeholder="Paste the full job description here..."></textarea>
-                    </div>
-                    <div id="jd-url" class="jd-panel hidden">
-                        <input type="url" name="jd_url" class="w-full border border-slate-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-emerald-400 focus:border-transparent placeholder:text-slate-400" placeholder="https://example.com/job-posting">
-                        <p class="text-xs text-slate-400 mt-2">Paste the URL of the job posting. We'll extract the description automatically.</p>
-                    </div>
-                </div>
-                <div class="text-center pb-6 px-6">
-                    <button type="submit" id="jdSubmitBtn" class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-3 px-10 rounded-xl shadow-lg hover:shadow-xl transition-all text-base">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-                        <span id="jdBtnText">Analyse Resume Against JD</span>
-                        <svg id="jdBtnSpinner" class="hidden animate-spin w-5 h-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
-                        <span class="text-xs bg-white/20 px-2 py-0.5 rounded font-bold">3 credits</span>
-                    </button>
-                    <p id="jdInlineHelperText" class="text-xs text-slate-400 mt-2">Your resume is already loaded from the analysis above</p>
-                </div>
-            </div>
-        </form>
-    </div>
-
-    <!-- Action Buttons -->
-    <div id="action-buttons" class="flex flex-wrap justify-center gap-4 py-4 no-print">
-        <a href="{{ url_for('analyze_page') }}" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            Back to Resumes
-        </a>
-        <button onclick="revealJDForm()" class="inline-flex items-center gap-2 bg-gradient-to-r from-emerald-500 to-brand-500 hover:from-emerald-600 hover:to-brand-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
-            Analyze Resume Against a JD
-            <span class="text-[10px] bg-white/20 px-1.5 py-0.5 rounded font-bold">3 credits</span>
-        </button>
-        <button onclick="window.print()" class="inline-flex items-center gap-2 bg-white text-slate-700 font-semibold py-2.5 px-7 rounded-xl shadow-lg border border-slate-200 hover:bg-slate-50 transition-all text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-            Print Results
-        </button>
-    </div>
 
 </div>
 
-<script>
-function revealJDForm() {
-    const form = document.getElementById('jd-inline-form');
-    form.classList.remove('hidden');
-    const actionBtns = document.getElementById('action-buttons');
-    const creditsFtr = document.getElementById('credits-footer');
-    if (actionBtns) actionBtns.style.display = 'none';
-    if (creditsFtr) creditsFtr.style.display = 'none';
-    form.scrollIntoView({ behavior: 'smooth', block: 'center' });
-}
-
-function closeJDForm() {
-    document.getElementById('jd-inline-form').classList.add('hidden');
-    const actionBtns = document.getElementById('action-buttons');
-    const creditsFtr = document.getElementById('credits-footer');
-    if (actionBtns) actionBtns.style.display = '';
-    if (creditsFtr) creditsFtr.style.display = '';
-}
-
-function switchTab(group, btn, targetId) {
-    const tabClass = group + '-tab';
-    const panelClass = group + '-panel';
-    document.querySelectorAll('.' + tabClass).forEach(t => {
-        t.className = t.className.replace(/border-brand-500|border-emerald-500/g, 'border-transparent')
-                                   .replace(/text-brand-600|text-emerald-600/g, 'text-slate-400');
-    });
-    btn.classList.remove('border-transparent', 'text-slate-400');
-    'border-emerald-500 text-emerald-600'.split(' ').forEach(c => btn.classList.add(c));
-    document.querySelectorAll('.' + panelClass).forEach(p => p.classList.add('hidden'));
-    document.getElementById(targetId).classList.remove('hidden');
-}
-
-/* JD File input label update */
-const jdInput = document.getElementById('jd_file_input');
-if (jdInput) {
-    jdInput.addEventListener('change', function() {
-        const label = document.getElementById('jd_file_label');
-        if (this.files.length > 0) {
-            label.textContent = 'Selected: ' + this.files[0].name;
-            label.classList.remove('hidden');
-        } else {
-            label.classList.add('hidden');
-        }
-    });
-}
-
-/* Loading state for JD form submit */
-const jdForm = document.getElementById('jd-analyze-form');
-if (jdForm) {
-    jdForm.addEventListener('submit', function(e) {
-        const file = document.querySelector('#jd-analyze-form input[name="jd_file"]').files.length > 0;
-        const text = document.querySelector('#jd-analyze-form textarea[name="jd_text"]');
-        const url = document.querySelector('#jd-analyze-form input[name="jd_url"]');
-        const hasText = text && text.value.trim().length > 0;
-        const hasUrl = url && url.value.trim().length > 0;
-
-        if (!file && !hasText && !hasUrl) {
-            e.preventDefault();
-            alert('Please upload a JD file, paste the job description text, or enter a job URL.');
-            return;
-        }
-
-        const btn = document.getElementById('jdSubmitBtn');
-        const btnText = document.getElementById('jdBtnText');
-        const spinner = document.getElementById('jdBtnSpinner');
-        btn.disabled = true;
-        btn.classList.add('opacity-80', 'cursor-wait');
-        btnText.textContent = 'Analyzing...';
-        spinner.classList.remove('hidden');
-        const helper = document.getElementById('jdInlineHelperText');
-        if (helper) helper.textContent = 'Estimated time: 30–60 seconds';
-    });
-}
-
-</script>
 {% endblock %}

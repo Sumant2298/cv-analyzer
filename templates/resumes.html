@@ -59,14 +59,14 @@
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
         <!-- Desktop table -->
         <div class="hidden sm:block overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm table-fixed">
                 <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
                     <tr>
-                        <th class="text-left px-5 py-3.5 font-medium">CV Name</th>
-                        <th class="text-left px-5 py-3.5 font-medium">Target Job</th>
-                        <th class="text-center px-5 py-3.5 font-medium">ATS Score</th>
-                        <th class="text-left px-5 py-3.5 font-medium">Uploaded</th>
-                        <th class="text-right px-5 py-3.5 font-medium">Actions</th>
+                        <th class="text-left px-5 py-3.5 font-medium w-[35%]">CV Name</th>
+                        <th class="text-left px-5 py-3.5 font-medium w-[20%]">Target Job</th>
+                        <th class="text-center px-5 py-3.5 font-medium w-[12%]">ATS Score</th>
+                        <th class="text-left px-5 py-3.5 font-medium w-[15%]">Uploaded</th>
+                        <th class="text-right px-5 py-3.5 font-medium w-[18%]">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
@@ -95,7 +95,7 @@
 
                         <!-- Target Job -->
                         <td class="px-5 py-4">
-                            <span class="text-slate-600">{{ resume.target_job or 'General' }}</span>
+                            <span class="text-slate-600 block truncate">{{ resume.target_job or 'General' }}</span>
                         </td>
 
                         <!-- ATS Score -->
@@ -107,6 +107,10 @@
                                     {% elif score >= 40 %}bg-amber-100 text-amber-700
                                     {% else %}bg-red-100 text-red-700{% endif %}">
                                     {{ score }}
+                                </span>
+                                <span class="block text-[10px] mt-1 font-medium
+                                    {% if score >= 90 %}text-emerald-600{% elif score >= 70 %}text-blue-600{% elif score >= 50 %}text-amber-600{% elif score >= 30 %}text-orange-600{% else %}text-red-600{% endif %}">
+                                    {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Improvement{% else %}Overhaul{% endif %}
                                 </span>
                             {% elif resume.analysis_status == 'analyzing' %}
                                 <span class="inline-flex items-center gap-1.5 text-xs text-brand-600 font-medium">
@@ -126,8 +130,8 @@
                         </td>
 
                         <!-- Actions -->
-                        <td class="px-5 py-4 text-right">
-                            <div class="flex items-center justify-end gap-1">
+                        <td class="px-5 py-4 text-right whitespace-nowrap">
+                            <div class="flex items-center justify-end gap-1 flex-nowrap">
                                 {% if resume.analysis_status == 'completed' %}
                                 <a href="/my-resumes/{{ resume.id }}/results" class="inline-flex items-center gap-1 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2.5 py-1.5 rounded-lg transition" title="View Analysis">
                                     <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -186,11 +190,17 @@
                     <span data-resume-id="{{ resume.id }}" data-resume-status="{{ resume.analysis_status or 'none' }}" data-cell="ats-mobile">
                     {% if resume.analysis_status == 'completed' and resume.ats_score is not none %}
                         {% set score = resume.ats_score %}
-                        <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-xs flex-shrink-0
-                            {% if score >= 70 %}bg-emerald-100 text-emerald-700
-                            {% elif score >= 40 %}bg-amber-100 text-amber-700
-                            {% else %}bg-red-100 text-red-700{% endif %}">
-                            {{ score }}
+                        <span class="inline-flex flex-col items-center flex-shrink-0">
+                            <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-xs
+                                {% if score >= 70 %}bg-emerald-100 text-emerald-700
+                                {% elif score >= 40 %}bg-amber-100 text-amber-700
+                                {% else %}bg-red-100 text-red-700{% endif %}">
+                                {{ score }}
+                            </span>
+                            <span class="text-[9px] mt-0.5 font-medium
+                                {% if score >= 90 %}text-emerald-600{% elif score >= 70 %}text-blue-600{% elif score >= 50 %}text-amber-600{% elif score >= 30 %}text-orange-600{% else %}text-red-600{% endif %}">
+                                {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Impr.{% else %}Overhaul{% endif %}
+                            </span>
                         </span>
                     {% elif resume.analysis_status == 'analyzing' %}
                         <span class="inline-flex items-center gap-1 text-[10px] text-brand-600 font-medium flex-shrink-0">

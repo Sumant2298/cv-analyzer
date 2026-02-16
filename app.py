@@ -1778,7 +1778,7 @@ def reanalyze_resume(resume_id):
         user = User.query.get(user_id)
         if user:
             session['user_credits'] = user.credits
-        flash(f'Resume "{resume.label}" re-analyzed successfully!', 'success')
+        flash(f'Re-analysis started for "{resume.label}". Results will appear shortly.', 'success')
     else:
         user = User.query.get(user_id)
         if user and user.credits < 2:
