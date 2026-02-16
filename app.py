@@ -1252,6 +1252,179 @@ def analyze_jd():
 
 
 # ---------------------------------------------------------------------------
+# Jobs — JD upload & auto-match against primary CV (background thread)
+# ---------------------------------------------------------------------------
+
+# In-memory store for JD analysis results (keyed by analysis_id)
+_jd_analyses = {}  # { analysis_id: { 'status': str, 'results': dict|None, 'error': str|None, 'created_at': float } }
+
+
+def _cleanup_old_jd_analyses():
+    """Remove JD analyses older than 10 minutes to prevent memory leak."""
+    import time
+    cutoff = time.time() - 600
+    stale = [k for k, v in _jd_analyses.items() if v.get('created_at', 0) < cutoff]
+    for k in stale:
+        del _jd_analyses[k]
+
+
+@app.route('/jobs')
+def jobs_page():
+    """Jobs page — upload a JD to match against primary resume."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('jobs_page')
+        flash('Please sign in to use Jobs.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    # Get primary resume
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+
+    from payments import CREDITS_PER_JD_ANALYSIS
+    return render_template('jobs.html',
+                           primary_resume=primary,
+                           credits_per_jd=CREDITS_PER_JD_ANALYSIS,
+                           credits_remaining=user.credits,
+                           active_section='jobs')
+
+
+@app.route('/jobs/analyze', methods=['POST'])
+def jobs_analyze():
+    """Start background JD analysis against user's primary resume."""
+    import time
+
+    if not session.get('user_id'):
+        flash('Please sign in first.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user_id = session['user_id']
+    user = User.query.get(user_id)
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    # Get primary resume
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if not primary:
+        flash('You need a primary resume first. Upload a CV and set it as primary.', 'warning')
+        return redirect(url_for('analyze_page'))
+
+    cv_text = primary.extracted_text
+    if not cv_text or len(cv_text.strip()) < 50:
+        flash('Your primary resume has no extracted text. Please re-upload it.', 'warning')
+        return redirect(url_for('analyze_page'))
+
+    # Credit check
+    from payments import CREDITS_PER_JD_ANALYSIS, deduct_credits
+    if user.credits < CREDITS_PER_JD_ANALYSIS:
+        flash(f'You need {CREDITS_PER_JD_ANALYSIS} credits for JD analysis. '
+              f'You have {user.credits}.', 'warning')
+        return redirect(url_for('buy_credits'))
+
+    # Process JD input (file, text, or URL)
+    try:
+        jd_text = _process_input(
+            'jd_file', 'jd_text', url_field='jd_url',
+            save_cv=False, url_extractor=_extract_from_jd_url)
+    except Exception as e:
+        flash(f'Error reading Job Description: {e}', 'error')
+        return redirect(url_for('jobs_page'))
+
+    if not jd_text:
+        flash('Could not extract Job Description content. Please try again.', 'error')
+        return redirect(url_for('jobs_page'))
+
+    if len(jd_text.split()) < 10:
+        flash('Job description seems very short. Results may be unreliable.', 'warning')
+
+    # Deduct credits
+    if not deduct_credits(user_id, CREDITS_PER_JD_ANALYSIS, action='jd_analysis'):
+        flash(f'Insufficient credits. You need {CREDITS_PER_JD_ANALYSIS} credits.', 'warning')
+        return redirect(url_for('buy_credits'))
+
+    # Update session credits
+    user = User.query.get(user_id)
+    session['user_credits'] = user.credits
+
+    # Cleanup old analyses and create new one
+    _cleanup_old_jd_analyses()
+    analysis_id = f"{user_id}_{int(time.time())}"
+    _jd_analyses[analysis_id] = {
+        'status': 'analyzing',
+        'results': None,
+        'error': None,
+        'created_at': time.time(),
+    }
+    session['_jd_analysis_id'] = analysis_id
+
+    # Spawn background thread
+    def _run_jd_analysis():
+        with app.app_context():
+            try:
+                results = analyze_cv_against_jd(cv_text, jd_text)
+                _log_llm_usage(user_id, 'jd_analysis')
+                _jd_analyses[analysis_id]['results'] = results
+                _jd_analyses[analysis_id]['status'] = 'completed'
+            except Exception as e:
+                logger.error('Background JD analysis failed (%s): %s', analysis_id, e, exc_info=True)
+                _jd_analyses[analysis_id]['error'] = str(e)
+                _jd_analyses[analysis_id]['status'] = 'failed'
+                # Refund credits on failure
+                _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS, action='refund_jd_analysis')
+
+    threading.Thread(target=_run_jd_analysis, daemon=True).start()
+    return redirect(url_for('jobs_waiting'))
+
+
+@app.route('/jobs/status')
+def jobs_status():
+    """JSON polling endpoint for JD analysis progress."""
+    analysis_id = session.get('_jd_analysis_id', '')
+    entry = _jd_analyses.get(analysis_id)
+    if not entry:
+        return jsonify({'status': 'not_found'})
+    return jsonify({
+        'status': entry['status'],
+        'error': entry.get('error'),
+    })
+
+
+@app.route('/jobs/waiting')
+def jobs_waiting():
+    """Waiting/polling page while JD analysis runs in background."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    analysis_id = session.get('_jd_analysis_id', '')
+    if not analysis_id or analysis_id not in _jd_analyses:
+        flash('No analysis in progress.', 'warning')
+        return redirect(url_for('jobs_page'))
+
+    return render_template('jobs_waiting.html', active_section='jobs')
+
+
+@app.route('/jobs/results')
+def jobs_results():
+    """Show JD vs CV analysis results."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    analysis_id = session.get('_jd_analysis_id', '')
+    entry = _jd_analyses.get(analysis_id)
+
+    if not entry or entry['status'] != 'completed' or not entry.get('results'):
+        flash('No completed analysis found. Please try again.', 'warning')
+        return redirect(url_for('jobs_page'))
+
+    results = entry['results']
+    return render_template('results.html', results=results, active_section='jobs')
+
+
+# ---------------------------------------------------------------------------
 # CV download
 # ---------------------------------------------------------------------------
 

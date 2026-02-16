@@ -1,0 +1,135 @@
+{% extends "dashboard_base.html" %}
+{% block title %}Analyzing... | LevelUpX{% endblock %}
+{% block page_title %}Jobs{% endblock %}
+{% block content %}
+
+<div class="max-w-lg mx-auto px-4 sm:px-6 py-16 text-center">
+
+    <!-- Animated Spinner -->
+    <div class="relative w-24 h-24 mx-auto mb-6">
+        <!-- Outer ring -->
+        <div class="absolute inset-0 rounded-full border-4 border-slate-200"></div>
+        <!-- Animated arc -->
+        <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-brand-500 border-r-emerald-500 animate-spin"></div>
+        <!-- Center icon -->
+        <div class="absolute inset-0 flex items-center justify-center">
+            <svg class="w-8 h-8 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+        </div>
+    </div>
+
+    <h2 class="text-xl font-bold text-slate-800 mb-2">Analyzing Your Resume Against the JD</h2>
+    <p class="text-sm text-slate-500 mb-2">Our AI is evaluating skills, experience, and fit...</p>
+
+    <!-- Progress Steps -->
+    <div id="progress-steps" class="space-y-2 max-w-xs mx-auto mt-6 mb-6 text-left">
+        <div class="flex items-center gap-3 step-item" data-step="1">
+            <div class="w-6 h-6 rounded-full bg-brand-100 flex items-center justify-center flex-shrink-0">
+                <svg class="w-3.5 h-3.5 text-brand-500 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/></svg>
+            </div>
+            <span class="text-sm text-slate-600">Parsing job requirements...</span>
+        </div>
+        <div class="flex items-center gap-3 step-item opacity-40" data-step="2">
+            <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <div class="w-2 h-2 rounded-full bg-slate-300"></div>
+            </div>
+            <span class="text-sm text-slate-400">Matching skills & experience...</span>
+        </div>
+        <div class="flex items-center gap-3 step-item opacity-40" data-step="3">
+            <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center flex-shrink-0">
+                <div class="w-2 h-2 rounded-full bg-slate-300"></div>
+            </div>
+            <span class="text-sm text-slate-400">Generating recruiter insights...</span>
+        </div>
+    </div>
+
+    <p class="text-xs text-slate-400" id="timer-text">This usually takes 30–60 seconds</p>
+
+    <!-- Error display (hidden by default) -->
+    <div id="error-box" class="hidden mt-6 bg-red-50 border border-red-200 rounded-xl p-5">
+        <div class="flex items-center gap-2 justify-center mb-2">
+            <svg class="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
+            <span class="text-sm font-bold text-red-700">Analysis Failed</span>
+        </div>
+        <p id="error-msg" class="text-sm text-red-600 mb-3"></p>
+        <a href="{{ url_for('jobs_page') }}" class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2 px-5 rounded-xl shadow-md transition text-sm">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+            Try Again
+        </a>
+    </div>
+</div>
+
+<script>
+(function() {
+    let elapsed = 0;
+    const POLL_INTERVAL = 3000; // 3 seconds
+    const MAX_WAIT = 180000;    // 3 minutes
+
+    function advanceStep(stepNum) {
+        document.querySelectorAll('.step-item').forEach(item => {
+            const s = parseInt(item.dataset.step);
+            if (s < stepNum) {
+                item.classList.remove('opacity-40');
+                item.querySelector('.w-6').classList.remove('bg-slate-100', 'bg-brand-100');
+                item.querySelector('.w-6').classList.add('bg-emerald-100');
+                item.querySelector('.w-6').innerHTML = '<svg class="w-3.5 h-3.5 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>';
+                item.querySelector('span').classList.remove('text-slate-400');
+                item.querySelector('span').classList.add('text-slate-600');
+            } else if (s === stepNum) {
+                item.classList.remove('opacity-40');
+                item.querySelector('.w-6').classList.remove('bg-slate-100');
+                item.querySelector('.w-6').classList.add('bg-brand-100');
+                item.querySelector('.w-6').innerHTML = '<svg class="w-3.5 h-3.5 text-brand-500 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="5"/></svg>';
+                item.querySelector('span').classList.remove('text-slate-400');
+                item.querySelector('span').classList.add('text-slate-600');
+            }
+        });
+    }
+
+    const poller = setInterval(() => {
+        elapsed += POLL_INTERVAL;
+
+        // Advance visual steps based on time
+        if (elapsed >= 10000) advanceStep(2);
+        if (elapsed >= 25000) advanceStep(3);
+
+        // Update timer
+        const secs = Math.floor(elapsed / 1000);
+        document.getElementById('timer-text').textContent = `Elapsed: ${secs}s`;
+
+        // Timeout guard
+        if (elapsed >= MAX_WAIT) {
+            clearInterval(poller);
+            document.getElementById('error-box').classList.remove('hidden');
+            document.getElementById('error-msg').textContent = 'Analysis is taking too long. Please try again.';
+            document.querySelector('.relative.w-24').style.display = 'none';
+            document.getElementById('progress-steps').style.display = 'none';
+            document.getElementById('timer-text').style.display = 'none';
+            return;
+        }
+
+        fetch('{{ url_for("jobs_status") }}')
+            .then(r => r.json())
+            .then(data => {
+                if (data.status === 'completed') {
+                    clearInterval(poller);
+                    window.location.href = '{{ url_for("jobs_results") }}';
+                } else if (data.status === 'failed') {
+                    clearInterval(poller);
+                    document.getElementById('error-box').classList.remove('hidden');
+                    document.getElementById('error-msg').textContent = data.error || 'Something went wrong. Your credits have been refunded.';
+                    document.querySelector('.relative.w-24').style.display = 'none';
+                    document.getElementById('progress-steps').style.display = 'none';
+                    document.getElementById('timer-text').style.display = 'none';
+                } else if (data.status === 'not_found') {
+                    clearInterval(poller);
+                    window.location.href = '{{ url_for("jobs_page") }}';
+                }
+            })
+            .catch(() => {
+                // Network error — just keep polling
+            });
+    }, POLL_INTERVAL);
+})();
+</script>
+
+{% endblock %}
