@@ -62,18 +62,40 @@
             </div>
 
             <div class="p-6">
-                <!-- Step 1: Basic Job Criteria -->
+                <!-- Step 1: What You Do (cascading dropdowns) -->
                 <div id="wiz-step-1" class="wiz-step">
                     <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">1</span>
-                        Basic Job Criteria
+                        What You Do
                     </h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Titles / Roles you're looking for</label>
-                            <div id="wiz-job-titles" class="tag-input-wrap"></div>
-                            <p class="text-[10px] text-slate-400 mt-1">Type and press Enter to add multiple</p>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Function / Industry</label>
+                            <select id="wiz-job-function" onchange="onFunctionChange('wiz')" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                                <option value="">Select a function...</option>
+                            </select>
                         </div>
+                        <div id="wiz-role-section" class="hidden">
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Role</label>
+                            <select id="wiz-job-role" onchange="onRoleChange('wiz')" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                                <option value="">Select a role...</option>
+                            </select>
+                        </div>
+                        <div id="wiz-titles-section" class="hidden">
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Titles <span class="text-slate-400 font-normal">(click to select)</span></label>
+                            <div id="wiz-job-titles-pills" class="flex flex-wrap gap-2"></div>
+                            <p class="text-[10px] text-slate-400 mt-1">These titles will be used to search for matching jobs</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Work Preferences -->
+                <div id="wiz-step-2" class="wiz-step hidden">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">2</span>
+                        Work Preferences
+                    </h3>
+                    <div class="space-y-4">
                         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                             <div>
                                 <label class="block text-xs font-medium text-slate-600 mb-1.5">Experience Level</label>
@@ -106,20 +128,35 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1.5">Preferred Locations</label>
-                            <div id="wiz-locations" class="tag-input-wrap"></div>
+                            <div id="wiz-locations-wrap" class="relative">
+                                <div id="wiz-locations-selected" class="tag-input-wrap" onclick="document.getElementById('wiz-locations-search').focus(); showLocationDropdown('wiz')">
+                                    <input type="text" id="wiz-locations-search" placeholder="Search cities..."
+                                        oninput="filterLocations('wiz')" onfocus="showLocationDropdown('wiz')" autocomplete="off">
+                                </div>
+                                <div id="wiz-locations-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto"></div>
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Step 2: Compensation Range -->
-                <div id="wiz-step-2" class="wiz-step hidden">
+                <!-- Step 3: Skills & Compensation -->
+                <div id="wiz-step-3" class="wiz-step hidden">
                     <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">2</span>
-                        Compensation Range
+                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">3</span>
+                        Skills & Compensation
                     </h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-2">Quick Select (LPA = Lakhs Per Annum)</label>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">
+                                Skills / Technologies
+                                <span id="wiz-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your role)</span>
+                            </label>
+                            <div id="wiz-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
+                            <div id="wiz-skills" class="tag-input-wrap" data-autocomplete="true"></div>
+                            <p class="text-[10px] text-slate-400 mt-1">Click suggestions or type to search</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Salary Range (Quick Select)</label>
                             <div class="flex flex-wrap gap-2">
                                 <button type="button" onclick="setSalaryPreset(300000,600000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">3-6 LPA</button>
                                 <button type="button" onclick="setSalaryPreset(600000,1200000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">6-12 LPA</button>
@@ -149,45 +186,11 @@
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1.5">Salary Period</label>
                             <div class="flex gap-2">
-                                <button type="button" onclick="togglePill(this,'wiz-salary-period')" data-value="annual" class="pill-btn active text-xs px-4 py-1.5 rounded-full border transition" id="wiz-salary-period-annual">Annual</button>
-                                <button type="button" onclick="togglePill(this,'wiz-salary-period')" data-value="monthly" class="pill-btn text-xs px-4 py-1.5 rounded-full border transition" id="wiz-salary-period-monthly">Monthly</button>
+                                <button type="button" onclick="togglePill(this,'wiz-salary-period')" data-value="annual" class="pill-btn active text-xs px-4 py-1.5 rounded-full border transition">Annual</button>
+                                <button type="button" onclick="togglePill(this,'wiz-salary-period')" data-value="monthly" class="pill-btn text-xs px-4 py-1.5 rounded-full border transition">Monthly</button>
                             </div>
                         </div>
                         <p class="text-[10px] text-slate-400">Jobs without salary info are always shown. Leave blank to skip salary filtering.</p>
-                    </div>
-                </div>
-
-                <!-- Step 3: Areas of Interest -->
-                <div id="wiz-step-3" class="wiz-step hidden">
-                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
-                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">3</span>
-                        Areas of Interest
-                    </h3>
-                    <div class="space-y-4">
-                        <!-- Level 1: Industry / Domain -->
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-2">Industry / Domain</label>
-                            <div id="wiz-industries" class="flex flex-wrap gap-2">
-                                <!-- Populated dynamically from category tree -->
-                            </div>
-                        </div>
-                        <!-- Level 2: Role / Function (cascades from industry) -->
-                        <div id="wiz-roles-section" class="hidden">
-                            <label class="block text-xs font-medium text-slate-600 mb-2">Role / Function <span class="text-slate-400 font-normal">(based on your industry)</span></label>
-                            <div id="wiz-functional" class="flex flex-wrap gap-2">
-                                <!-- Populated dynamically -->
-                            </div>
-                        </div>
-                        <!-- Level 3: Suggested + manual skills -->
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">
-                                Skills / Technologies
-                                <span id="wiz-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your selection)</span>
-                            </label>
-                            <div id="wiz-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
-                            <div id="wiz-skills" class="tag-input-wrap" data-autocomplete="true"></div>
-                            <p class="text-[10px] text-slate-400 mt-1">Type to search or click suggestions above</p>
-                        </div>
                     </div>
                 </div>
 
@@ -250,17 +253,38 @@
     <div id="filter-panel" class="hidden bg-white rounded-2xl shadow-lg border border-slate-200 mb-6 overflow-hidden">
         <div class="p-5 space-y-4">
             <!-- Accordion sections use same IDs but with 'fp-' prefix -->
-            <!-- Section 1 -->
+            <!-- Section 1: Job Selection -->
             <div class="border border-slate-100 rounded-xl overflow-hidden">
                 <button type="button" onclick="toggleAccordion('fp-sec-1')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-                    <span>Basic Job Criteria</span>
+                    <span>Job Selection</span>
                     <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
                 <div id="fp-sec-1" class="hidden p-3 pt-0 space-y-3">
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Titles / Roles</label>
-                        <div id="fp-job-titles" class="tag-input-wrap"></div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Function</label>
+                        <select id="fp-job-function" onchange="onFunctionChange('fp')" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                            <option value="">Select...</option>
+                        </select>
                     </div>
+                    <div id="fp-role-section" class="hidden">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Role</label>
+                        <select id="fp-job-role" onchange="onRoleChange('fp')" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                            <option value="">Select...</option>
+                        </select>
+                    </div>
+                    <div id="fp-titles-section" class="hidden">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Titles</label>
+                        <div id="fp-job-titles-pills" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Section 2: Work Preferences -->
+            <div class="border border-slate-100 rounded-xl overflow-hidden">
+                <button type="button" onclick="toggleAccordion('fp-sec-2')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <span>Work Preferences</span>
+                    <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="fp-sec-2" class="hidden p-3 pt-0 space-y-3">
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">Experience</label>
@@ -293,24 +317,38 @@
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Locations</label>
-                        <div id="fp-locations" class="tag-input-wrap"></div>
+                        <div id="fp-locations-wrap" class="relative">
+                            <div id="fp-locations-selected" class="tag-input-wrap" onclick="document.getElementById('fp-locations-search').focus(); showLocationDropdown('fp')">
+                                <input type="text" id="fp-locations-search" placeholder="Search cities..."
+                                    oninput="filterLocations('fp')" onfocus="showLocationDropdown('fp')" autocomplete="off">
+                            </div>
+                            <div id="fp-locations-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto"></div>
+                        </div>
                     </div>
                 </div>
             </div>
-            <!-- Section 2 -->
+            <!-- Section 3: Skills & Compensation -->
             <div class="border border-slate-100 rounded-xl overflow-hidden">
-                <button type="button" onclick="toggleAccordion('fp-sec-2')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-                    <span>Compensation Range</span>
+                <button type="button" onclick="toggleAccordion('fp-sec-3')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <span>Skills & Compensation</span>
                     <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
-                <div id="fp-sec-2" class="hidden p-3 pt-0 space-y-3">
+                <div id="fp-sec-3" class="hidden p-3 pt-0 space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">
+                            Skills
+                            <span id="fp-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your role)</span>
+                        </label>
+                        <div id="fp-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
+                        <div id="fp-skills" class="tag-input-wrap" data-autocomplete="true"></div>
+                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Min (INR)</label>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Min Salary (INR)</label>
                             <input type="number" id="fp-salary-min" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 600000">
                         </div>
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Max (INR)</label>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Max Salary (INR)</label>
                             <input type="number" id="fp-salary-max" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 2500000">
                         </div>
                     </div>
@@ -320,31 +358,6 @@
                             <button type="button" onclick="togglePill(this,'fp-salary-period')" data-value="annual" class="pill-btn active text-[10px] px-2.5 py-1 rounded-full border transition">Annual</button>
                             <button type="button" onclick="togglePill(this,'fp-salary-period')" data-value="monthly" class="pill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Monthly</button>
                         </div>
-                    </div>
-                </div>
-            </div>
-            <!-- Section 3 (cascading) -->
-            <div class="border border-slate-100 rounded-xl overflow-hidden">
-                <button type="button" onclick="toggleAccordion('fp-sec-3')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-                    <span>Areas of Interest</span>
-                    <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
-                </button>
-                <div id="fp-sec-3" class="hidden p-3 pt-0 space-y-3">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Industry</label>
-                        <div id="fp-industries" class="flex flex-wrap gap-1.5"></div>
-                    </div>
-                    <div id="fp-roles-section" class="hidden">
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Role / Function</label>
-                        <div id="fp-functional" class="flex flex-wrap gap-1.5"></div>
-                    </div>
-                    <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">
-                            Skills
-                            <span id="fp-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your selection)</span>
-                        </label>
-                        <div id="fp-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
-                        <div id="fp-skills" class="tag-input-wrap" data-autocomplete="true"></div>
                     </div>
                 </div>
             </div>
@@ -469,176 +482,211 @@ const tagInstances = {};
 
 // ===================== CASCADING CATEGORY TREE =====================
 let categoryTree = null;
+let locationsList = [];
+const selectedLocations = {};  // prefix -> Set of city names
 
 async function loadCategoryTree() {
     try {
         const resp = await fetch('/jobs/category-tree');
-        categoryTree = await resp.json();
-        if (document.getElementById('wiz-industries')) {
-            renderIndustryPills('wiz-industries', 'wiz');
-        }
+        const data = await resp.json();
+        categoryTree = data.industries || data;  // new shape: {industries, locations}
+        locationsList = data.locations || [];
     } catch (e) {
         console.error('Failed to load category tree:', e);
     }
 }
 
-function renderIndustryPills(containerId, prefix) {
-    const container = document.getElementById(containerId);
-    if (!container || !categoryTree) return;
-    container.innerHTML = '';
-    const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
+function initCascadeDropdowns(prefix) {
+    if (!categoryTree) return;
+    const fnSelect = document.getElementById(prefix + '-job-function');
+    if (!fnSelect) return;
+    fnSelect.innerHTML = '<option value="">Select a function...</option>';
     for (const industry of Object.keys(categoryTree)) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'mpill-btn ' + pillSize + ' rounded-full border transition';
-        btn.dataset.value = industry;
-        btn.textContent = industry;
-        btn.onclick = function() {
-            toggleMultiPill(this);
-            onIndustryChange(prefix);
-        };
-        container.appendChild(btn);
+        const opt = document.createElement('option');
+        opt.value = industry;
+        opt.textContent = industry;
+        fnSelect.appendChild(opt);
     }
+    initLocationDropdown(prefix);
 }
 
-function onIndustryChange(prefix) {
-    const indContainer = document.getElementById(prefix + '-industries');
-    const selected = Array.from(indContainer.querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
-    const rolesSection = document.getElementById(prefix + '-roles-section');
-    const rolesContainer = document.getElementById(prefix + '-functional');
+function onFunctionChange(prefix) {
+    const fnSelect = document.getElementById(prefix + '-job-function');
+    const roleSection = document.getElementById(prefix + '-role-section');
+    const roleSelect = document.getElementById(prefix + '-job-role');
+    const titlesSection = document.getElementById(prefix + '-titles-section');
+    const selected = fnSelect ? fnSelect.value : '';
 
-    if (selected.length === 0) {
-        rolesSection.classList.add('hidden');
-        onRoleChange(prefix);
+    if (!selected) {
+        if (roleSection) roleSection.classList.add('hidden');
+        if (titlesSection) titlesSection.classList.add('hidden');
         return;
     }
+    const data = categoryTree[selected];
+    if (!data) return;
 
-    // Collect all roles from selected industries
-    const allRoles = new Set();
-    for (const ind of selected) {
-        const data = categoryTree[ind];
-        if (data && data.roles) data.roles.forEach(r => allRoles.add(r));
-    }
-
-    const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
-    rolesContainer.innerHTML = '';
-    for (const role of allRoles) {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'mpill-btn ' + pillSize + ' rounded-full border transition';
-        btn.dataset.value = role;
-        btn.textContent = role;
-        btn.onclick = function() {
-            toggleMultiPill(this);
-            onRoleChange(prefix);
-        };
-        rolesContainer.appendChild(btn);
-    }
-    rolesSection.classList.remove('hidden');
-    onRoleChange(prefix);
+    roleSelect.innerHTML = '<option value="">Select a role...</option>';
+    (data.roles || []).forEach(role => {
+        const opt = document.createElement('option');
+        opt.value = role;
+        opt.textContent = role;
+        roleSelect.appendChild(opt);
+    });
+    roleSection.classList.remove('hidden');
+    if (titlesSection) titlesSection.classList.add('hidden');
 }
 
 function onRoleChange(prefix) {
-    const indContainer = document.getElementById(prefix + '-industries');
-    const rolesContainer = document.getElementById(prefix + '-functional');
+    const fnSelect = document.getElementById(prefix + '-job-function');
+    const roleSelect = document.getElementById(prefix + '-job-role');
+    const titlesSection = document.getElementById(prefix + '-titles-section');
+    const titlesPills = document.getElementById(prefix + '-job-titles-pills');
     const suggestedContainer = document.getElementById(prefix + '-suggested-skills');
     const hintEl = document.getElementById(prefix + '-skills-hint');
 
-    const selectedIndustries = Array.from((indContainer || {querySelectorAll:()=>[]}).querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
-    const selectedRoles = Array.from((rolesContainer || {querySelectorAll:()=>[]}).querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
+    const selectedFn = fnSelect ? fnSelect.value : '';
+    const selectedRole = roleSelect ? roleSelect.value : '';
 
-    if (!suggestedContainer) return;
-    if (selectedRoles.length === 0) {
-        suggestedContainer.classList.add('hidden');
+    if (!selectedRole || !selectedFn) {
+        if (titlesSection) titlesSection.classList.add('hidden');
+        if (suggestedContainer) suggestedContainer.classList.add('hidden');
         if (hintEl) hintEl.classList.add('hidden');
         return;
     }
 
-    // Collect suggested skills from selected industry+role combos
-    const skills = new Set();
-    for (const ind of selectedIndustries) {
-        const data = categoryTree && categoryTree[ind];
-        if (!data || !data.role_details) continue;
-        for (const role of selectedRoles) {
-            const roleData = data.role_details[role];
-            if (roleData && roleData.skills) roleData.skills.forEach(s => skills.add(s));
-        }
+    const roleData = categoryTree[selectedFn] && categoryTree[selectedFn].role_details
+        ? categoryTree[selectedFn].role_details[selectedRole] : null;
+    if (!roleData) return;
+
+    // Render title pills
+    if (titlesPills) {
+        titlesPills.innerHTML = '';
+        const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
+        (roleData.titles || []).forEach(title => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'mpill-btn ' + pillSize + ' rounded-full border transition';
+            btn.dataset.value = title;
+            btn.textContent = title;
+            btn.onclick = function() { toggleMultiPill(this); };
+            titlesPills.appendChild(btn);
+        });
+        if (titlesSection) titlesSection.classList.remove('hidden');
     }
 
-    if (skills.size === 0) {
-        suggestedContainer.classList.add('hidden');
-        if (hintEl) hintEl.classList.add('hidden');
-        return;
+    // Render suggested skills
+    if (suggestedContainer) {
+        suggestedContainer.innerHTML = '';
+        const existingInst = tagInstances[prefix + '-skills'];
+        const existingTags = existingInst ? existingInst.getTags() : [];
+        (roleData.skills || []).forEach(skill => {
+            if (existingTags.includes(skill)) return;
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'text-[11px] px-2.5 py-1 rounded-full border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition';
+            btn.textContent = '+ ' + skill;
+            btn.onclick = function() { addTagToInput(prefix + '-skills', skill); btn.remove(); };
+            suggestedContainer.appendChild(btn);
+        });
+        suggestedContainer.classList.toggle('hidden', suggestedContainer.children.length === 0);
+        if (hintEl) hintEl.classList.toggle('hidden', suggestedContainer.children.length === 0);
     }
-
-    // Render quick-add skill buttons
-    suggestedContainer.innerHTML = '';
-    const existingTags = tagInstances[prefix + '-skills'] || [];
-    for (const skill of skills) {
-        if (existingTags.includes(skill)) continue;
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'text-[11px] px-2.5 py-1 rounded-full border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition';
-        btn.textContent = '+ ' + skill;
-        btn.onclick = function() {
-            addTagToInput(prefix + '-skills', skill);
-            btn.remove();
-        };
-        suggestedContainer.appendChild(btn);
-    }
-    suggestedContainer.classList.remove('hidden');
-    if (hintEl) hintEl.classList.remove('hidden');
 }
 
+// ===================== LOCATION DROPDOWN =====================
+function initLocationDropdown(prefix) {
+    const dropdown = document.getElementById(prefix + '-locations-dropdown');
+    if (!dropdown) return;
+    dropdown.innerHTML = '';
+    locationsList.forEach(city => {
+        const div = document.createElement('div');
+        div.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 transition';
+        div.dataset.city = city;
+        div.textContent = city;
+        div.onclick = () => toggleLocationSelection(prefix, city);
+        dropdown.appendChild(div);
+    });
+    if (!selectedLocations[prefix]) selectedLocations[prefix] = new Set();
+}
+
+function toggleLocationSelection(prefix, city) {
+    if (!selectedLocations[prefix]) selectedLocations[prefix] = new Set();
+    const s = selectedLocations[prefix];
+    if (s.has(city)) s.delete(city); else s.add(city);
+    renderSelectedLocations(prefix);
+    updateLocationDropdownState(prefix);
+}
+
+function renderSelectedLocations(prefix) {
+    const container = document.getElementById(prefix + '-locations-selected');
+    if (!container) return;
+    const input = document.getElementById(prefix + '-locations-search');
+    container.querySelectorAll('.loc-chip').forEach(c => c.remove());
+    const s = selectedLocations[prefix] || new Set();
+    s.forEach(city => {
+        const chip = document.createElement('span');
+        chip.className = 'loc-chip tag-chip inline-flex items-center gap-1 text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full';
+        chip.innerHTML = escHtml(city) + ' <button type="button" class="hover:text-red-500 font-bold">&times;</button>';
+        chip.querySelector('button').onclick = (e) => { e.stopPropagation(); toggleLocationSelection(prefix, city); };
+        if (input) container.insertBefore(chip, input); else container.appendChild(chip);
+    });
+}
+
+function updateLocationDropdownState(prefix) {
+    const dropdown = document.getElementById(prefix + '-locations-dropdown');
+    if (!dropdown) return;
+    const s = selectedLocations[prefix] || new Set();
+    dropdown.querySelectorAll('[data-city]').forEach(div => {
+        const sel = s.has(div.dataset.city);
+        div.classList.toggle('bg-brand-50', sel);
+        div.classList.toggle('font-semibold', sel);
+        div.classList.toggle('text-brand-700', sel);
+    });
+}
+
+function filterLocations(prefix) {
+    const input = document.getElementById(prefix + '-locations-search');
+    const dropdown = document.getElementById(prefix + '-locations-dropdown');
+    if (!dropdown || !input) return;
+    const q = input.value.toLowerCase().trim();
+    dropdown.querySelectorAll('[data-city]').forEach(div => {
+        div.classList.toggle('hidden', q && !div.dataset.city.toLowerCase().includes(q));
+    });
+    dropdown.classList.remove('hidden');
+}
+
+function showLocationDropdown(prefix) {
+    const dropdown = document.getElementById(prefix + '-locations-dropdown');
+    if (dropdown) { dropdown.classList.remove('hidden'); updateLocationDropdownState(prefix); }
+}
+
+// Close location dropdowns on outside click
+document.addEventListener('click', (e) => {
+    ['wiz', 'fp'].forEach(p => {
+        const wrap = document.getElementById(p + '-locations-wrap');
+        const dropdown = document.getElementById(p + '-locations-dropdown');
+        if (wrap && dropdown && !wrap.contains(e.target)) dropdown.classList.add('hidden');
+    });
+});
+
 function addTagToInput(containerId, tag) {
-    // Programmatically add a tag to a tag-input widget
-    const tags = tagInstances[containerId];
-    if (!tags) return;
+    const inst = tagInstances[containerId];
+    if (!inst) return;
+    const tags = inst.getTags ? inst.getTags() : inst;
     if (tags.includes(tag)) return;
+    if (inst.addTag) { inst.addTag(tag); return; }
+    // fallback for raw arrays
     tags.push(tag);
-    // Rebuild chips
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
     const input = wrap.querySelector('input');
     if (input) {
-        // Insert chip before input
         const chip = document.createElement('span');
         chip.className = 'tag-chip inline-flex items-center gap-1 text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full';
-        chip.innerHTML = tag + ' <button type="button" class="hover:text-red-500 font-bold">&times;</button>';
-        chip.querySelector('button').onclick = function() {
-            const idx = tags.indexOf(tag);
-            if (idx > -1) tags.splice(idx, 1);
-            chip.remove();
-        };
+        chip.innerHTML = escHtml(tag) + ' <button type="button" class="hover:text-red-500 font-bold">&times;</button>';
+        chip.querySelector('button').onclick = function() { const idx = tags.indexOf(tag); if (idx > -1) tags.splice(idx, 1); chip.remove(); };
         wrap.insertBefore(chip, input);
     }
-}
-
-function renderFilterPanelCascade() {
-    if (!categoryTree) return;
-    renderIndustryPills('fp-industries', 'fp');
-    // Pre-select saved industries and roles
-    if (savedPrefs) {
-        if (savedPrefs.industries) {
-            setActiveMultiPillsDynamic('fp-industries', savedPrefs.industries, 'fp');
-        }
-        if (savedPrefs.functional_areas) {
-            setActiveMultiPillsDynamic('fp-functional', savedPrefs.functional_areas, 'fp');
-        }
-    }
-}
-
-function setActiveMultiPillsDynamic(containerId, values, prefix) {
-    if (!values || !values.length) return;
-    const container = document.getElementById(containerId);
-    if (!container) return;
-    container.querySelectorAll('.mpill-btn').forEach(btn => {
-        if (values.includes(btn.dataset.value)) {
-            btn.classList.add('active');
-        }
-    });
-    // Trigger cascade after setting
-    if (containerId.includes('industries')) onIndustryChange(prefix);
 }
 
 // ===================== TAG INPUT WIDGET =====================
@@ -821,17 +869,36 @@ function skipWizard() {
 
 // ===================== COLLECT PREFERENCES =====================
 function collectPreferences(prefix) {
+    // Job titles from multi-select pills (not tag input)
+    const titlePills = document.getElementById(prefix + '-job-titles-pills');
+    const jobTitles = titlePills
+        ? Array.from(titlePills.querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value)
+        : [];
+
+    // Industry from dropdown (single value -> array)
+    const fnEl = document.getElementById(prefix + '-job-function');
+    const industries = fnEl && fnEl.value ? [fnEl.value] : [];
+
+    // Role from dropdown (single value -> array)
+    const roleEl = document.getElementById(prefix + '-job-role');
+    const functionalAreas = roleEl && roleEl.value ? [roleEl.value] : [];
+
+    // Locations from selection set (not tag input)
+    const locations = selectedLocations[prefix]
+        ? Array.from(selectedLocations[prefix])
+        : [];
+
     return {
-        job_titles: tagInstances[prefix + '-job-titles'] ? tagInstances[prefix + '-job-titles'].getTags() : [],
+        job_titles: jobTitles,
         experience_level: (document.getElementById(prefix + '-experience') || {}).value || 'any',
         employment_types: getActiveMultiPills(prefix + '-emp-types'),
         work_mode: getActivePill(prefix + '-work-mode'),
-        locations: tagInstances[prefix + '-locations'] ? tagInstances[prefix + '-locations'].getTags() : [],
+        locations: locations,
         salary_min: (document.getElementById(prefix + '-salary-min') || {}).value || null,
         salary_max: (document.getElementById(prefix + '-salary-max') || {}).value || null,
         salary_period: getActivePill(prefix + '-salary-period') || 'annual',
-        industries: getActiveMultiPills(prefix + '-industries'),
-        functional_areas: getActiveMultiPills(prefix + '-functional'),
+        industries: industries,
+        functional_areas: functionalAreas,
         skills: tagInstances[prefix + '-skills'] ? tagInstances[prefix + '-skills'].getTags() : [],
         company_sizes: getActiveMultiPills(prefix + '-company-sizes'),
         company_types: getActiveMultiPills(prefix + '-company-types'),
@@ -959,6 +1026,8 @@ function showState(state) {
 // ===================== PREFERENCES SUMMARY =====================
 function updatePrefsSummary(prefs) {
     const parts = [];
+    if (prefs.industries && prefs.industries.length) parts.push(prefs.industries[0]);
+    if (prefs.functional_areas && prefs.functional_areas.length) parts.push(prefs.functional_areas[0]);
     if (prefs.job_titles && prefs.job_titles.length) parts.push(prefs.job_titles.slice(0, 2).join(', '));
     if (prefs.locations && prefs.locations.length) parts.push(prefs.locations.slice(0, 2).join(', '));
     const empMap = { FULLTIME: 'Full-time', PARTTIME: 'Part-time', CONTRACTOR: 'Contract', INTERN: 'Internship' };
@@ -987,30 +1056,52 @@ function openEditPrefs() {
     const panel = document.getElementById('filter-panel');
     panel.classList.remove('hidden');
 
-    // Init tag inputs for filter panel with saved values
+    // Init cascade dropdowns for filter panel
+    initCascadeDropdowns('fp');
+
     if (savedPrefs) {
-        initTagInput('fp-job-titles', savedPrefs.job_titles);
-        initTagInput('fp-locations', savedPrefs.locations);
-        initTagInput('fp-skills', savedPrefs.skills);
-        initTagInput('fp-companies-include', savedPrefs.companies_include);
-        initTagInput('fp-companies-exclude', savedPrefs.companies_exclude);
+        // Restore cascade: function → role → titles
+        const fpFn = document.getElementById('fp-job-function');
+        if (fpFn && savedPrefs.industries && savedPrefs.industries.length) {
+            fpFn.value = savedPrefs.industries[0];
+            onFunctionChange('fp');
+            const fpRole = document.getElementById('fp-job-role');
+            if (fpRole && savedPrefs.functional_areas && savedPrefs.functional_areas.length) {
+                setTimeout(() => {
+                    fpRole.value = savedPrefs.functional_areas[0];
+                    onRoleChange('fp');
+                    setTimeout(() => {
+                        if (savedPrefs.job_titles) setActiveMultiPills('fp-job-titles-pills', savedPrefs.job_titles);
+                    }, 50);
+                }, 50);
+            }
+        }
+
+        // Restore work preferences
         document.getElementById('fp-experience').value = savedPrefs.experience_level || 'any';
         setActivePill('fp-work-mode', savedPrefs.work_mode || 'any');
         setActiveMultiPills('fp-emp-types', savedPrefs.employment_types);
+
+        // Restore locations
+        selectedLocations['fp'] = new Set(savedPrefs.locations || []);
+        renderSelectedLocations('fp');
+        updateLocationDropdownState('fp');
+
+        // Restore salary
         document.getElementById('fp-salary-min').value = savedPrefs.salary_min || '';
         document.getElementById('fp-salary-max').value = savedPrefs.salary_max || '';
         setActivePill('fp-salary-period', savedPrefs.salary_period || 'annual');
+
+        // Restore skills + company prefs
+        initTagInput('fp-skills', savedPrefs.skills);
+        initTagInput('fp-companies-include', savedPrefs.companies_include);
+        initTagInput('fp-companies-exclude', savedPrefs.companies_exclude);
         setActiveMultiPills('fp-company-sizes', savedPrefs.company_sizes);
         setActiveMultiPills('fp-company-types', savedPrefs.company_types);
-        // Render cascading filter panel with saved industry/role selections
-        renderFilterPanelCascade();
     } else {
-        initTagInput('fp-job-titles', []);
-        initTagInput('fp-locations', []);
         initTagInput('fp-skills', []);
         initTagInput('fp-companies-include', []);
         initTagInput('fp-companies-exclude', []);
-        renderFilterPanelCascade();
     }
 }
 
@@ -1144,17 +1235,16 @@ function escHtml(str) {
 
 // ===================== INIT ON PAGE LOAD =====================
 document.addEventListener('DOMContentLoaded', () => {
-    // Load category tree for cascading filters (both wizard and filter panel)
     loadCategoryTree().then(() => {
         {% if show_wizard %}
-        // Wizard mode: init tag inputs for wizard
-        initTagInput('wiz-job-titles', []);
-        initTagInput('wiz-locations', []);
+        // Wizard mode: init cascade + tag inputs
+        initCascadeDropdowns('wiz');
         initTagInput('wiz-skills', []);
         initTagInput('wiz-companies-include', []);
         initTagInput('wiz-companies-exclude', []);
+        selectedLocations['wiz'] = new Set();
         {% else %}
-        // Return visit: load snapshot (cascade renders when filter panel opens)
+        // Return visit: load snapshot
         if (savedPrefs && savedPrefs.setup_completed) {
             updatePrefsSummary(savedPrefs);
             loadJobsPage();

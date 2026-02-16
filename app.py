@@ -1501,17 +1501,20 @@ def jobs_snapshot():
 @app.route('/jobs/category-tree')
 def jobs_category_tree():
     """Return the hierarchical category tree for cascading filter UI."""
-    from skills_data import CATEGORY_TREE
+    from skills_data import CATEGORY_TREE, INDIAN_CITIES
     tree = {}
     for industry, data in CATEGORY_TREE.items():
         tree[industry] = {
             'roles': list(data['roles'].keys()),
             'role_details': {
-                role: {'skills': info['skills'][:8]}
+                role: {
+                    'titles': info.get('titles', []),
+                    'skills': info['skills'][:8],
+                }
                 for role, info in data['roles'].items()
             },
         }
-    return jsonify(tree)
+    return jsonify({'industries': tree, 'locations': INDIAN_CITIES})
 
 
 @app.route('/jobs/search')

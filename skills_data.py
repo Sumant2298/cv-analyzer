@@ -118,30 +118,37 @@ CATEGORY_TREE = {
         'roles': {
             'Engineering': {
                 'keywords': ['engineer', 'developer', 'programming', 'software', 'backend', 'frontend', 'full stack'],
+                'titles': ['Software Engineer', 'Frontend Developer', 'Backend Developer', 'Full Stack Developer', 'Senior Software Engineer', 'Software Architect', 'Mobile Developer', 'Embedded Engineer'],
                 'skills': ['python', 'java', 'javascript', 'react', 'django', 'spring boot', 'docker', 'kubernetes', 'sql', 'git'],
             },
             'Data Science & Analytics': {
                 'keywords': ['data scientist', 'data analyst', 'analytics', 'machine learning', 'ml engineer'],
+                'titles': ['Data Scientist', 'Data Analyst', 'ML Engineer', 'Data Engineer', 'Business Analyst', 'Analytics Manager'],
                 'skills': ['python', 'sql', 'machine learning', 'tensorflow', 'pandas', 'numpy', 'tableau', 'spark', 'statistics'],
             },
             'DevOps & Infra': {
                 'keywords': ['devops', 'sre', 'infrastructure', 'platform engineer', 'cloud engineer'],
+                'titles': ['DevOps Engineer', 'SRE', 'Cloud Engineer', 'Platform Engineer', 'Infrastructure Engineer', 'System Administrator'],
                 'skills': ['aws', 'docker', 'kubernetes', 'terraform', 'jenkins', 'ci/cd', 'linux', 'ansible', 'grafana'],
             },
             'QA & Testing': {
                 'keywords': ['qa', 'quality assurance', 'tester', 'test engineer', 'sdet'],
+                'titles': ['QA Engineer', 'SDET', 'Test Automation Engineer', 'Performance Tester', 'QA Lead'],
                 'skills': ['selenium', 'cypress', 'jest', 'pytest', 'unit testing', 'integration testing', 'test automation'],
             },
             'Product': {
                 'keywords': ['product manager', 'product owner', 'product management'],
+                'titles': ['Product Manager', 'Associate Product Manager', 'Senior Product Manager', 'Product Owner', 'Technical Product Manager'],
                 'skills': ['agile', 'scrum', 'jira', 'stakeholder management', 'a/b testing', 'data analysis'],
             },
             'Design': {
                 'keywords': ['designer', 'ui/ux', 'ux design', 'ui design', 'graphic design'],
+                'titles': ['UI/UX Designer', 'Product Designer', 'UX Researcher', 'Visual Designer', 'Interaction Designer'],
                 'skills': ['figma', 'user research', 'prototyping', 'design systems', 'css', 'html'],
             },
             'Security': {
                 'keywords': ['security', 'cybersecurity', 'infosec', 'penetration testing'],
+                'titles': ['Security Engineer', 'Cybersecurity Analyst', 'Penetration Tester', 'SOC Analyst', 'Security Architect'],
                 'skills': ['cybersecurity', 'penetration testing', 'owasp', 'encryption', 'siem', 'compliance'],
             },
         },
@@ -151,14 +158,17 @@ CATEGORY_TREE = {
         'roles': {
             'Financial Analysis': {
                 'keywords': ['financial analyst', 'finance', 'investment', 'portfolio'],
+                'titles': ['Financial Analyst', 'Investment Analyst', 'Portfolio Analyst', 'FP&A Analyst', 'Finance Manager'],
                 'skills': ['sql', 'python', 'excel', 'tableau', 'power bi', 'financial modeling'],
             },
             'Risk & Compliance': {
                 'keywords': ['risk', 'compliance', 'audit', 'regulatory'],
+                'titles': ['Risk Analyst', 'Compliance Officer', 'Internal Auditor', 'Regulatory Analyst'],
                 'skills': ['risk management', 'compliance', 'sql', 'python', 'statistics'],
             },
             'Fintech Engineering': {
                 'keywords': ['fintech', 'payment', 'blockchain', 'trading platform'],
+                'titles': ['Fintech Developer', 'Payment Engineer', 'Blockchain Developer', 'Quantitative Developer'],
                 'skills': ['python', 'java', 'sql', 'aws', 'docker', 'kubernetes'],
             },
         },
@@ -168,10 +178,12 @@ CATEGORY_TREE = {
         'roles': {
             'Health Informatics': {
                 'keywords': ['health informatics', 'ehr', 'medical data', 'clinical data'],
+                'titles': ['Health Data Analyst', 'Clinical Data Manager', 'Health Informatics Specialist', 'EHR Analyst'],
                 'skills': ['python', 'sql', 'data analysis', 'statistics'],
             },
             'Biotech & Research': {
                 'keywords': ['biotech', 'research', 'clinical', 'pharmaceutical'],
+                'titles': ['Research Scientist', 'Biostatistician', 'Clinical Research Associate', 'Bioinformatics Analyst'],
                 'skills': ['python', 'r', 'statistics', 'machine learning', 'data analysis'],
             },
         },
@@ -181,14 +193,17 @@ CATEGORY_TREE = {
         'roles': {
             'Engineering': {
                 'keywords': ['engineer', 'developer', 'full stack'],
+                'titles': ['E-commerce Developer', 'Marketplace Engineer', 'Full Stack Developer'],
                 'skills': ['javascript', 'react', 'python', 'sql', 'aws', 'redis', 'elasticsearch'],
             },
             'Marketing & Growth': {
                 'keywords': ['marketing', 'growth', 'seo', 'content'],
+                'titles': ['Growth Marketing Manager', 'SEO Specialist', 'Performance Marketing Manager', 'Content Strategist'],
                 'skills': ['seo', 'a/b testing', 'data analysis', 'sql', 'python'],
             },
             'Operations & Logistics': {
                 'keywords': ['operations', 'supply chain', 'logistics', 'warehouse'],
+                'titles': ['Operations Manager', 'Supply Chain Analyst', 'Logistics Coordinator', 'Warehouse Manager'],
                 'skills': ['data analysis', 'sql', 'excel', 'python'],
             },
         },
@@ -198,10 +213,12 @@ CATEGORY_TREE = {
         'roles': {
             'EdTech Engineering': {
                 'keywords': ['edtech', 'learning platform', 'lms'],
+                'titles': ['EdTech Developer', 'Learning Platform Engineer', 'LMS Developer'],
                 'skills': ['javascript', 'react', 'python', 'django', 'aws', 'sql'],
             },
             'Instructional Design': {
                 'keywords': ['instructional design', 'curriculum', 'content development'],
+                'titles': ['Instructional Designer', 'Curriculum Developer', 'E-Learning Specialist'],
                 'skills': ['curriculum design', 'e-learning', 'data analysis'],
             },
         },
@@ -211,10 +228,12 @@ CATEGORY_TREE = {
         'roles': {
             'Management Consulting': {
                 'keywords': ['consultant', 'advisory', 'strategy'],
+                'titles': ['Management Consultant', 'Strategy Analyst', 'Business Consultant', 'Associate Consultant'],
                 'skills': ['data analysis', 'presentation', 'project management', 'sql', 'python'],
             },
             'Technology Consulting': {
                 'keywords': ['technology consulting', 'it consulting', 'digital transformation'],
+                'titles': ['Technology Consultant', 'IT Consultant', 'Digital Transformation Lead', 'Solution Architect'],
                 'skills': ['aws', 'azure', 'agile', 'project management', 'python', 'sql'],
             },
         },
@@ -224,10 +243,12 @@ CATEGORY_TREE = {
         'roles': {
             'Industrial Engineering': {
                 'keywords': ['industrial engineer', 'manufacturing', 'process engineer'],
+                'titles': ['Industrial Engineer', 'Process Engineer', 'Manufacturing Engineer', 'Quality Engineer'],
                 'skills': ['lean manufacturing', 'six sigma', 'data analysis', 'python'],
             },
             'Supply Chain': {
                 'keywords': ['supply chain', 'procurement', 'logistics'],
+                'titles': ['Supply Chain Manager', 'Procurement Analyst', 'Logistics Manager'],
                 'skills': ['data analysis', 'sql', 'excel', 'python'],
             },
         },
@@ -237,10 +258,12 @@ CATEGORY_TREE = {
         'roles': {
             'Content & Creative': {
                 'keywords': ['content', 'creative', 'media', 'editorial'],
+                'titles': ['Content Manager', 'Creative Director', 'Content Strategist', 'Copywriter'],
                 'skills': ['content strategy', 'data analysis', 'python'],
             },
             'Streaming & Tech': {
                 'keywords': ['streaming', 'ott', 'video platform'],
+                'titles': ['Streaming Engineer', 'Video Platform Developer', 'Media Software Engineer'],
                 'skills': ['python', 'javascript', 'aws', 'docker', 'kubernetes'],
             },
         },
@@ -250,6 +273,7 @@ CATEGORY_TREE = {
         'roles': {
             'Network Engineering': {
                 'keywords': ['network', 'telecom', '5g', 'wireless'],
+                'titles': ['Network Engineer', 'Telecom Engineer', '5G Engineer', 'Wireless Engineer'],
                 'skills': ['networking', 'linux', 'python', 'sql', 'aws'],
             },
         },
@@ -259,9 +283,21 @@ CATEGORY_TREE = {
         'roles': {
             'IT & Digital': {
                 'keywords': ['e-governance', 'digital india', 'government it'],
+                'titles': ['E-Governance Specialist', 'Government IT Analyst', 'Digital India Developer'],
                 'skills': ['java', 'spring boot', 'sql', 'linux', 'oracle'],
             },
         },
         'api_boost_keywords': ['government', 'public sector'],
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Indian cities for location dropdown (predefined, no free typing)
+# ---------------------------------------------------------------------------
+INDIAN_CITIES = [
+    'Bangalore', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Chennai', 'Pune',
+    'Kolkata', 'Ahmedabad', 'Noida', 'Gurgaon', 'Jaipur', 'Chandigarh',
+    'Kochi', 'Indore', 'Lucknow', 'Coimbatore', 'Thiruvananthapuram',
+    'Visakhapatnam', 'Nagpur', 'Bhubaneswar', 'Remote',
+]
