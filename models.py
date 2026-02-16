@@ -210,8 +210,9 @@ class JobPreferences(db.Model):
     salary_period = db.Column(db.String(10), default='annual')  # annual|monthly
 
     # Section 3: Areas of Interest
-    industries = db.Column(db.Text, default='[]')               # JSON array
-    functional_areas = db.Column(db.Text, default='[]')         # JSON array
+    industries = db.Column(db.Text, default='[]')               # JSON array — stores [function_id]
+    functional_areas = db.Column(db.Text, default='[]')         # JSON array — stores [role_family_id]
+    level = db.Column(db.String(30), default='')                # e.g. 'senior', 'lead', 'entry'
     skills = db.Column(db.Text, default='[]')                   # JSON array
 
     # Section 4: Company Insights
@@ -257,6 +258,7 @@ class JobPreferences(db.Model):
             'salary_period': self.salary_period or 'annual',
             'industries': self._parse_json('industries'),
             'functional_areas': self._parse_json('functional_areas'),
+            'level': self.level or '',
             'skills': self._parse_json('skills'),
             'company_sizes': self._parse_json('company_sizes'),
             'company_types': self._parse_json('company_types'),
@@ -287,6 +289,10 @@ class JobPreferences(db.Model):
             self.salary_min = int(data['salary_min']) if data['salary_min'] else None
         if 'salary_max' in data:
             self.salary_max = int(data['salary_max']) if data['salary_max'] else None
+
+        # Level (taxonomy field)
+        if 'level' in data:
+            self.level = data['level'] or ''
 
         self.setup_completed = True
         self.updated_at = datetime.utcnow()

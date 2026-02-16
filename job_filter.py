@@ -21,19 +21,40 @@ def build_jsearch_params(prefs: dict) -> dict:
     """Convert user preferences dict to JSearch API query params.
 
     Only includes parameters that JSearch actually supports.
+    Uses the canonical TAXONOMY (Function → Role Family → Level) for
+    keyword lookups and title derivation when explicit job_titles are empty.
     Returns a dict suitable for passing to search_jobs().
     """
-    # --- Build the query string ---
     query_parts = []
 
-    # Job titles (primary search terms)
+    # --- Job titles (primary search terms) ---
     titles = prefs.get('job_titles', [])
     if titles:
         if len(titles) == 1:
             query_parts.append(titles[0])
         else:
-            # OR-join for multiple titles (max 3 to keep query manageable)
             query_parts.append(' OR '.join(f'"{t}"' for t in titles[:3]))
+
+    # If no explicit titles, derive from taxonomy selection
+    func_ids = prefs.get('industries', [])      # stores function_id
+    rf_ids = prefs.get('functional_areas', [])   # stores role_family_id
+    level_id = prefs.get('level', '')
+
+    if not titles and rf_ids and func_ids:
+        try:
+            from skills_data import TAXONOMY, derive_titles
+            func_id = func_ids[0]
+            rf_id = rf_ids[0]
+            derived = derive_titles(rf_id, level_id, func_id) if level_id else []
+            if derived:
+                query_parts.append(' OR '.join(f'"{t}"' for t in derived[:3]))
+            else:
+                # Fallback: use role family keywords
+                rf_data = TAXONOMY.get(func_id, {}).get('role_families', {}).get(rf_id, {})
+                if rf_data.get('keywords'):
+                    query_parts.append(rf_data['keywords'][0])
+        except ImportError:
+            pass
 
     # Top 2 skills boost relevance
     skills = prefs.get('skills', [])
@@ -45,34 +66,25 @@ def build_jsearch_params(prefs: dict) -> dict:
     if len(includes) == 1:
         query_parts.append(includes[0])
 
-    # Industry boost keyword (from category tree for better API relevance)
-    industries = prefs.get('industries', [])
-    if industries:
+    # Function boost keyword (from taxonomy)
+    if func_ids:
         try:
-            from skills_data import CATEGORY_TREE
-            tree_entry = CATEGORY_TREE.get(industries[0], {})
-            boost = tree_entry.get('api_boost_keywords', [])
+            from skills_data import TAXONOMY
+            func_data = TAXONOMY.get(func_ids[0], {})
+            boost = func_data.get('api_boost_keywords', [])
             if boost:
                 query_parts.append(boost[0])
-            else:
-                query_parts.append(industries[0])
         except ImportError:
-            query_parts.append(industries[0])
+            pass
 
-    # Functional area role keyword for query refinement
-    functional_areas = prefs.get('functional_areas', [])
-    if functional_areas and industries:
+    # Role family keyword for query refinement
+    if rf_ids and func_ids:
         try:
-            from skills_data import CATEGORY_TREE
-            for ind in industries[:1]:
-                tree_entry = CATEGORY_TREE.get(ind, {})
-                roles = tree_entry.get('roles', {})
-                for fa in functional_areas[:1]:
-                    role_data = roles.get(fa, {})
-                    role_kws = role_data.get('keywords', [])
-                    if role_kws:
-                        query_parts.append(role_kws[0])
-                        break
+            from skills_data import TAXONOMY
+            func_data = TAXONOMY.get(func_ids[0], {})
+            rf_data = func_data.get('role_families', {}).get(rf_ids[0], {})
+            if rf_data.get('keywords'):
+                query_parts.append(rf_data['keywords'][0])
         except ImportError:
             pass
 
@@ -309,36 +321,34 @@ def _passes_skills(job: dict, prefs: dict) -> bool:
 
 
 def _passes_functional_areas(job: dict, prefs: dict) -> bool:
-    """Check if job matches preferred functional areas (permissive)."""
-    areas = prefs.get('functional_areas', [])
-    if not areas:
+    """Check if job matches preferred role family (permissive).
+
+    Uses taxonomy-driven keyword lookup instead of hardcoded dict.
+    """
+    rf_ids = prefs.get('functional_areas', [])
+    if not rf_ids:
         return True
+
+    func_ids = prefs.get('industries', [])
     desc = (job.get('description', '') or '').lower()
     title = (job.get('title', '') or '').lower()
     text = title + ' ' + desc
 
-    area_keywords = {
-        'Engineering': ['engineer', 'developer', 'programming', 'software', 'backend', 'frontend', 'full stack'],
-        'Product': ['product manager', 'product owner', 'product management'],
-        'Design': ['designer', 'ui/ux', 'ux design', 'ui design', 'graphic design', 'visual design'],
-        'Marketing': ['marketing', 'seo', 'sem', 'growth', 'content marketing', 'digital marketing'],
-        'Sales': ['sales', 'business development', 'account executive', 'account manager'],
-        'HR & People Ops': ['human resources', 'hr ', 'people ops', 'talent acquisition', 'recruiter'],
-        'Finance & Accounting': ['finance', 'accounting', 'financial analyst', 'auditor', 'cfo'],
-        'Operations': ['operations', 'supply chain', 'logistics', 'ops manager'],
-        'Data Science & Analytics': ['data scientist', 'data analyst', 'analytics', 'machine learning', 'ml engineer'],
-        'DevOps & Infra': ['devops', 'sre', 'infrastructure', 'platform engineer', 'cloud engineer'],
-        'QA & Testing': ['qa ', 'quality assurance', 'tester', 'test engineer', 'sdet'],
-        'Customer Support': ['support', 'customer success', 'helpdesk', 'customer service'],
-        'Management': ['manager', 'director', 'vp ', 'vice president', 'head of', 'lead'],
-    }
+    try:
+        from skills_data import TAXONOMY
+        for rf_id in rf_ids:
+            # Search across specified function or all functions
+            search_funcs = [func_ids[0]] if func_ids else list(TAXONOMY.keys())
+            for fid in search_funcs:
+                func_data = TAXONOMY.get(fid, {})
+                rf_data = func_data.get('role_families', {}).get(rf_id, {})
+                for kw in rf_data.get('keywords', []):
+                    if kw.lower() in text:
+                        return True
+    except ImportError:
+        pass
 
-    for area in areas:
-        for kw in area_keywords.get(area, [area.lower()]):
-            if kw in text:
-                return True
-
-    # No match → include (permissive for functional areas)
+    # No match → include (permissive for role families)
     return True
 
 

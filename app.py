@@ -213,6 +213,20 @@ with app.app_context():
         logger.info('Migration check (api_usage/cache cols): %s', e)
         db.session.rollback()
 
+    # Migration: add 'level' column to job_preferences table if missing
+    try:
+        from sqlalchemy import inspect as _lv_inspect, text as _lv_text
+        _lv_insp = _lv_inspect(db.engine)
+        if 'job_preferences' in _lv_insp.get_table_names():
+            _jp_cols = [c['name'] for c in _lv_insp.get_columns('job_preferences')]
+            if 'level' not in _jp_cols:
+                db.session.execute(_lv_text("ALTER TABLE job_preferences ADD COLUMN level VARCHAR(30) DEFAULT ''"))
+                db.session.commit()
+                logger.info('Migration: added level column to job_preferences')
+    except Exception as e:
+        logger.info('Migration check (job_preferences level): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
@@ -1500,21 +1514,30 @@ def jobs_snapshot():
 
 @app.route('/jobs/category-tree')
 def jobs_category_tree():
-    """Return the hierarchical category tree for cascading filter UI."""
-    from skills_data import CATEGORY_TREE, INDIAN_CITIES
-    tree = {}
-    for industry, data in CATEGORY_TREE.items():
-        tree[industry] = {
-            'roles': list(data['roles'].keys()),
-            'role_details': {
-                role: {
-                    'titles': info.get('titles', []),
-                    'skills': info['skills'][:8],
-                }
-                for role, info in data['roles'].items()
-            },
+    """Return the canonical taxonomy for cascading filter UI."""
+    from skills_data import TAXONOMY, GLOBAL_LEVELS, INDIAN_CITIES
+
+    functions = {}
+    for func_id, func_data in TAXONOMY.items():
+        role_families = {}
+        for rf_id, rf_data in func_data['role_families'].items():
+            role_families[rf_id] = {
+                'label': rf_data['label'],
+                'skills': rf_data['skills'][:8],
+                'title_patterns': rf_data.get('title_patterns', []),
+            }
+        functions[func_id] = {
+            'label': func_data['label'],
+            'role_families': role_families,
         }
-    return jsonify({'industries': tree, 'locations': INDIAN_CITIES})
+
+    levels = [{'id': lv['id'], 'label': lv['label']} for lv in GLOBAL_LEVELS]
+
+    return jsonify({
+        'functions': functions,
+        'levels': levels,
+        'locations': INDIAN_CITIES,
+    })
 
 
 @app.route('/jobs/search')

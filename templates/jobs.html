@@ -62,7 +62,7 @@
             </div>
 
             <div class="p-6">
-                <!-- Step 1: What You Do (cascading dropdowns) -->
+                <!-- Step 1: What You Do (Function → Role Family → Level cascade) -->
                 <div id="wiz-step-1" class="wiz-step">
                     <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">1</span>
@@ -70,21 +70,27 @@
                     </h3>
                     <div class="space-y-4">
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Function / Industry</label>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Function</label>
                             <select id="wiz-job-function" onchange="onFunctionChange('wiz')" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
                                 <option value="">Select a function...</option>
                             </select>
                         </div>
                         <div id="wiz-role-section" class="hidden">
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Role</label>
-                            <select id="wiz-job-role" onchange="onRoleChange('wiz')" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
-                                <option value="">Select a role...</option>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Role Family</label>
+                            <select id="wiz-job-role" onchange="onRoleFamilyChange('wiz')" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <option value="">Select a role family...</option>
+                            </select>
+                        </div>
+                        <div id="wiz-level-section" class="hidden">
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Level</label>
+                            <select id="wiz-job-level" onchange="onLevelChange('wiz')" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                                <option value="">Select a level...</option>
                             </select>
                         </div>
                         <div id="wiz-titles-section" class="hidden">
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Titles <span class="text-slate-400 font-normal">(click to select)</span></label>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Suggested Titles <span class="text-slate-400 font-normal">(optional, click to toggle)</span></label>
                             <div id="wiz-job-titles-pills" class="flex flex-wrap gap-2"></div>
-                            <p class="text-[10px] text-slate-400 mt-1">These titles will be used to search for matching jobs</p>
+                            <p class="text-[10px] text-slate-400 mt-1">Auto-generated from your role + level selection</p>
                         </div>
                     </div>
                 </div>
@@ -261,19 +267,25 @@
                 </button>
                 <div id="fp-sec-1" class="hidden p-3 pt-0 space-y-3">
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Function</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Function</label>
                         <select id="fp-job-function" onchange="onFunctionChange('fp')" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white">
                             <option value="">Select...</option>
                         </select>
                     </div>
                     <div id="fp-role-section" class="hidden">
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Role</label>
-                        <select id="fp-job-role" onchange="onRoleChange('fp')" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Role Family</label>
+                        <select id="fp-job-role" onchange="onRoleFamilyChange('fp')" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                            <option value="">Select...</option>
+                        </select>
+                    </div>
+                    <div id="fp-level-section" class="hidden">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Level</label>
+                        <select id="fp-job-level" onchange="onLevelChange('fp')" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                             <option value="">Select...</option>
                         </select>
                     </div>
                     <div id="fp-titles-section" class="hidden">
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Titles</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Suggested Titles</label>
                         <div id="fp-job-titles-pills" class="flex flex-wrap gap-1.5"></div>
                     </div>
                 </div>
@@ -480,8 +492,8 @@ const totalWizSteps = 4;
 // Tag input instances (keyed by container ID)
 const tagInstances = {};
 
-// ===================== CASCADING CATEGORY TREE =====================
-let categoryTree = null;
+// ===================== CASCADING TAXONOMY =====================
+let taxonomyData = null;    // { functions: {...}, levels: [...], locations: [...] }
 let locationsList = [];
 const selectedLocations = {};  // prefix -> Set of city names
 
@@ -489,24 +501,32 @@ async function loadCategoryTree() {
     try {
         const resp = await fetch('/jobs/category-tree');
         const data = await resp.json();
-        categoryTree = data.industries || data;  // new shape: {industries, locations}
+        taxonomyData = data;
         locationsList = data.locations || [];
     } catch (e) {
-        console.error('Failed to load category tree:', e);
+        console.error('Failed to load taxonomy:', e);
     }
 }
 
 function initCascadeDropdowns(prefix) {
-    if (!categoryTree) return;
+    if (!taxonomyData) return;
     const fnSelect = document.getElementById(prefix + '-job-function');
     if (!fnSelect) return;
+
+    // Populate functions
     fnSelect.innerHTML = '<option value="">Select a function...</option>';
-    for (const industry of Object.keys(categoryTree)) {
+    for (const [funcId, funcData] of Object.entries(taxonomyData.functions || {})) {
         const opt = document.createElement('option');
-        opt.value = industry;
-        opt.textContent = industry;
+        opt.value = funcId;
+        opt.textContent = funcData.label;
         fnSelect.appendChild(opt);
     }
+
+    // Reset downstream
+    resetRoleFamily(prefix);
+    resetLevel(prefix);
+    clearDerivedTitles(prefix);
+
     initLocationDropdown(prefix);
 }
 
@@ -514,72 +534,74 @@ function onFunctionChange(prefix) {
     const fnSelect = document.getElementById(prefix + '-job-function');
     const roleSection = document.getElementById(prefix + '-role-section');
     const roleSelect = document.getElementById(prefix + '-job-role');
-    const titlesSection = document.getElementById(prefix + '-titles-section');
     const selected = fnSelect ? fnSelect.value : '';
 
-    if (!selected) {
+    // Clear downstream: role family, level, titles
+    resetRoleFamily(prefix);
+    resetLevel(prefix);
+    clearDerivedTitles(prefix);
+
+    if (!selected || !taxonomyData) {
         if (roleSection) roleSection.classList.add('hidden');
-        if (titlesSection) titlesSection.classList.add('hidden');
         return;
     }
-    const data = categoryTree[selected];
-    if (!data) return;
 
-    roleSelect.innerHTML = '<option value="">Select a role...</option>';
-    (data.roles || []).forEach(role => {
+    const funcData = taxonomyData.functions[selected];
+    if (!funcData) return;
+
+    // Populate role families
+    roleSelect.innerHTML = '<option value="">Select a role family...</option>';
+    for (const [rfId, rfData] of Object.entries(funcData.role_families || {})) {
         const opt = document.createElement('option');
-        opt.value = role;
-        opt.textContent = role;
+        opt.value = rfId;
+        opt.textContent = rfData.label;
         roleSelect.appendChild(opt);
-    });
+    }
+    roleSelect.disabled = false;
     roleSection.classList.remove('hidden');
-    if (titlesSection) titlesSection.classList.add('hidden');
 }
 
-function onRoleChange(prefix) {
+function onRoleFamilyChange(prefix) {
     const fnSelect = document.getElementById(prefix + '-job-function');
     const roleSelect = document.getElementById(prefix + '-job-role');
-    const titlesSection = document.getElementById(prefix + '-titles-section');
-    const titlesPills = document.getElementById(prefix + '-job-titles-pills');
+    const levelSection = document.getElementById(prefix + '-level-section');
+    const levelSelect = document.getElementById(prefix + '-job-level');
     const suggestedContainer = document.getElementById(prefix + '-suggested-skills');
     const hintEl = document.getElementById(prefix + '-skills-hint');
 
     const selectedFn = fnSelect ? fnSelect.value : '';
-    const selectedRole = roleSelect ? roleSelect.value : '';
+    const selectedRF = roleSelect ? roleSelect.value : '';
 
-    if (!selectedRole || !selectedFn) {
-        if (titlesSection) titlesSection.classList.add('hidden');
-        if (suggestedContainer) suggestedContainer.classList.add('hidden');
-        if (hintEl) hintEl.classList.add('hidden');
+    // Clear downstream: level, titles
+    resetLevel(prefix);
+    clearDerivedTitles(prefix);
+
+    if (!selectedRF || !selectedFn || !taxonomyData) {
+        if (levelSection) levelSection.classList.add('hidden');
         return;
     }
 
-    const roleData = categoryTree[selectedFn] && categoryTree[selectedFn].role_details
-        ? categoryTree[selectedFn].role_details[selectedRole] : null;
-    if (!roleData) return;
+    // Populate levels (global, always the same)
+    levelSelect.innerHTML = '<option value="">Select a level...</option>';
+    (taxonomyData.levels || []).forEach(lv => {
+        const opt = document.createElement('option');
+        opt.value = lv.id;
+        opt.textContent = lv.label;
+        levelSelect.appendChild(opt);
+    });
+    levelSelect.disabled = false;
+    levelSection.classList.remove('hidden');
 
-    // Render title pills
-    if (titlesPills) {
-        titlesPills.innerHTML = '';
-        const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
-        (roleData.titles || []).forEach(title => {
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'mpill-btn ' + pillSize + ' rounded-full border transition';
-            btn.dataset.value = title;
-            btn.textContent = title;
-            btn.onclick = function() { toggleMultiPill(this); };
-            titlesPills.appendChild(btn);
-        });
-        if (titlesSection) titlesSection.classList.remove('hidden');
-    }
+    // Show suggested skills for the selected role family
+    const rfData = taxonomyData.functions[selectedFn]
+        && taxonomyData.functions[selectedFn].role_families
+        && taxonomyData.functions[selectedFn].role_families[selectedRF];
 
-    // Render suggested skills
-    if (suggestedContainer) {
+    if (rfData && suggestedContainer) {
         suggestedContainer.innerHTML = '';
         const existingInst = tagInstances[prefix + '-skills'];
         const existingTags = existingInst ? existingInst.getTags() : [];
-        (roleData.skills || []).forEach(skill => {
+        (rfData.skills || []).forEach(skill => {
             if (existingTags.includes(skill)) return;
             const btn = document.createElement('button');
             btn.type = 'button';
@@ -591,6 +613,79 @@ function onRoleChange(prefix) {
         suggestedContainer.classList.toggle('hidden', suggestedContainer.children.length === 0);
         if (hintEl) hintEl.classList.toggle('hidden', suggestedContainer.children.length === 0);
     }
+}
+
+function onLevelChange(prefix) {
+    const fnSelect = document.getElementById(prefix + '-job-function');
+    const roleSelect = document.getElementById(prefix + '-job-role');
+    const levelSelect = document.getElementById(prefix + '-job-level');
+
+    const funcId = fnSelect ? fnSelect.value : '';
+    const rfId = roleSelect ? roleSelect.value : '';
+    const levelId = levelSelect ? levelSelect.value : '';
+
+    // Clear titles first
+    clearDerivedTitles(prefix);
+
+    if (!funcId || !rfId || !levelId || !taxonomyData) return;
+
+    // Derive titles client-side from title_patterns
+    const rfData = taxonomyData.functions[funcId]
+        && taxonomyData.functions[funcId].role_families
+        && taxonomyData.functions[funcId].role_families[rfId];
+
+    if (!rfData || !rfData.title_patterns) return;
+
+    const levelObj = (taxonomyData.levels || []).find(l => l.id === levelId);
+    const lvText = levelObj ? levelObj.label : '';
+
+    const titlesSection = document.getElementById(prefix + '-titles-section');
+    const titlesPills = document.getElementById(prefix + '-job-titles-pills');
+    if (!titlesPills) return;
+
+    titlesPills.innerHTML = '';
+    const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
+
+    rfData.title_patterns.forEach(pattern => {
+        let title = pattern.replace('{level}', lvText).replace(/\s+/g, ' ').trim();
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mpill-btn active ' + pillSize + ' rounded-full border transition';
+        btn.dataset.value = title;
+        btn.textContent = title;
+        btn.onclick = function() { toggleMultiPill(this); };
+        titlesPills.appendChild(btn);
+    });
+
+    if (titlesSection) titlesSection.classList.remove('hidden');
+}
+
+// Helper: reset role family select to disabled/empty
+function resetRoleFamily(prefix) {
+    const roleSelect = document.getElementById(prefix + '-job-role');
+    if (roleSelect) {
+        roleSelect.innerHTML = '<option value="">Select a role family...</option>';
+        roleSelect.disabled = true;
+    }
+}
+
+// Helper: reset level select to disabled/empty
+function resetLevel(prefix) {
+    const levelSelect = document.getElementById(prefix + '-job-level');
+    const levelSection = document.getElementById(prefix + '-level-section');
+    if (levelSelect) {
+        levelSelect.innerHTML = '<option value="">Select a level...</option>';
+        levelSelect.disabled = true;
+    }
+    if (levelSection) levelSection.classList.add('hidden');
+}
+
+// Helper: clear derived title pills
+function clearDerivedTitles(prefix) {
+    const titlesSection = document.getElementById(prefix + '-titles-section');
+    const titlesPills = document.getElementById(prefix + '-job-titles-pills');
+    if (titlesPills) titlesPills.innerHTML = '';
+    if (titlesSection) titlesSection.classList.add('hidden');
 }
 
 // ===================== LOCATION DROPDOWN =====================
@@ -869,19 +964,23 @@ function skipWizard() {
 
 // ===================== COLLECT PREFERENCES =====================
 function collectPreferences(prefix) {
-    // Job titles from multi-select pills (not tag input)
+    // Job titles from multi-select pills (derived, optional)
     const titlePills = document.getElementById(prefix + '-job-titles-pills');
     const jobTitles = titlePills
         ? Array.from(titlePills.querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value)
         : [];
 
-    // Industry from dropdown (single value -> array)
+    // Function ID from dropdown (single value -> array for backward compat)
     const fnEl = document.getElementById(prefix + '-job-function');
     const industries = fnEl && fnEl.value ? [fnEl.value] : [];
 
-    // Role from dropdown (single value -> array)
+    // Role Family ID from dropdown (single value -> array)
     const roleEl = document.getElementById(prefix + '-job-role');
     const functionalAreas = roleEl && roleEl.value ? [roleEl.value] : [];
+
+    // Level ID from dropdown (single string)
+    const levelEl = document.getElementById(prefix + '-job-level');
+    const level = levelEl ? levelEl.value : '';
 
     // Locations from selection set (not tag input)
     const locations = selectedLocations[prefix]
@@ -899,6 +998,7 @@ function collectPreferences(prefix) {
         salary_period: getActivePill(prefix + '-salary-period') || 'annual',
         industries: industries,
         functional_areas: functionalAreas,
+        level: level,
         skills: tagInstances[prefix + '-skills'] ? tagInstances[prefix + '-skills'].getTags() : [],
         company_sizes: getActiveMultiPills(prefix + '-company-sizes'),
         company_types: getActiveMultiPills(prefix + '-company-types'),
@@ -1026,8 +1126,24 @@ function showState(state) {
 // ===================== PREFERENCES SUMMARY =====================
 function updatePrefsSummary(prefs) {
     const parts = [];
-    if (prefs.industries && prefs.industries.length) parts.push(prefs.industries[0]);
-    if (prefs.functional_areas && prefs.functional_areas.length) parts.push(prefs.functional_areas[0]);
+    // Function label
+    if (prefs.industries && prefs.industries.length && taxonomyData && taxonomyData.functions) {
+        const func = taxonomyData.functions[prefs.industries[0]];
+        if (func) parts.push(func.label); else parts.push(prefs.industries[0]);
+    }
+    // Role Family label
+    if (prefs.functional_areas && prefs.functional_areas.length && prefs.industries && prefs.industries.length && taxonomyData && taxonomyData.functions) {
+        const func = taxonomyData.functions[prefs.industries[0]];
+        if (func && func.role_families) {
+            const rf = func.role_families[prefs.functional_areas[0]];
+            if (rf) parts.push(rf.label); else parts.push(prefs.functional_areas[0]);
+        }
+    }
+    // Level label
+    if (prefs.level && taxonomyData && taxonomyData.levels) {
+        const lv = taxonomyData.levels.find(l => l.id === prefs.level);
+        if (lv) parts.push(lv.label); else parts.push(prefs.level);
+    }
     if (prefs.job_titles && prefs.job_titles.length) parts.push(prefs.job_titles.slice(0, 2).join(', '));
     if (prefs.locations && prefs.locations.length) parts.push(prefs.locations.slice(0, 2).join(', '));
     const empMap = { FULLTIME: 'Full-time', PARTTIME: 'Part-time', CONTRACTOR: 'Contract', INTERN: 'Internship' };
@@ -1060,19 +1176,32 @@ function openEditPrefs() {
     initCascadeDropdowns('fp');
 
     if (savedPrefs) {
-        // Restore cascade: function → role → titles
+        // Restore cascade: function → role family → level → derived titles
         const fpFn = document.getElementById('fp-job-function');
         if (fpFn && savedPrefs.industries && savedPrefs.industries.length) {
             fpFn.value = savedPrefs.industries[0];
             onFunctionChange('fp');
+
             const fpRole = document.getElementById('fp-job-role');
             if (fpRole && savedPrefs.functional_areas && savedPrefs.functional_areas.length) {
                 setTimeout(() => {
                     fpRole.value = savedPrefs.functional_areas[0];
-                    onRoleChange('fp');
-                    setTimeout(() => {
-                        if (savedPrefs.job_titles) setActiveMultiPills('fp-job-titles-pills', savedPrefs.job_titles);
-                    }, 50);
+                    onRoleFamilyChange('fp');
+
+                    const fpLevel = document.getElementById('fp-job-level');
+                    if (fpLevel && savedPrefs.level) {
+                        setTimeout(() => {
+                            fpLevel.value = savedPrefs.level;
+                            onLevelChange('fp');
+
+                            // Restore previously selected title pills
+                            setTimeout(() => {
+                                if (savedPrefs.job_titles) {
+                                    setActiveMultiPills('fp-job-titles-pills', savedPrefs.job_titles);
+                                }
+                            }, 50);
+                        }, 50);
+                    }
                 }, 50);
             }
         }
