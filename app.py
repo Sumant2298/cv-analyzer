@@ -1292,12 +1292,23 @@ def jobs_page():
     jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
         .order_by(JDAnalysis.created_at.desc()).all()
     jd_scores = {}
+    jd_names = {}
     for jd in jd_histories:
         if jd.status == 'completed' and jd.results_json:
             try:
-                jd_scores[jd.id] = json.loads(jd.results_json).get('ats_score', 0)
+                parsed = json.loads(jd.results_json)
+                jd_scores[jd.id] = parsed.get('ats_score', 0)
             except (json.JSONDecodeError, AttributeError):
                 jd_scores[jd.id] = 0
+        # Extract job name from first meaningful line of JD text
+        jd_name = ''
+        if jd.jd_text:
+            for line in jd.jd_text.strip().split('\n'):
+                line = line.strip()
+                if line and len(line) > 3:
+                    jd_name = line[:80]
+                    break
+        jd_names[jd.id] = jd_name or 'Job Description'
 
     from payments import CREDITS_PER_JD_ANALYSIS
     return render_template('jobs.html',
@@ -1306,6 +1317,7 @@ def jobs_page():
                            credits_remaining=user.credits,
                            jd_histories=jd_histories,
                            jd_scores=jd_scores,
+                           jd_names=jd_names,
                            active_section='jobs')
 
 

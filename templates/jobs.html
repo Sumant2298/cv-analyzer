@@ -150,42 +150,49 @@
 
         <!-- Desktop Table -->
         <div class="hidden sm:block overflow-x-auto">
-            <table class="w-full text-sm">
+            <table class="w-full text-sm table-fixed">
                 <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
                     <tr>
-                        <th class="text-left px-4 py-3.5 font-medium">Job Description</th>
-                        <th class="text-center px-4 py-3.5 font-medium">ATS Match</th>
-                        <th class="text-left px-4 py-3.5 font-medium whitespace-nowrap">Date</th>
-                        <th class="text-right px-4 py-3.5 font-medium whitespace-nowrap">Actions</th>
+                        <th class="text-left px-4 py-3.5 font-medium w-[40%]">Job Name</th>
+                        <th class="text-center px-4 py-3.5 font-medium w-[20%]">ATS Match</th>
+                        <th class="text-left px-4 py-3.5 font-medium w-[18%] whitespace-nowrap">Date</th>
+                        <th class="text-right px-4 py-3.5 font-medium w-[22%] whitespace-nowrap">Actions</th>
                     </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                     {% for jd in jd_histories %}
                     <tr class="hover:bg-slate-50/50 transition group">
-                        <!-- JD Preview -->
-                        <td class="px-4 py-3">
-                            <div class="max-w-[280px]">
-                                <p class="text-sm font-medium text-slate-700 truncate" title="{{ jd.jd_text[:200] if jd.jd_text else 'No text' }}">
-                                    {{ jd.jd_text[:80] if jd.jd_text else 'Job Description' }}{{ '...' if jd.jd_text and jd.jd_text|length > 80 else '' }}
+                        <!-- Job Name -->
+                        <td class="px-4 py-3.5">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                </div>
+                                <p class="text-sm font-semibold text-slate-800 truncate min-w-0" title="{{ jd_names.get(jd.id, 'Job Description') }}">
+                                    {{ jd_names.get(jd.id, 'Job Description') }}
                                 </p>
                             </div>
                         </td>
                         <!-- ATS Match Score -->
-                        <td class="px-4 py-3 text-center">
+                        <td class="px-4 py-3.5 text-center">
                             {% if jd.status == 'completed' and jd.results_json %}
                                 {% set score = jd_scores.get(jd.id, 0) %}
-                                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
-                                    {% if score >= 70 %}bg-emerald-100 text-emerald-700
-                                    {% elif score >= 40 %}bg-amber-100 text-amber-700
-                                    {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
-                                <span class="block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block
-                                    {% if score >= 90 %}bg-emerald-100 text-emerald-700
-                                    {% elif score >= 70 %}bg-blue-100 text-blue-700
-                                    {% elif score >= 50 %}bg-amber-100 text-amber-700
-                                    {% elif score >= 30 %}bg-orange-100 text-orange-700
-                                    {% else %}bg-red-100 text-red-700{% endif %}">
-                                    {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Impr.{% else %}Overhaul{% endif %}
-                                </span>
+                                <div class="inline-flex flex-col items-center">
+                                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
+                                        {% if score >= 85 %}bg-emerald-100 text-emerald-700
+                                        {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                        {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                        {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                        {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                                    <span class="mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full
+                                        {% if score >= 85 %}bg-emerald-100 text-emerald-700
+                                        {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                        {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                        {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                        {% else %}bg-red-100 text-red-700{% endif %}">
+                                        {% if score >= 85 %}Perfect Fit{% elif score >= 70 %}Great Fit{% elif score >= 50 %}Maybe Fit{% elif score >= 30 %}Low Fit{% else %}Reject{% endif %}
+                                    </span>
+                                </div>
                             {% elif jd.status == 'analyzing' %}
                                 <span class="inline-flex items-center gap-1.5 text-xs text-brand-600 font-medium">
                                     <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
@@ -197,16 +204,16 @@
                                     Failed
                                 </span>
                             {% else %}
-                                <span class="text-xs text-slate-400">—</span>
+                                <span class="text-xs text-slate-400">&mdash;</span>
                             {% endif %}
                         </td>
                         <!-- Date -->
-                        <td class="px-4 py-3 text-sm text-slate-500 whitespace-nowrap">
+                        <td class="px-4 py-3.5 text-sm text-slate-500 whitespace-nowrap">
                             {{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '—' }}
                         </td>
                         <!-- Actions -->
-                        <td class="px-4 py-3 text-right whitespace-nowrap">
-                            <div class="flex items-center justify-end gap-1">
+                        <td class="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div class="inline-flex items-center gap-0.5">
                                 {% if jd.status == 'completed' %}
                                 <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Results">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
@@ -236,18 +243,30 @@
             <div class="px-4 py-4">
                 <div class="flex items-start gap-3">
                     <div class="flex-1 min-w-0">
-                        <p class="text-sm font-medium text-slate-700 truncate">
-                            {{ jd.jd_text[:60] if jd.jd_text else 'Job Description' }}{{ '...' if jd.jd_text and jd.jd_text|length > 60 else '' }}
+                        <p class="text-sm font-semibold text-slate-800 truncate">
+                            {{ jd_names.get(jd.id, 'Job Description') }}
                         </p>
                         <p class="text-xs text-slate-400 mt-0.5">{{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '' }}</p>
                     </div>
                     <div class="flex-shrink-0 text-center">
                         {% if jd.status == 'completed' and jd.results_json %}
                             {% set score = jd_scores.get(jd.id, 0) %}
-                            <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs
-                                {% if score >= 70 %}bg-emerald-100 text-emerald-700
-                                {% elif score >= 40 %}bg-amber-100 text-amber-700
-                                {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                            <div class="inline-flex flex-col items-center">
+                                <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs
+                                    {% if score >= 85 %}bg-emerald-100 text-emerald-700
+                                    {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                    {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                    {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                    {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                                <span class="mt-0.5 text-[9px] font-bold
+                                    {% if score >= 85 %}text-emerald-600
+                                    {% elif score >= 70 %}text-blue-600
+                                    {% elif score >= 50 %}text-amber-600
+                                    {% elif score >= 30 %}text-orange-600
+                                    {% else %}text-red-600{% endif %}">
+                                    {% if score >= 85 %}Perfect{% elif score >= 70 %}Great{% elif score >= 50 %}Maybe{% elif score >= 30 %}Low{% else %}Reject{% endif %}
+                                </span>
+                            </div>
                         {% elif jd.status == 'analyzing' %}
                             <svg class="animate-spin w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                         {% elif jd.status == 'failed' %}
