@@ -45,10 +45,36 @@ def build_jsearch_params(prefs: dict) -> dict:
     if len(includes) == 1:
         query_parts.append(includes[0])
 
-    # Top industry keyword
+    # Industry boost keyword (from category tree for better API relevance)
     industries = prefs.get('industries', [])
     if industries:
-        query_parts.append(industries[0])
+        try:
+            from skills_data import CATEGORY_TREE
+            tree_entry = CATEGORY_TREE.get(industries[0], {})
+            boost = tree_entry.get('api_boost_keywords', [])
+            if boost:
+                query_parts.append(boost[0])
+            else:
+                query_parts.append(industries[0])
+        except ImportError:
+            query_parts.append(industries[0])
+
+    # Functional area role keyword for query refinement
+    functional_areas = prefs.get('functional_areas', [])
+    if functional_areas and industries:
+        try:
+            from skills_data import CATEGORY_TREE
+            for ind in industries[:1]:
+                tree_entry = CATEGORY_TREE.get(ind, {})
+                roles = tree_entry.get('roles', {})
+                for fa in functional_areas[:1]:
+                    role_data = roles.get(fa, {})
+                    role_kws = role_data.get('keywords', [])
+                    if role_kws:
+                        query_parts.append(role_kws[0])
+                        break
+        except ImportError:
+            pass
 
     query = ' '.join(query_parts).strip()
     if not query:

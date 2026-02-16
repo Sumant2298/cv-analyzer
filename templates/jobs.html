@@ -164,43 +164,29 @@
                         Areas of Interest
                     </h3>
                     <div class="space-y-4">
+                        <!-- Level 1: Industry / Domain -->
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-2">Industries</label>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Industry / Domain</label>
                             <div id="wiz-industries" class="flex flex-wrap gap-2">
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="IT & Software" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">IT & Software</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Finance & Banking" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Finance & Banking</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Healthcare" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Healthcare</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="E-commerce" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">E-commerce</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Education" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Education</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Manufacturing" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Manufacturing</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Consulting" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Consulting</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Media & Entertainment" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Media & Entertainment</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Telecom" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Telecom</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Government & PSU" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Government & PSU</button>
+                                <!-- Populated dynamically from category tree -->
                             </div>
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-2">Functional Areas</label>
+                        <!-- Level 2: Role / Function (cascades from industry) -->
+                        <div id="wiz-roles-section" class="hidden">
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Role / Function <span class="text-slate-400 font-normal">(based on your industry)</span></label>
                             <div id="wiz-functional" class="flex flex-wrap gap-2">
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Engineering" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Engineering</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Product" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Product</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Design" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Design</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Marketing" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Marketing</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Sales" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Sales</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="HR & People Ops" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">HR & People Ops</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Finance & Accounting" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Finance & Accounting</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Operations" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Operations</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Data Science & Analytics" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Data Science & Analytics</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="DevOps & Infra" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">DevOps & Infra</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="QA & Testing" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">QA & Testing</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Customer Support" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Customer Support</button>
-                                <button type="button" onclick="toggleMultiPill(this)" data-value="Management" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Management</button>
+                                <!-- Populated dynamically -->
                             </div>
                         </div>
+                        <!-- Level 3: Suggested + manual skills -->
                         <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Skills / Technologies</label>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">
+                                Skills / Technologies
+                                <span id="wiz-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your selection)</span>
+                            </label>
+                            <div id="wiz-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
                             <div id="wiz-skills" class="tag-input-wrap" data-autocomplete="true"></div>
-                            <p class="text-[10px] text-slate-400 mt-1">Type to search skills (e.g. Python, React, AWS)</p>
+                            <p class="text-[10px] text-slate-400 mt-1">Type to search or click suggestions above</p>
                         </div>
                     </div>
                 </div>
@@ -330,7 +316,7 @@
                     </div>
                 </div>
             </div>
-            <!-- Section 3 -->
+            <!-- Section 3 (cascading) -->
             <div class="border border-slate-100 rounded-xl overflow-hidden">
                 <button type="button" onclick="toggleAccordion('fp-sec-3')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
                     <span>Areas of Interest</span>
@@ -338,7 +324,16 @@
                 </button>
                 <div id="fp-sec-3" class="hidden p-3 pt-0 space-y-3">
                     <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Industry</label>
+                        <div id="fp-industries" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                    <div id="fp-roles-section" class="hidden">
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Role / Function</label>
+                        <div id="fp-functional" class="flex flex-wrap gap-1.5"></div>
+                    </div>
+                    <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Skills</label>
+                        <div id="fp-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
                         <div id="fp-skills" class="tag-input-wrap" data-autocomplete="true"></div>
                     </div>
                 </div>
@@ -437,6 +432,178 @@ const totalWizSteps = 4;
 
 // Tag input instances (keyed by container ID)
 const tagInstances = {};
+
+// ===================== CASCADING CATEGORY TREE =====================
+let categoryTree = null;
+
+async function loadCategoryTree() {
+    try {
+        const resp = await fetch('/jobs/category-tree');
+        categoryTree = await resp.json();
+        renderIndustryPills('wiz-industries', 'wiz');
+    } catch (e) {
+        console.error('Failed to load category tree:', e);
+    }
+}
+
+function renderIndustryPills(containerId, prefix) {
+    const container = document.getElementById(containerId);
+    if (!container || !categoryTree) return;
+    container.innerHTML = '';
+    const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
+    for (const industry of Object.keys(categoryTree)) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mpill-btn ' + pillSize + ' rounded-full border transition';
+        btn.dataset.value = industry;
+        btn.textContent = industry;
+        btn.onclick = function() {
+            toggleMultiPill(this);
+            onIndustryChange(prefix);
+        };
+        container.appendChild(btn);
+    }
+}
+
+function onIndustryChange(prefix) {
+    const indContainer = document.getElementById(prefix + '-industries');
+    const selected = Array.from(indContainer.querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
+    const rolesSection = document.getElementById(prefix + '-roles-section');
+    const rolesContainer = document.getElementById(prefix + '-functional');
+
+    if (selected.length === 0) {
+        rolesSection.classList.add('hidden');
+        onRoleChange(prefix);
+        return;
+    }
+
+    // Collect all roles from selected industries
+    const allRoles = new Set();
+    for (const ind of selected) {
+        const data = categoryTree[ind];
+        if (data && data.roles) data.roles.forEach(r => allRoles.add(r));
+    }
+
+    const pillSize = prefix === 'wiz' ? 'text-xs px-3 py-1.5' : 'text-[10px] px-2.5 py-1';
+    rolesContainer.innerHTML = '';
+    for (const role of allRoles) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'mpill-btn ' + pillSize + ' rounded-full border transition';
+        btn.dataset.value = role;
+        btn.textContent = role;
+        btn.onclick = function() {
+            toggleMultiPill(this);
+            onRoleChange(prefix);
+        };
+        rolesContainer.appendChild(btn);
+    }
+    rolesSection.classList.remove('hidden');
+    onRoleChange(prefix);
+}
+
+function onRoleChange(prefix) {
+    const indContainer = document.getElementById(prefix + '-industries');
+    const rolesContainer = document.getElementById(prefix + '-functional');
+    const suggestedContainer = document.getElementById(prefix + '-suggested-skills');
+    const hintEl = document.getElementById(prefix + '-skills-hint');
+
+    const selectedIndustries = Array.from((indContainer || {querySelectorAll:()=>[]}).querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
+    const selectedRoles = Array.from((rolesContainer || {querySelectorAll:()=>[]}).querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
+
+    if (!suggestedContainer) return;
+    if (selectedRoles.length === 0) {
+        suggestedContainer.classList.add('hidden');
+        if (hintEl) hintEl.classList.add('hidden');
+        return;
+    }
+
+    // Collect suggested skills from selected industry+role combos
+    const skills = new Set();
+    for (const ind of selectedIndustries) {
+        const data = categoryTree && categoryTree[ind];
+        if (!data || !data.role_details) continue;
+        for (const role of selectedRoles) {
+            const roleData = data.role_details[role];
+            if (roleData && roleData.skills) roleData.skills.forEach(s => skills.add(s));
+        }
+    }
+
+    if (skills.size === 0) {
+        suggestedContainer.classList.add('hidden');
+        if (hintEl) hintEl.classList.add('hidden');
+        return;
+    }
+
+    // Render quick-add skill buttons
+    suggestedContainer.innerHTML = '';
+    const existingTags = tagInstances[prefix + '-skills'] || [];
+    for (const skill of skills) {
+        if (existingTags.includes(skill)) continue;
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'text-[11px] px-2.5 py-1 rounded-full border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition';
+        btn.textContent = '+ ' + skill;
+        btn.onclick = function() {
+            addTagToInput(prefix + '-skills', skill);
+            btn.remove();
+        };
+        suggestedContainer.appendChild(btn);
+    }
+    suggestedContainer.classList.remove('hidden');
+    if (hintEl) hintEl.classList.remove('hidden');
+}
+
+function addTagToInput(containerId, tag) {
+    // Programmatically add a tag to a tag-input widget
+    const tags = tagInstances[containerId];
+    if (!tags) return;
+    if (tags.includes(tag)) return;
+    tags.push(tag);
+    // Rebuild chips
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    const input = wrap.querySelector('input');
+    if (input) {
+        // Insert chip before input
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip inline-flex items-center gap-1 text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full';
+        chip.innerHTML = tag + ' <button type="button" class="hover:text-red-500 font-bold">&times;</button>';
+        chip.querySelector('button').onclick = function() {
+            const idx = tags.indexOf(tag);
+            if (idx > -1) tags.splice(idx, 1);
+            chip.remove();
+        };
+        wrap.insertBefore(chip, input);
+    }
+}
+
+function renderFilterPanelCascade() {
+    if (!categoryTree) return;
+    renderIndustryPills('fp-industries', 'fp');
+    // Pre-select saved industries and roles
+    if (savedPrefs) {
+        if (savedPrefs.industries) {
+            setActiveMultiPillsDynamic('fp-industries', savedPrefs.industries, 'fp');
+        }
+        if (savedPrefs.functional_areas) {
+            setActiveMultiPillsDynamic('fp-functional', savedPrefs.functional_areas, 'fp');
+        }
+    }
+}
+
+function setActiveMultiPillsDynamic(containerId, values, prefix) {
+    if (!values || !values.length) return;
+    const container = document.getElementById(containerId);
+    if (!container) return;
+    container.querySelectorAll('.mpill-btn').forEach(btn => {
+        if (values.includes(btn.dataset.value)) {
+            btn.classList.add('active');
+        }
+    });
+    // Trigger cascade after setting
+    if (containerId.includes('industries')) onIndustryChange(prefix);
+}
 
 // ===================== TAG INPUT WIDGET =====================
 function initTagInput(containerId, initialTags) {
@@ -677,6 +844,36 @@ async function updateAndSearch() {
 }
 
 // ===================== SEARCH FUNCTIONS =====================
+
+async function loadJobsPage() {
+    // Snapshot-first loading: serve cached results instantly, refresh if stale
+    showState('loading');
+    try {
+        const resp = await fetch('/jobs/snapshot');
+        const snap = await resp.json();
+        if (snap.has_snapshot && snap.jobs && snap.jobs.length > 0) {
+            // Instant render from snapshot
+            const countEl = document.getElementById('result-count');
+            const ageLabel = snap.snapshot_age_minutes < 60
+                ? snap.snapshot_age_minutes + 'm ago'
+                : Math.round(snap.snapshot_age_minutes / 60) + 'h ago';
+            countEl.textContent = snap.jobs.length + ' job' + (snap.jobs.length !== 1 ? 's' : '') + ' (cached ' + ageLabel + ')';
+            countEl.classList.remove('hidden');
+            renderJobs(snap.jobs);
+            showState('grid');
+            // If stale or older than 2 hours, refresh in background
+            if (snap.is_stale || snap.snapshot_age_minutes > 120) {
+                searchWithPrefs();
+            }
+            return;
+        }
+    } catch (e) {
+        console.log('Snapshot unavailable, falling back to search');
+    }
+    // No snapshot — do normal search
+    searchWithPrefs();
+}
+
 async function searchWithPrefs() {
     showState('loading');
 
@@ -756,6 +953,8 @@ function openEditPrefs() {
         setActiveMultiPills('fp-emp-types', savedPrefs.employment_types);
         document.getElementById('fp-salary-min').value = savedPrefs.salary_min || '';
         document.getElementById('fp-salary-max').value = savedPrefs.salary_max || '';
+        // Render cascading filter panel with saved industry/role selections
+        renderFilterPanelCascade();
     } else {
         initTagInput('fp-job-titles', []);
         initTagInput('fp-locations', []);
@@ -779,18 +978,24 @@ function renderJobs(jobs) {
         card.id = 'job-card-' + idx;
 
         let scoreBadge = '';
-        if (job.ats_score !== null && job.ats_score !== undefined) {
-            const s = job.ats_score;
-            let sc, sl;
-            if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
-            else if (s >= 70) { sc = 'bg-blue-100 text-blue-700'; sl = 'Good Match'; }
-            else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
-            else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
-            else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
-            scoreBadge = `<div class="text-center flex-shrink-0">
-                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
-                <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
-            </div>`;
+        {
+            // Use deep score if available, otherwise quick score
+            const useDeep = job.has_deep_score && job.deep_ats_score !== undefined;
+            const s = useDeep ? job.deep_ats_score : job.ats_score;
+            const scoreLabel = useDeep ? 'AI Score' : 'Quick';
+            if (s !== null && s !== undefined) {
+                let sc, sl;
+                if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
+                else if (s >= 70) { sc = 'bg-blue-100 text-blue-700'; sl = 'Good Match'; }
+                else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
+                else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
+                else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
+                scoreBadge = `<div class="text-center flex-shrink-0">
+                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
+                    <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
+                    <span class="block mt-0.5 text-[8px] text-slate-400">${scoreLabel}</span>
+                </div>`;
+            }
         }
 
         let tags = '';
@@ -888,20 +1093,24 @@ function escHtml(str) {
 
 // ===================== INIT ON PAGE LOAD =====================
 document.addEventListener('DOMContentLoaded', () => {
-    {% if show_wizard %}
-    // Wizard mode: init tag inputs for wizard
-    initTagInput('wiz-job-titles', []);
-    initTagInput('wiz-locations', []);
-    initTagInput('wiz-skills', []);
-    initTagInput('wiz-companies-include', []);
-    initTagInput('wiz-companies-exclude', []);
-    {% else %}
-    // Return visit: show summary, auto-search
-    if (savedPrefs && savedPrefs.setup_completed) {
-        updatePrefsSummary(savedPrefs);
-        searchWithPrefs();
-    }
-    {% endif %}
+    // Load category tree for cascading filters (both wizard and filter panel)
+    loadCategoryTree().then(() => {
+        {% if show_wizard %}
+        // Wizard mode: init tag inputs for wizard
+        initTagInput('wiz-job-titles', []);
+        initTagInput('wiz-locations', []);
+        initTagInput('wiz-skills', []);
+        initTagInput('wiz-companies-include', []);
+        initTagInput('wiz-companies-exclude', []);
+        {% else %}
+        // Return visit: render filter panel cascade + load snapshot
+        renderFilterPanelCascade();
+        if (savedPrefs && savedPrefs.setup_completed) {
+            updatePrefsSummary(savedPrefs);
+            loadJobsPage();
+        }
+        {% endif %}
+    });
 });
 </script>
 

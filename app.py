@@ -168,9 +168,10 @@ with app.app_context():
         logger.info('Migration check (jd_analyses jd_text): %s', e)
         db.session.rollback()
 
-    # Migration: create job_preferences and job_pool tables if missing
+    # Migration: create job_preferences, job_pool, snapshot and cache tables if missing
     try:
         from sqlalchemy import inspect as _jp_inspect
+        from models import UserJobSnapshot, QuickATSCache
         _jp_insp = _jp_inspect(db.engine)
         _existing_tables = _jp_insp.get_table_names()
         if 'job_preferences' not in _existing_tables:
@@ -179,8 +180,14 @@ with app.app_context():
         if 'job_pool' not in _existing_tables:
             JobPool.__table__.create(db.engine)
             logger.info('Migration: created job_pool table')
+        if 'user_job_snapshots' not in _existing_tables:
+            UserJobSnapshot.__table__.create(db.engine)
+            logger.info('Migration: created user_job_snapshots table')
+        if 'quick_ats_cache' not in _existing_tables:
+            QuickATSCache.__table__.create(db.engine)
+            logger.info('Migration: created quick_ats_cache table')
     except Exception as e:
-        logger.info('Migration check (job_preferences/job_pool): %s', e)
+        logger.info('Migration check (tables): %s', e)
         db.session.rollback()
 
     # Cleanup: remove stale job_pool entries older than 14 days
@@ -1410,6 +1417,65 @@ def jobs_skills_suggest():
     return jsonify(matches)
 
 
+@app.route('/jobs/snapshot')
+def jobs_snapshot():
+    """Return cached job results for instant page load. No API calls."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'has_snapshot': False})
+
+    from models import UserJobSnapshot
+    snapshot = UserJobSnapshot.query.filter_by(user_id=user.id).first()
+    if not snapshot or not snapshot.results_json:
+        return jsonify({'has_snapshot': False})
+
+    # Check staleness: preferences changed? resume changed?
+    prefs = JobPreferences.query.filter_by(user_id=user.id).first()
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+
+    prefs_hash = ''
+    if prefs and prefs.setup_completed:
+        import hashlib
+        prefs_hash = hashlib.sha256(
+            json.dumps(prefs.to_dict(), sort_keys=True).encode()
+        ).hexdigest()
+
+    is_stale = (
+        snapshot.preferences_hash != prefs_hash
+        or snapshot.resume_id != (primary.id if primary else None)
+    )
+
+    age_minutes = int((datetime.utcnow() - snapshot.updated_at).total_seconds() / 60)
+
+    return jsonify({
+        'has_snapshot': True,
+        'jobs': json.loads(snapshot.results_json),
+        'total_count': snapshot.job_count,
+        'source': snapshot.source,
+        'is_stale': is_stale,
+        'snapshot_age_minutes': age_minutes,
+    })
+
+
+@app.route('/jobs/category-tree')
+def jobs_category_tree():
+    """Return the hierarchical category tree for cascading filter UI."""
+    from skills_data import CATEGORY_TREE
+    tree = {}
+    for industry, data in CATEGORY_TREE.items():
+        tree[industry] = {
+            'roles': list(data['roles'].keys()),
+            'role_details': {
+                role: {'skills': info['skills'][:8]}
+                for role, info in data['roles'].items()
+            },
+        }
+    return jsonify(tree)
+
+
 @app.route('/jobs/search')
 def jobs_search():
     """AJAX endpoint — search jobs via saved preferences or direct query."""
@@ -1478,21 +1544,93 @@ def jobs_search():
             experience=experience, page=page,
         )
 
-    # Compute quick ATS scores if user has a primary resume
+    # Compute quick ATS scores if user has a primary resume (with caching)
     primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
     if primary and primary.extracted_text and len(primary.extracted_text.strip()) >= 50:
         from nlp_service import quick_ats_score
+        from models import QuickATSCache
+        _new_cache_entries = []
         for job in results.get('jobs', []):
             if job.get('description') and len(job['description'].strip()) >= 30:
+                job_id = job.get('job_id', '')
+                # Check quick ATS cache first
+                if job_id:
+                    cached_ats = QuickATSCache.query.filter_by(
+                        resume_id=primary.id, job_id=job_id
+                    ).first()
+                    if cached_ats:
+                        job['ats_score'] = cached_ats.score
+                        job['matched_skills'] = json.loads(cached_ats.matched_skills or '[]')[:5]
+                        job['missing_skills'] = json.loads(cached_ats.missing_skills or '[]')[:5]
+                        continue
+                # Compute fresh
                 try:
                     ats = quick_ats_score(primary.extracted_text, job['description'])
                     job['ats_score'] = ats['score']
                     job['matched_skills'] = ats['matched_skills'][:5]
                     job['missing_skills'] = ats['missing_skills'][:5]
+                    # Queue for cache
+                    if job_id:
+                        _new_cache_entries.append(QuickATSCache(
+                            resume_id=primary.id, job_id=job_id,
+                            score=ats['score'],
+                            matched_skills=json.dumps(ats['matched_skills'][:5]),
+                            missing_skills=json.dumps(ats['missing_skills'][:5]),
+                        ))
                 except Exception:
                     job['ats_score'] = None
             else:
                 job['ats_score'] = None
+        # Bulk-save quick ATS cache entries
+        if _new_cache_entries:
+            try:
+                for entry in _new_cache_entries:
+                    db.session.add(entry)
+                db.session.commit()
+            except Exception:
+                db.session.rollback()
+
+        # Overlay any existing deep (LLM) scores
+        from models import JobATSScore
+        _job_ids = [j.get('job_id') for j in results.get('jobs', []) if j.get('job_id')]
+        if _job_ids:
+            try:
+                _deep_scores = JobATSScore.query.filter(
+                    JobATSScore.user_id == user.id,
+                    JobATSScore.resume_id == primary.id,
+                    JobATSScore.job_id.in_(_job_ids),
+                ).all()
+                _deep_map = {ds.job_id: ds for ds in _deep_scores}
+                for job in results.get('jobs', []):
+                    ds = _deep_map.get(job.get('job_id'))
+                    if ds:
+                        job['deep_ats_score'] = ds.ats_score
+                        job['has_deep_score'] = True
+            except Exception:
+                pass
+
+    # Save snapshot for instant load on next visit
+    if use_preferences and results.get('jobs'):
+        try:
+            import hashlib as _snap_hashlib
+            from models import UserJobSnapshot
+            _snap_prefs_hash = _snap_hashlib.sha256(
+                json.dumps(prefs, sort_keys=True).encode()
+            ).hexdigest() if prefs else ''
+            snapshot = UserJobSnapshot.query.filter_by(user_id=user.id).first()
+            if not snapshot:
+                snapshot = UserJobSnapshot(user_id=user.id)
+                db.session.add(snapshot)
+            snapshot.results_json = json.dumps(results.get('jobs', []))
+            snapshot.job_count = len(results.get('jobs', []))
+            snapshot.preferences_hash = _snap_prefs_hash
+            snapshot.resume_id = primary.id if primary else None
+            snapshot.source = results.get('source', '')
+            snapshot.updated_at = datetime.utcnow()
+            db.session.commit()
+        except Exception as e:
+            logger.error('Failed to save job snapshot: %s', e)
+            db.session.rollback()
 
     return jsonify(results)
 

@@ -346,3 +346,46 @@ class JobPool(db.Model):
             'salary_currency': self.salary_currency,
             'salary_period': self.salary_period,
         }
+
+
+class UserJobSnapshot(db.Model):
+    """Per-user cached job results with pre-computed quick ATS scores.
+
+    Stores the last search result set so return visits load instantly
+    without any API, pool query, or ATS recomputation.
+    """
+    __tablename__ = 'user_job_snapshots'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True, index=True)
+    resume_id = db.Column(db.Integer, db.ForeignKey('user_resumes.id'), nullable=True)
+    results_json = db.Column(db.Text, nullable=False, default='[]')  # JSON: list of job dicts WITH ats_score
+    job_count = db.Column(db.Integer, default=0)
+    preferences_hash = db.Column(db.String(64), default='')  # SHA256 of prefs dict
+    source = db.Column(db.String(20), default='')  # 'pool' or 'api'
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('job_snapshot', uselist=False))
+
+
+class QuickATSCache(db.Model):
+    """Cached quick (keyword-based) ATS scores per (resume_id, job_id).
+
+    Avoids recomputing extract_skills_from_cv + 7-factor scoring on every
+    page load.  Keyed on (resume_id, job_id) so results are reused across
+    visits and even across users with the same primary resume.
+    """
+    __tablename__ = 'quick_ats_cache'
+
+    id = db.Column(db.Integer, primary_key=True)
+    resume_id = db.Column(db.Integer, db.ForeignKey('user_resumes.id'), nullable=False, index=True)
+    job_id = db.Column(db.String(256), nullable=False, index=True)
+    score = db.Column(db.Integer, nullable=False)
+    matched_skills = db.Column(db.Text, default='[]')   # JSON array
+    missing_skills = db.Column(db.Text, default='[]')    # JSON array
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('resume_id', 'job_id', name='uq_quick_ats_resume_job'),
+    )
