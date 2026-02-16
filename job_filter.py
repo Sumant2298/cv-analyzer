@@ -403,3 +403,39 @@ def search_from_pool(prefs: dict, min_results: int = 8, max_age_days: int = 7) -
 
     logger.info('Job pool hit: returning %d jobs from local pool', len(filtered))
     return filtered
+
+
+# ---------------------------------------------------------------------------
+# Cache key normalization
+# ---------------------------------------------------------------------------
+
+def normalize_api_params_for_cache(prefs: dict, page: int = 1) -> tuple:
+    """Normalize JSearch API params from user prefs and produce a stable cache key.
+
+    Calls build_jsearch_params() internally, then normalizes the output
+    (lowercase, sorted arrays, stripped whitespace) so that equivalent
+    queries always produce the same SHA-256 hash.
+
+    Returns (normalized_params_dict, sha256_cache_key_hex).
+    """
+    import hashlib
+    import json
+
+    api_params = build_jsearch_params(prefs)
+
+    normalized = {
+        'query': api_params.get('query', '').strip().lower(),
+        'location': api_params.get('location', '').strip().lower(),
+        'employment_type': ','.join(sorted(
+            t.strip() for t in api_params.get('employment_type', '').split(',') if t.strip()
+        )),
+        'experience': api_params.get('experience', '').strip().lower(),
+        'remote_jobs_only': api_params.get('remote_jobs_only', False),
+        'page': page,
+    }
+
+    cache_key = hashlib.sha256(
+        json.dumps(normalized, sort_keys=True).encode()
+    ).hexdigest()
+
+    return normalized, cache_key

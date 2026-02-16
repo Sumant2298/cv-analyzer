@@ -155,6 +155,8 @@ class JobSearchCache(db.Model):
     query_params = db.Column(db.Text, nullable=False)
     results_json = db.Column(db.Text, nullable=False)
     result_count = db.Column(db.Integer, default=0)
+    page = db.Column(db.Integer, default=1, nullable=False)
+    source = db.Column(db.String(20), default='jsearch')
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     expires_at = db.Column(db.DateTime, nullable=False)
 
@@ -389,3 +391,21 @@ class QuickATSCache(db.Model):
     __table_args__ = (
         db.UniqueConstraint('resume_id', 'job_id', name='uq_quick_ats_resume_job'),
     )
+
+
+class ApiUsage(db.Model):
+    """Tracks monthly API call counts per provider for quota enforcement."""
+    __tablename__ = 'api_usage'
+
+    id = db.Column(db.Integer, primary_key=True)
+    month = db.Column(db.String(7), nullable=False)           # 'YYYY-MM'
+    provider = db.Column(db.String(30), nullable=False)       # 'jsearch'
+    calls_made = db.Column(db.Integer, default=0, nullable=False)
+    last_call_at = db.Column(db.DateTime)
+
+    __table_args__ = (
+        db.UniqueConstraint('month', 'provider', name='uq_api_usage_month_provider'),
+    )
+
+    def __repr__(self):
+        return f'<ApiUsage {self.provider} {self.month} calls={self.calls_made}>'

@@ -2,6 +2,11 @@
 
 Provides search_jobs() function that queries the JSearch API with caching
 to conserve the free-tier rate limit (200 requests/month).
+
+Cache strategy:
+- 24-hour TTL on normalized API params (not full user prefs)
+- Monthly quota tracking with hard stop at limit
+- Shared cache across users with same effective API query
 """
 
 import hashlib
@@ -16,43 +21,182 @@ logger = logging.getLogger(__name__)
 
 RAPIDAPI_KEY = os.environ.get('RAPIDAPI_KEY', '')
 JSEARCH_HOST = 'jsearch.p.rapidapi.com'
-CACHE_TTL_HOURS = 6
+CACHE_TTL_HOURS = 24
+MONTHLY_QUOTA = int(os.environ.get('JSEARCH_MONTHLY_QUOTA', '200'))
 
 
-def search_jobs(query, location='', employment_type='',
-                experience='', page=1, num_pages=1):
-    """Search for public job listings via JSearch API.
+# ---------------------------------------------------------------------------
+# Quota helpers
+# ---------------------------------------------------------------------------
 
-    Returns dict with 'jobs' list and 'total_count'.
-    Each job has: job_id, title, company, company_logo, location, description,
-                  description_snippet, employment_type, posted_date, apply_url,
-                  is_remote, salary_min, salary_max, salary_currency, salary_period.
+def check_quota(provider='jsearch', limit=None):
+    """Check if API calls for the current month are under the quota limit.
+
+    Returns (is_under_limit: bool, calls_made: int, limit: int).
+    Fails open (returns True) if the DB lookup fails.
+    """
+    from models import ApiUsage
+
+    if limit is None:
+        limit = MONTHLY_QUOTA
+
+    current_month = datetime.utcnow().strftime('%Y-%m')
+    try:
+        usage = ApiUsage.query.filter_by(
+            month=current_month, provider=provider
+        ).first()
+        calls = usage.calls_made if usage else 0
+        return (calls < limit, calls, limit)
+    except Exception as e:
+        logger.warning('Quota check failed: %s', e)
+        return (True, 0, limit)
+
+
+def increment_quota(provider='jsearch'):
+    """Increment the API call counter for the current month.
+
+    Creates the row if it doesn't exist yet (upsert pattern).
+    """
+    from models import db, ApiUsage
+
+    current_month = datetime.utcnow().strftime('%Y-%m')
+    try:
+        usage = ApiUsage.query.filter_by(
+            month=current_month, provider=provider
+        ).first()
+        if usage:
+            usage.calls_made += 1
+            usage.last_call_at = datetime.utcnow()
+        else:
+            usage = ApiUsage(
+                month=current_month,
+                provider=provider,
+                calls_made=1,
+                last_call_at=datetime.utcnow(),
+            )
+            db.session.add(usage)
+        db.session.commit()
+    except Exception as e:
+        logger.error('Failed to increment quota: %s', e)
+        db.session.rollback()
+
+
+# ---------------------------------------------------------------------------
+# Cache helpers
+# ---------------------------------------------------------------------------
+
+def get_cached_search(cache_key):
+    """Look up a non-expired cache entry by its SHA-256 hash.
+
+    Returns (result_dict, cache_entry) on hit, or (None, None) on miss.
+    """
+    from models import JobSearchCache
+
+    try:
+        entry = JobSearchCache.query.filter_by(query_hash=cache_key) \
+            .filter(JobSearchCache.expires_at > datetime.utcnow()) \
+            .first()
+        if entry:
+            return json.loads(entry.results_json), entry
+    except Exception as e:
+        logger.warning('Cache lookup failed: %s', e)
+    return None, None
+
+
+def get_stale_cache(cache_key):
+    """Look up any cache entry by hash, even if expired.
+
+    Used as a fallback when quota is exceeded.
+    Returns (result_dict, cache_entry) or (None, None).
+    """
+    from models import JobSearchCache
+
+    try:
+        entry = JobSearchCache.query.filter_by(query_hash=cache_key).first()
+        if entry:
+            return json.loads(entry.results_json), entry
+    except Exception as e:
+        logger.warning('Stale cache lookup failed: %s', e)
+    return None, None
+
+
+def store_search_cache(cache_key, normalized_params, result,
+                       ttl_hours=None, page=1):
+    """Store or update a cache entry for a search result set.
+
+    Upserts: if a row with the same query_hash exists (even expired),
+    it gets updated in place.
     """
     from models import db, JobSearchCache
 
-    # Build cache key from search parameters
-    params = {
-        'query': query.strip().lower(),
-        'location': location.strip().lower(),
-        'employment_type': employment_type.strip(),
-        'experience': experience.strip(),
-        'page': page,
-    }
-    cache_key = hashlib.sha256(
-        json.dumps(params, sort_keys=True).encode()
-    ).hexdigest()
+    if ttl_hours is None:
+        ttl_hours = CACHE_TTL_HOURS
+
+    try:
+        existing = JobSearchCache.query.filter_by(query_hash=cache_key).first()
+        if existing:
+            existing.results_json = json.dumps(result)
+            existing.result_count = len(result.get('jobs', []))
+            existing.query_params = json.dumps(normalized_params)
+            existing.created_at = datetime.utcnow()
+            existing.expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
+            existing.page = page
+            existing.source = 'jsearch'
+        else:
+            entry = JobSearchCache(
+                query_hash=cache_key,
+                query_params=json.dumps(normalized_params),
+                results_json=json.dumps(result),
+                result_count=len(result.get('jobs', [])),
+                expires_at=datetime.utcnow() + timedelta(hours=ttl_hours),
+                page=page,
+                source='jsearch',
+            )
+            db.session.add(entry)
+        db.session.commit()
+        logger.info('Stored cache for hash=%s (%d jobs, %dh TTL)',
+                     cache_key[:8], len(result.get('jobs', [])), ttl_hours)
+    except Exception as e:
+        logger.error('Failed to store search cache: %s', e)
+        db.session.rollback()
+
+
+# ---------------------------------------------------------------------------
+# Main search function
+# ---------------------------------------------------------------------------
+
+def search_jobs(query, location='', employment_type='',
+                experience='', page=1, num_pages=1,
+                cache_key=None, normalized_params=None):
+    """Search for public job listings via JSearch API.
+
+    If cache_key is provided (by the caller that already normalized),
+    it's used directly. Otherwise a key is computed from the raw params
+    for backward compatibility.
+
+    Returns dict with 'jobs' list and 'total_count'.
+    """
+    # Build cache key if not provided by caller
+    if not cache_key:
+        params = {
+            'query': query.strip().lower(),
+            'location': location.strip().lower(),
+            'employment_type': employment_type.strip(),
+            'experience': experience.strip(),
+            'page': page,
+        }
+        cache_key = hashlib.sha256(
+            json.dumps(params, sort_keys=True).encode()
+        ).hexdigest()
+        normalized_params = params
 
     # Check cache first
-    try:
-        cached = JobSearchCache.query.filter_by(query_hash=cache_key)\
-            .filter(JobSearchCache.expires_at > datetime.utcnow()).first()
-        if cached:
-            logger.info('Job search cache hit for hash=%s', cache_key[:8])
-            return json.loads(cached.results_json)
-    except Exception as e:
-        logger.warning('Cache lookup failed: %s', e)
+    cached_result, _ = get_cached_search(cache_key)
+    if cached_result:
+        logger.info('Cache hit for hash=%s', cache_key[:8])
+        return cached_result
 
-    # Call JSearch API
+    # Validate API key
     if not RAPIDAPI_KEY:
         logger.warning('RAPIDAPI_KEY not set — job search unavailable')
         return {
@@ -61,6 +205,7 @@ def search_jobs(query, location='', employment_type='',
             'error': 'Job search is not configured yet. Please set RAPIDAPI_KEY.',
         }
 
+    # Call JSearch API
     headers = {
         'X-RapidAPI-Key': RAPIDAPI_KEY,
         'X-RapidAPI-Host': JSEARCH_HOST,
@@ -122,27 +267,21 @@ def search_jobs(query, location='', employment_type='',
 
     result = {'jobs': jobs, 'total_count': len(jobs)}
 
-    # Cache results (blob cache for exact query replay)
-    try:
-        cache_entry = JobSearchCache(
-            query_hash=cache_key,
-            query_params=json.dumps(params),
-            results_json=json.dumps(result),
-            result_count=len(jobs),
-            expires_at=datetime.utcnow() + timedelta(hours=CACHE_TTL_HOURS),
-        )
-        db.session.add(cache_entry)
-        db.session.commit()
-        logger.info('Cached %d job results for hash=%s', len(jobs), cache_key[:8])
-    except Exception as e:
-        logger.error('Failed to cache job search results: %s', e)
-        db.session.rollback()
+    # Cache results
+    store_search_cache(cache_key, normalized_params or {}, result, page=page)
+
+    # Increment monthly quota counter
+    increment_quota('jsearch')
 
     # Stock the local job pool with individual records
     _store_jobs_in_pool(jobs, query)
 
     return result
 
+
+# ---------------------------------------------------------------------------
+# Helpers (formatting)
+# ---------------------------------------------------------------------------
 
 def _format_location(item):
     """Format job location from JSearch API response."""

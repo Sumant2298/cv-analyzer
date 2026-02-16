@@ -24,7 +24,7 @@ from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
 from models import (db, User, Transaction, CreditUsage, LLMUsage, StoredCV,
-                    UserResume, JDAnalysis, JobPreferences, JobPool)
+                    UserResume, JDAnalysis, JobPreferences, JobPool, ApiUsage)
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -188,6 +188,44 @@ with app.app_context():
             logger.info('Migration: created quick_ats_cache table')
     except Exception as e:
         logger.info('Migration check (tables): %s', e)
+        db.session.rollback()
+
+    # Migration: create api_usage table + add page/source columns to job_search_cache
+    try:
+        from sqlalchemy import inspect as _au_inspect
+        _au_insp = _au_inspect(db.engine)
+        _au_tables = _au_insp.get_table_names()
+        if 'api_usage' not in _au_tables:
+            ApiUsage.__table__.create(db.engine)
+            logger.info('Migration: created api_usage table')
+        if 'job_search_cache' in _au_tables:
+            from sqlalchemy import text as _au_text
+            _jsc_cols = [c['name'] for c in _au_insp.get_columns('job_search_cache')]
+            if 'page' not in _jsc_cols:
+                db.session.execute(_au_text('ALTER TABLE job_search_cache ADD COLUMN page INTEGER DEFAULT 1'))
+                db.session.commit()
+                logger.info('Migration: added page column to job_search_cache')
+            if 'source' not in _jsc_cols:
+                db.session.execute(_au_text("ALTER TABLE job_search_cache ADD COLUMN source VARCHAR(20) DEFAULT 'jsearch'"))
+                db.session.commit()
+                logger.info('Migration: added source column to job_search_cache')
+    except Exception as e:
+        logger.info('Migration check (api_usage/cache cols): %s', e)
+        db.session.rollback()
+
+    # Cleanup: remove expired job_search_cache entries older than 7 days
+    try:
+        from models import JobSearchCache
+        from datetime import timedelta as _cache_td
+        _cache_cutoff = datetime.utcnow() - _cache_td(days=7)
+        _cache_deleted = JobSearchCache.query.filter(
+            JobSearchCache.expires_at < _cache_cutoff
+        ).delete()
+        db.session.commit()
+        if _cache_deleted:
+            logger.info('Cache cleanup: removed %d expired entries', _cache_deleted)
+    except Exception as e:
+        logger.info('Cache cleanup: %s', e)
         db.session.rollback()
 
     # Cleanup: remove stale job_pool entries older than 14 days
@@ -1501,30 +1539,79 @@ def jobs_search():
             return jsonify({'error': 'Please add at least one job title or skill in your preferences',
                             'jobs': [], 'total_count': 0})
 
-        from job_filter import build_jsearch_params, apply_local_filters, search_from_pool
+        from job_filter import (build_jsearch_params, apply_local_filters,
+                                search_from_pool, normalize_api_params_for_cache)
+        from job_search import (search_jobs, check_quota, get_cached_search,
+                                get_stale_cache)
 
-        # Try local pool first
-        pool_results = search_from_pool(prefs)
-        if pool_results is not None:
-            jobs = pool_results
-            source = 'pool'
+        warning = None
+        normalized, cache_key = normalize_api_params_for_cache(prefs)
+
+        # 1. Check read-through cache (24h TTL, keyed on API params only)
+        cached_result, _ = get_cached_search(cache_key)
+        if cached_result:
+            jobs = apply_local_filters(cached_result.get('jobs', []), prefs)
+            source = 'cache'
         else:
-            # Fall back to API
-            api_params = build_jsearch_params(prefs)
-            from job_search import search_jobs
-            api_results = search_jobs(
-                query=api_params.get('query', ''),
-                location=api_params.get('location', ''),
-                employment_type=api_params.get('employment_type', ''),
-                experience=api_params.get('experience', ''),
-            )
-            if api_results.get('error'):
-                return jsonify(api_results)
-            # Apply local filters on API results
-            jobs = apply_local_filters(api_results.get('jobs', []), prefs)
-            source = 'api'
+            # 2. Cache miss — check quota before calling API
+            under_limit, calls_made, limit = check_quota()
 
-        results = {'jobs': jobs, 'total_count': len(jobs), 'source': source}
+            if not under_limit:
+                # Quota exceeded — try pool, then stale cache
+                pool_results = search_from_pool(prefs)
+                if pool_results is not None:
+                    jobs = pool_results
+                    source = 'pool'
+                else:
+                    stale_result, _ = get_stale_cache(cache_key)
+                    if stale_result:
+                        jobs = apply_local_filters(stale_result.get('jobs', []), prefs)
+                        source = 'cache'
+                    else:
+                        jobs = []
+                        source = 'quota_exceeded'
+                warning = f'Monthly API quota reached ({calls_made}/{limit}). Showing cached results.'
+            else:
+                # 3. Quota OK — try pool first, then API
+                pool_results = search_from_pool(prefs)
+                if pool_results is not None:
+                    jobs = pool_results
+                    source = 'pool'
+                else:
+                    api_params = build_jsearch_params(prefs)
+                    api_results = search_jobs(
+                        query=api_params.get('query', ''),
+                        location=api_params.get('location', ''),
+                        employment_type=api_params.get('employment_type', ''),
+                        experience=api_params.get('experience', ''),
+                        cache_key=cache_key,
+                        normalized_params=normalized,
+                    )
+                    if api_results.get('error'):
+                        return jsonify(api_results)
+                    jobs = apply_local_filters(api_results.get('jobs', []), prefs)
+                    source = 'api'
+
+        # Deduplicate by job_id
+        seen_ids = set()
+        deduped = []
+        for job in jobs:
+            jid = job.get('job_id', '')
+            if jid and jid in seen_ids:
+                continue
+            if jid:
+                seen_ids.add(jid)
+            deduped.append(job)
+        jobs = deduped
+
+        results = {
+            'jobs': jobs,
+            'total_count': len(jobs),
+            'source': source,
+            'cache_key': cache_key[:12],
+        }
+        if warning:
+            results['warning'] = warning
 
     else:
         # Direct query search (backward compatible)

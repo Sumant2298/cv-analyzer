@@ -430,6 +430,8 @@
             <h3 class="text-lg font-bold text-slate-700 mb-1">No Jobs Found</h3>
             <p class="text-sm text-slate-500">Try broadening your filters or changing your preferences.</p>
         </div>
+        <!-- Quota warning -->
+        <p id="quota-warning" class="text-xs text-amber-600 hidden mb-3"></p>
         <!-- Results grid -->
         <div id="jobs-grid" class="hidden space-y-4"></div>
     </div>
@@ -927,8 +929,17 @@ async function searchWithPrefs() {
         }
 
         const countEl = document.getElementById('result-count');
-        countEl.textContent = data.jobs.length + ' job' + (data.jobs.length !== 1 ? 's' : '') + ' found' + (data.source === 'pool' ? ' (cached)' : '');
+        let sourceLabel = '';
+        if (data.source === 'cache' || data.source === 'pool') sourceLabel = ' (cached)';
+        countEl.textContent = data.jobs.length + ' job' + (data.jobs.length !== 1 ? 's' : '') + ' found' + sourceLabel;
         countEl.classList.remove('hidden');
+
+        const warnEl = document.getElementById('quota-warning');
+        if (warnEl) {
+            if (data.warning) { warnEl.textContent = data.warning; warnEl.classList.remove('hidden'); }
+            else { warnEl.classList.add('hidden'); }
+        }
+
         renderJobs(data.jobs);
         showState('grid');
     } catch (err) {
