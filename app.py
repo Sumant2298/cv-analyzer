@@ -1733,12 +1733,12 @@ def payment_webhook():
 
 @app.route('/experts')
 def experts():
-    return render_template('experts.html')
+    return render_template('experts.html', active_section='experts')
 
 
 @app.route('/mentors')
 def mentors():
-    return render_template('mentors.html')
+    return render_template('mentors.html', active_section='mentors')
 
 
 @app.route('/resume-tips')
