@@ -122,3 +122,24 @@ class UserResume(db.Model):
 
     def __repr__(self):
         return f'<UserResume {self.label} user={self.user_id} primary={self.is_primary}>'
+
+
+class JDAnalysis(db.Model):
+    """Stores JD analysis progress and results in the database.
+
+    Uses DB instead of in-memory dict so it works across multiple
+    gunicorn workers on Railway.
+    """
+    __tablename__ = 'jd_analyses'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    status = db.Column(db.String(20), default='analyzing')  # analyzing | completed | failed
+    error_message = db.Column(db.Text)
+    results_json = db.Column(db.Text)                       # Full results as JSON
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('jd_analyses', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<JDAnalysis id={self.id} user={self.user_id} status={self.status}>'

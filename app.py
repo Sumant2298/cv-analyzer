@@ -23,7 +23,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from models import db, User, Transaction, CreditUsage, LLMUsage, StoredCV, UserResume
+from models import db, User, Transaction, CreditUsage, LLMUsage, StoredCV, UserResume, JDAnalysis
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -1253,19 +1253,9 @@ def analyze_jd():
 
 # ---------------------------------------------------------------------------
 # Jobs — JD upload & auto-match against primary CV (background thread)
+# Uses DB (JDAnalysis model) instead of in-memory dict so it works across
+# multiple gunicorn workers on Railway.
 # ---------------------------------------------------------------------------
-
-# In-memory store for JD analysis results (keyed by analysis_id)
-_jd_analyses = {}  # { analysis_id: { 'status': str, 'results': dict|None, 'error': str|None, 'created_at': float } }
-
-
-def _cleanup_old_jd_analyses():
-    """Remove JD analyses older than 10 minutes to prevent memory leak."""
-    import time
-    cutoff = time.time() - 600
-    stale = [k for k, v in _jd_analyses.items() if v.get('created_at', 0) < cutoff]
-    for k in stale:
-        del _jd_analyses[k]
 
 
 @app.route('/jobs')
@@ -1295,8 +1285,6 @@ def jobs_page():
 @app.route('/jobs/analyze', methods=['POST'])
 def jobs_analyze():
     """Start background JD analysis against user's primary resume."""
-    import time
-
     if not session.get('user_id'):
         flash('Please sign in first.', 'warning')
         return redirect(url_for('login_page'))
@@ -1350,16 +1338,12 @@ def jobs_analyze():
     user = User.query.get(user_id)
     session['user_credits'] = user.credits
 
-    # Cleanup old analyses and create new one
-    _cleanup_old_jd_analyses()
-    analysis_id = f"{user_id}_{int(time.time())}"
-    _jd_analyses[analysis_id] = {
-        'status': 'analyzing',
-        'results': None,
-        'error': None,
-        'created_at': time.time(),
-    }
-    session['_jd_analysis_id'] = analysis_id
+    # Create JD analysis record in database
+    jd_analysis = JDAnalysis(user_id=user_id, status='analyzing')
+    db.session.add(jd_analysis)
+    db.session.commit()
+    jd_analysis_id = jd_analysis.id
+    session['_jd_analysis_id'] = jd_analysis_id
 
     # Spawn background thread
     def _run_jd_analysis():
@@ -1367,12 +1351,19 @@ def jobs_analyze():
             try:
                 results = analyze_cv_against_jd(cv_text, jd_text)
                 _log_llm_usage(user_id, 'jd_analysis')
-                _jd_analyses[analysis_id]['results'] = results
-                _jd_analyses[analysis_id]['status'] = 'completed'
+
+                row = JDAnalysis.query.get(jd_analysis_id)
+                if row:
+                    row.results_json = json.dumps(results)
+                    row.status = 'completed'
+                    db.session.commit()
             except Exception as e:
-                logger.error('Background JD analysis failed (%s): %s', analysis_id, e, exc_info=True)
-                _jd_analyses[analysis_id]['error'] = str(e)
-                _jd_analyses[analysis_id]['status'] = 'failed'
+                logger.error('Background JD analysis failed (id=%d): %s', jd_analysis_id, e, exc_info=True)
+                row = JDAnalysis.query.get(jd_analysis_id)
+                if row:
+                    row.error_message = str(e)
+                    row.status = 'failed'
+                    db.session.commit()
                 # Refund credits on failure
                 _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS, action='refund_jd_analysis')
 
@@ -1383,13 +1374,15 @@ def jobs_analyze():
 @app.route('/jobs/status')
 def jobs_status():
     """JSON polling endpoint for JD analysis progress."""
-    analysis_id = session.get('_jd_analysis_id', '')
-    entry = _jd_analyses.get(analysis_id)
-    if not entry:
+    jd_id = session.get('_jd_analysis_id')
+    if not jd_id:
+        return jsonify({'status': 'not_found'})
+    row = JDAnalysis.query.get(jd_id)
+    if not row:
         return jsonify({'status': 'not_found'})
     return jsonify({
-        'status': entry['status'],
-        'error': entry.get('error'),
+        'status': row.status,
+        'error': row.error_message,
     })
 
 
@@ -1399,8 +1392,13 @@ def jobs_waiting():
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
 
-    analysis_id = session.get('_jd_analysis_id', '')
-    if not analysis_id or analysis_id not in _jd_analyses:
+    jd_id = session.get('_jd_analysis_id')
+    if not jd_id:
+        flash('No analysis in progress.', 'warning')
+        return redirect(url_for('jobs_page'))
+
+    row = JDAnalysis.query.get(jd_id)
+    if not row or row.status not in ('analyzing', 'completed'):
         flash('No analysis in progress.', 'warning')
         return redirect(url_for('jobs_page'))
 
@@ -1413,14 +1411,17 @@ def jobs_results():
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
 
-    analysis_id = session.get('_jd_analysis_id', '')
-    entry = _jd_analyses.get(analysis_id)
-
-    if not entry or entry['status'] != 'completed' or not entry.get('results'):
+    jd_id = session.get('_jd_analysis_id')
+    if not jd_id:
         flash('No completed analysis found. Please try again.', 'warning')
         return redirect(url_for('jobs_page'))
 
-    results = entry['results']
+    row = JDAnalysis.query.get(jd_id)
+    if not row or row.status != 'completed' or not row.results_json:
+        flash('No completed analysis found. Please try again.', 'warning')
+        return redirect(url_for('jobs_page'))
+
+    results = json.loads(row.results_json)
     return render_template('results.html', results=results, active_section='jobs')
 
 
