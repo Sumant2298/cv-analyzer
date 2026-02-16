@@ -987,7 +987,7 @@ def analyze_page():
         flash('Session expired. Please sign in again.', 'error')
         return redirect(url_for('login_page'))
 
-    from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS
+    from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS, CREDITS_PER_JD_ANALYSIS
     user_data = {
         'analysis_count': user.analysis_count,
         'credits': user.credits,
@@ -998,9 +998,40 @@ def analyze_page():
     resumes = UserResume.query.filter_by(user_id=user.id)\
         .order_by(UserResume.created_at.desc()).all()
 
+    # Get primary resume for JD analysis section
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+
+    # Get JD analysis history with pre-computed ATS scores
+    jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
+        .order_by(JDAnalysis.created_at.desc()).all()
+    jd_scores = {}
+    jd_names = {}
+    for jd in jd_histories:
+        if jd.status == 'completed' and jd.results_json:
+            try:
+                parsed = json.loads(jd.results_json)
+                jd_scores[jd.id] = parsed.get('ats_score', 0)
+            except (json.JSONDecodeError, AttributeError):
+                jd_scores[jd.id] = 0
+        # Extract job name from first meaningful line of JD text
+        jd_name = ''
+        if jd.jd_text:
+            for line in jd.jd_text.strip().split('\n'):
+                line = line.strip()
+                if line and len(line) > 3:
+                    jd_name = line[:80]
+                    break
+        jd_names[jd.id] = jd_name or 'Job Description'
+
     return render_template('resumes.html',
                            resumes=resumes,
                            user_data=user_data,
+                           primary_resume=primary,
+                           jd_histories=jd_histories,
+                           jd_scores=jd_scores,
+                           jd_names=jd_names,
+                           credits_per_jd=CREDITS_PER_JD_ANALYSIS,
+                           credits_remaining=user.credits,
                            active_section='resumes')
 
 
@@ -1274,10 +1305,10 @@ def analyze_jd():
 
 @app.route('/jobs')
 def jobs_page():
-    """Jobs page — upload a JD to match against primary resume."""
+    """Jobs page — search public job listings and match against resume."""
     if not session.get('user_id'):
         session['_login_next'] = url_for('jobs_page')
-        flash('Please sign in to use Jobs.', 'warning')
+        flash('Please sign in to search for jobs.', 'warning')
         return redirect(url_for('login_page'))
 
     user = User.query.get(session['user_id'])
@@ -1285,40 +1316,144 @@ def jobs_page():
         flash('Session expired. Please sign in again.', 'error')
         return redirect(url_for('login_page'))
 
-    # Get primary resume
     primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
 
-    # Get JD analysis history with pre-computed ATS scores
-    jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
-        .order_by(JDAnalysis.created_at.desc()).all()
-    jd_scores = {}
-    jd_names = {}
-    for jd in jd_histories:
-        if jd.status == 'completed' and jd.results_json:
-            try:
-                parsed = json.loads(jd.results_json)
-                jd_scores[jd.id] = parsed.get('ats_score', 0)
-            except (json.JSONDecodeError, AttributeError):
-                jd_scores[jd.id] = 0
-        # Extract job name from first meaningful line of JD text
-        jd_name = ''
-        if jd.jd_text:
-            for line in jd.jd_text.strip().split('\n'):
-                line = line.strip()
-                if line and len(line) > 3:
-                    jd_name = line[:80]
-                    break
-        jd_names[jd.id] = jd_name or 'Job Description'
-
-    from payments import CREDITS_PER_JD_ANALYSIS
     return render_template('jobs.html',
                            primary_resume=primary,
-                           credits_per_jd=CREDITS_PER_JD_ANALYSIS,
                            credits_remaining=user.credits,
-                           jd_histories=jd_histories,
-                           jd_scores=jd_scores,
-                           jd_names=jd_names,
                            active_section='jobs')
+
+
+@app.route('/jobs/search')
+def jobs_search():
+    """AJAX endpoint — search public job listings via JSearch API."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    query = request.args.get('q', '').strip()
+    location = request.args.get('location', '').strip()
+    employment_type = request.args.get('type', '').strip()
+    experience = request.args.get('experience', '').strip()
+    page = request.args.get('page', 1, type=int)
+
+    if not query:
+        return jsonify({'error': 'Search query required', 'jobs': [], 'total_count': 0})
+
+    from job_search import search_jobs
+    results = search_jobs(
+        query=query, location=location,
+        employment_type=employment_type,
+        experience=experience, page=page,
+    )
+
+    # Compute quick ATS scores if user has a primary resume
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if primary and primary.extracted_text and len(primary.extracted_text.strip()) >= 50:
+        from nlp_service import quick_ats_score
+        for job in results.get('jobs', []):
+            if job.get('description') and len(job['description'].strip()) >= 30:
+                try:
+                    ats = quick_ats_score(primary.extracted_text, job['description'])
+                    job['ats_score'] = ats['score']
+                    job['matched_skills'] = ats['matched_skills'][:5]
+                    job['missing_skills'] = ats['missing_skills'][:5]
+                except Exception:
+                    job['ats_score'] = None
+            else:
+                job['ats_score'] = None
+
+    return jsonify(results)
+
+
+@app.route('/jobs/deep-analyze', methods=['POST'])
+def jobs_deep_analyze():
+    """Full LLM-based ATS analysis for a specific job (costs credits)."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    job_id = data.get('job_id', '')
+    jd_text = data.get('description', '')
+
+    if not jd_text or len(jd_text.strip()) < 30:
+        return jsonify({'error': 'Job description too short for analysis'}), 400
+
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if not primary or not primary.extracted_text or len(primary.extracted_text.strip()) < 50:
+        return jsonify({'error': 'No primary resume found or resume text is too short'}), 400
+
+    # Check for cached score
+    from models import JobATSScore
+    if job_id:
+        cached = JobATSScore.query.filter_by(
+            user_id=user.id, job_id=job_id, resume_id=primary.id
+        ).first()
+        if cached:
+            return jsonify({
+                'ats_score': cached.ats_score,
+                'matched_skills': json.loads(cached.matched_skills) if cached.matched_skills else [],
+                'missing_skills': json.loads(cached.missing_skills) if cached.missing_skills else [],
+                'cached': True,
+            })
+
+    # Credit check
+    from payments import CREDITS_PER_JD_ANALYSIS, deduct_credits
+    if user.credits < CREDITS_PER_JD_ANALYSIS:
+        return jsonify({
+            'error': 'Insufficient credits',
+            'credits_needed': CREDITS_PER_JD_ANALYSIS,
+            'credits_available': user.credits,
+        }), 402
+
+    # Deduct and analyze
+    if not deduct_credits(user.id, CREDITS_PER_JD_ANALYSIS, action='job_deep_analysis'):
+        return jsonify({'error': 'Insufficient credits'}), 402
+
+    # Update session credits
+    user = User.query.get(user.id)
+    session['user_credits'] = user.credits
+
+    try:
+        results = analyze_cv_against_jd(primary.extracted_text, jd_text)
+        ats_score = results.get('ats_score', 0)
+        matched = results.get('skill_match', {}).get('matched', [])[:10]
+        missing = results.get('skill_match', {}).get('missing', [])[:10]
+
+        # Cache the score
+        if job_id:
+            try:
+                score_record = JobATSScore(
+                    user_id=user.id, job_id=job_id, resume_id=primary.id,
+                    ats_score=ats_score,
+                    matched_skills=json.dumps(matched),
+                    missing_skills=json.dumps(missing),
+                )
+                db.session.add(score_record)
+                db.session.commit()
+            except Exception as cache_err:
+                logger.error('Failed to cache deep ATS score: %s', cache_err)
+                db.session.rollback()
+
+        return jsonify({
+            'ats_score': ats_score,
+            'matched_skills': matched,
+            'missing_skills': missing,
+            'credits_remaining': user.credits,
+        })
+    except Exception as e:
+        _refund_analysis_credits(user.id, CREDITS_PER_JD_ANALYSIS, action='refund_job_deep_analysis')
+        user = User.query.get(user.id)
+        session['user_credits'] = user.credits
+        logger.error('Deep ATS analysis error: %s', e, exc_info=True)
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/jobs/analyze', methods=['POST'])
@@ -1359,11 +1494,11 @@ def jobs_analyze():
             save_cv=False, url_extractor=_extract_from_jd_url)
     except Exception as e:
         flash(f'Error reading Job Description: {e}', 'error')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     if not jd_text:
         flash('Could not extract Job Description content. Please try again.', 'error')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     if len(jd_text.split()) < 10:
         flash('Job description seems very short. Results may be unreliable.', 'warning')
@@ -1434,14 +1569,14 @@ def jobs_waiting():
     jd_id = session.get('_jd_analysis_id')
     if not jd_id:
         flash('No analysis in progress.', 'warning')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     row = JDAnalysis.query.get(jd_id)
     if not row or row.status not in ('analyzing', 'completed'):
         flash('No analysis in progress.', 'warning')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
-    return render_template('jobs_waiting.html', active_section='jobs')
+    return render_template('jobs_waiting.html', active_section='resumes')
 
 
 @app.route('/jobs/results')
@@ -1453,12 +1588,12 @@ def jobs_results():
     jd_id = session.get('_jd_analysis_id')
     if not jd_id:
         flash('No completed analysis found. Please try again.', 'warning')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     row = JDAnalysis.query.get(jd_id)
     if not row or row.status != 'completed' or not row.results_json:
         flash('No completed analysis found. Please try again.', 'warning')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     results = json.loads(row.results_json)
 
@@ -1479,7 +1614,7 @@ def jobs_results():
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_section='jobs')
+    return render_template('results.html', results=results, active_section='resumes')
 
 
 @app.route('/jobs/<int:jd_id>/results')
@@ -1491,7 +1626,7 @@ def jd_analysis_results(jd_id):
     row = JDAnalysis.query.filter_by(id=jd_id, user_id=session['user_id']).first()
     if not row:
         flash('Analysis not found.', 'error')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     if row.status == 'analyzing':
         session['_jd_analysis_id'] = row.id
@@ -1499,7 +1634,7 @@ def jd_analysis_results(jd_id):
 
     if row.status != 'completed' or not row.results_json:
         flash('No completed analysis results available.', 'warning')
-        return redirect(url_for('jobs_page'))
+        return redirect(url_for('analyze_page'))
 
     results = json.loads(row.results_json)
 
@@ -1520,7 +1655,7 @@ def jd_analysis_results(jd_id):
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_section='jobs')
+    return render_template('results.html', results=results, active_section='resumes')
 
 
 @app.route('/jobs/<int:jd_id>/delete', methods=['POST'])
@@ -1537,7 +1672,7 @@ def jd_analysis_delete(jd_id):
     else:
         flash('Analysis not found.', 'error')
 
-    return redirect(url_for('jobs_page'))
+    return redirect(url_for('analyze_page'))
 
 
 # ---------------------------------------------------------------------------

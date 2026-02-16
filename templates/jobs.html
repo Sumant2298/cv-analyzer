@@ -1,323 +1,344 @@
 {% extends "dashboard_base.html" %}
-{% block title %}Jobs — Match Your Resume Against a JD | LevelUpX{% endblock %}
+{% block title %}Find Jobs — LevelUpX{% endblock %}
 {% block page_title %}Jobs{% endblock %}
 {% block content %}
 
-<div class="max-w-3xl mx-auto px-4 sm:px-6 py-8 space-y-6">
+<div class="max-w-5xl mx-auto anim-fade-up">
 
-    <!-- Page Header -->
-    <div class="text-center">
-        <h1 class="text-2xl font-bold text-slate-800">Job Description Analysis</h1>
-        <p class="text-sm text-slate-500 mt-1">Upload a JD and we'll match it against your primary resume</p>
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Find Jobs</h1>
+            <p class="text-sm text-slate-500 mt-1">Search public job listings and see how your resume matches</p>
+        </div>
     </div>
 
-    <!-- Primary Resume Info Card -->
+    <!-- Primary Resume Indicator -->
     {% if primary_resume %}
-    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-        <div class="flex items-center gap-4">
-            <div class="w-12 h-12 bg-gradient-to-br from-brand-500 to-emerald-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-            </div>
-            <div class="flex-1 min-w-0">
-                <p class="text-xs text-slate-400 font-semibold uppercase tracking-wide">Primary Resume</p>
-                <p class="text-sm font-bold text-slate-800 truncate">{{ primary_resume.label or primary_resume.filename }}</p>
-                {% if primary_resume.ats_score %}
-                <div class="flex items-center gap-2 mt-1">
-                    <span class="text-xs font-semibold text-slate-500">ATS Score:</span>
-                    <span class="inline-flex items-center justify-center px-2 py-0.5 rounded-full text-xs font-bold
-                        {% if primary_resume.ats_score >= 90 %}bg-emerald-100 text-emerald-700
-                        {% elif primary_resume.ats_score >= 70 %}bg-blue-100 text-blue-700
-                        {% elif primary_resume.ats_score >= 50 %}bg-amber-100 text-amber-700
-                        {% elif primary_resume.ats_score >= 30 %}bg-orange-100 text-orange-700
-                        {% else %}bg-red-100 text-red-700{% endif %}">{{ primary_resume.ats_score }}%</span>
-                </div>
-                {% endif %}
-            </div>
-            <div class="flex-shrink-0">
-                <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-brand-50 text-brand-600 border border-brand-200">
-                    <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
-                    Primary
-                </span>
-            </div>
+    <div class="bg-white rounded-xl border border-slate-200 p-3 mb-6 flex items-center gap-3 text-sm shadow-sm">
+        <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
         </div>
+        <span class="text-slate-600">Matching against: <strong class="text-slate-800">{{ primary_resume.label or primary_resume.filename }}</strong></span>
+        <span class="ml-auto text-xs text-slate-400 hidden sm:inline">ATS scores auto-calculated</span>
     </div>
     {% else %}
-    <!-- No Primary Resume -->
-    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">
-        <div class="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
-            <svg class="w-7 h-7 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
-        </div>
-        <h3 class="text-base font-bold text-amber-800 mb-1">No Primary Resume Found</h3>
-        <p class="text-sm text-amber-600 mb-4">You need to upload a CV and set it as your primary resume before analyzing job descriptions.</p>
-        <a href="{{ url_for('analyze_page') }}" class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 px-6 rounded-xl shadow-md transition text-sm">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-            Upload Your Resume
-        </a>
+    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-center">
+        <p class="text-sm text-amber-700 mb-1">Upload and set a primary resume to see ATS match scores</p>
+        <a href="{{ url_for('analyze_page') }}" class="text-sm text-brand-600 font-semibold hover:underline">Go to Resumes &rarr;</a>
     </div>
     {% endif %}
 
-    {% if primary_resume %}
-    <!-- JD Upload Form -->
-    <form action="{{ url_for('jobs_analyze') }}" method="POST" enctype="multipart/form-data"
-          class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-
-        <!-- Form Header -->
-        <div class="bg-gradient-to-r from-brand-600 to-emerald-500 px-5 py-4">
-            <h2 class="text-base font-bold text-white">Upload Job Description</h2>
-            <p class="text-xs text-white/70 mt-0.5">We'll analyze your primary resume against this JD</p>
-        </div>
-
-        <!-- 3-Tab Input Selector -->
-        <div class="px-5 pt-5 pb-6">
-            <!-- Tab Buttons -->
-            <div class="flex rounded-xl bg-slate-100 p-1 mb-5" role="tablist">
-                <button type="button" data-tab="file"
-                    class="jd-tab flex-1 text-xs font-semibold py-2 px-3 rounded-lg transition
-                        bg-white text-brand-700 shadow-sm"
-                    onclick="switchTab('file')">
-                    <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
-                    Upload File
-                </button>
-                <button type="button" data-tab="text"
-                    class="jd-tab flex-1 text-xs font-semibold py-2 px-3 rounded-lg transition
-                        text-slate-500 hover:text-slate-700"
-                    onclick="switchTab('text')">
-                    <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    Paste Text
-                </button>
-                <button type="button" data-tab="url"
-                    class="jd-tab flex-1 text-xs font-semibold py-2 px-3 rounded-lg transition
-                        text-slate-500 hover:text-slate-700"
-                    onclick="switchTab('url')">
-                    <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
-                    Job URL
-                </button>
-            </div>
-
-            <!-- Tab Panels -->
-            <div id="panel-file" class="jd-panel">
-                <label class="block w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-brand-400 rounded-xl p-8 text-center transition group">
-                    <input type="file" name="jd_file" accept=".pdf,.doc,.docx,.txt" class="hidden"
-                           onchange="document.getElementById('file-name').textContent = this.files[0]?.name || 'No file chosen'">
-                    <svg class="w-10 h-10 text-slate-300 group-hover:text-brand-400 mx-auto mb-2 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
-                    <p class="text-sm font-semibold text-slate-600 group-hover:text-brand-600 transition">Click to upload JD file</p>
-                    <p class="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, TXT (max 10 MB)</p>
-                    <p id="file-name" class="text-xs text-brand-600 font-semibold mt-2"></p>
-                </label>
-            </div>
-
-            <div id="panel-text" class="jd-panel hidden">
-                <textarea name="jd_text" rows="8" placeholder="Paste the full job description here..."
-                    class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"></textarea>
-            </div>
-
-            <div id="panel-url" class="jd-panel hidden">
-                <div class="space-y-2">
-                    <input type="url" name="jd_url" placeholder="https://www.linkedin.com/jobs/view/..."
-                        class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none">
-                    <p class="text-xs text-slate-400">Paste a LinkedIn, Indeed, Naukri, or other job posting URL</p>
+    <!-- Search / Filter Form -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 mb-6">
+        <form id="jobSearchForm" onsubmit="searchJobs(event)" class="space-y-4">
+            <!-- Row 1: Keyword + Location -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Title / Keywords</label>
+                    <input type="text" name="q" id="search-query" placeholder="e.g. Python Developer, Product Manager"
+                        class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition" required>
+                </div>
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Location</label>
+                    <input type="text" name="location" id="search-location" placeholder="e.g. Bangalore, Remote, USA"
+                        class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition">
                 </div>
             </div>
-
-            <!-- Credit Cost + Submit -->
-            <div class="flex items-center justify-between mt-6 pt-5 border-t border-slate-100">
-                <div class="flex items-center gap-3">
-                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029C10.792 13.807 10.304 14 10 14c-.304 0-.792-.193-1.264-.979a5.67 5.67 0 01-.421-.521H10a1 1 0 000-2H7.938a7.108 7.108 0 010-1H10a1 1 0 100-2H8.315c.12-.18.256-.355.421-.521z"/></svg>
-                        {{ credits_per_jd }} credits
-                    </span>
-                    <span class="text-xs text-slate-400">Balance: <strong class="text-slate-600">{{ credits_remaining }}</strong></span>
+            <!-- Row 2: Job Type + Experience -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Type</label>
+                    <select name="type" id="search-type" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition bg-white">
+                        <option value="">All Types</option>
+                        <option value="FULLTIME">Full-time</option>
+                        <option value="PARTTIME">Part-time</option>
+                        <option value="CONTRACTOR">Contract</option>
+                        <option value="INTERN">Internship</option>
+                    </select>
                 </div>
-                <button type="submit" id="submit-btn"
-                    class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                <div>
+                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Experience Level</label>
+                    <select name="experience" id="search-experience" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition bg-white">
+                        <option value="">Any Level</option>
+                        <option value="no_experience">Entry Level / No Experience</option>
+                        <option value="under_3_years">Under 3 Years</option>
+                        <option value="more_than_3_years">3+ Years</option>
+                        <option value="no_degree">No Degree Required</option>
+                    </select>
+                </div>
+            </div>
+            <!-- Search Button -->
+            <div class="flex items-center gap-3">
+                <button type="submit" id="searchBtn"
+                    class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-8 rounded-xl shadow-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed">
                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    Analyze Match
+                    Search Jobs
                 </button>
+                <span id="result-count" class="text-xs text-slate-400 hidden"></span>
             </div>
-        </div>
-    </form>
-    {% endif %}
-
-    <!-- ═══════════════ JD Analysis History Table ═══════════════ -->
-    {% if jd_histories %}
-    <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <div>
-                <h2 class="text-base font-bold text-slate-800">Past Analyses</h2>
-                <p class="text-xs text-slate-400 mt-0.5">{{ jd_histories|length }} analysis{{ 'es' if jd_histories|length > 1 else '' }}</p>
-            </div>
-        </div>
-
-        <!-- Desktop Table -->
-        <div class="hidden sm:block overflow-x-auto">
-            <table class="w-full text-sm table-fixed">
-                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
-                    <tr>
-                        <th class="text-left px-4 py-3.5 font-medium w-[40%]">Job Name</th>
-                        <th class="text-center px-4 py-3.5 font-medium w-[20%]">ATS Match</th>
-                        <th class="text-left px-4 py-3.5 font-medium w-[18%] whitespace-nowrap">Date</th>
-                        <th class="text-right px-4 py-3.5 font-medium w-[22%] whitespace-nowrap">Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    {% for jd in jd_histories %}
-                    <tr class="hover:bg-slate-50/50 transition group">
-                        <!-- Job Name -->
-                        <td class="px-4 py-3.5">
-                            <div class="flex items-center gap-2.5">
-                                <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
-                                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                                </div>
-                                <p class="text-sm font-semibold text-slate-800 truncate min-w-0" title="{{ jd_names.get(jd.id, 'Job Description') }}">
-                                    {{ jd_names.get(jd.id, 'Job Description') }}
-                                </p>
-                            </div>
-                        </td>
-                        <!-- ATS Match Score -->
-                        <td class="px-4 py-3.5 text-center">
-                            {% if jd.status == 'completed' and jd.results_json %}
-                                {% set score = jd_scores.get(jd.id, 0) %}
-                                <div class="inline-flex flex-col items-center">
-                                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
-                                        {% if score >= 85 %}bg-emerald-100 text-emerald-700
-                                        {% elif score >= 70 %}bg-blue-100 text-blue-700
-                                        {% elif score >= 50 %}bg-amber-100 text-amber-700
-                                        {% elif score >= 30 %}bg-orange-100 text-orange-700
-                                        {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
-                                    <span class="mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full
-                                        {% if score >= 85 %}bg-emerald-100 text-emerald-700
-                                        {% elif score >= 70 %}bg-blue-100 text-blue-700
-                                        {% elif score >= 50 %}bg-amber-100 text-amber-700
-                                        {% elif score >= 30 %}bg-orange-100 text-orange-700
-                                        {% else %}bg-red-100 text-red-700{% endif %}">
-                                        {% if score >= 85 %}Perfect Fit{% elif score >= 70 %}Great Fit{% elif score >= 50 %}Maybe Fit{% elif score >= 30 %}Low Fit{% else %}Reject{% endif %}
-                                    </span>
-                                </div>
-                            {% elif jd.status == 'analyzing' %}
-                                <span class="inline-flex items-center gap-1.5 text-xs text-brand-600 font-medium">
-                                    <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                    Analyzing...
-                                </span>
-                            {% elif jd.status == 'failed' %}
-                                <span class="inline-flex items-center gap-1 text-xs text-red-600 font-medium">
-                                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"/></svg>
-                                    Failed
-                                </span>
-                            {% else %}
-                                <span class="text-xs text-slate-400">&mdash;</span>
-                            {% endif %}
-                        </td>
-                        <!-- Date -->
-                        <td class="px-4 py-3.5 text-sm text-slate-500 whitespace-nowrap">
-                            {{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '—' }}
-                        </td>
-                        <!-- Actions -->
-                        <td class="px-4 py-3.5 text-right whitespace-nowrap">
-                            <div class="inline-flex items-center gap-0.5">
-                                {% if jd.status == 'completed' %}
-                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Results">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                </a>
-                                {% elif jd.status == 'analyzing' %}
-                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Progress">
-                                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                </a>
-                                {% endif %}
-                                <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline"
-                                      onsubmit="return confirm('Delete this analysis?')">
-                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
-                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                                    </button>
-                                </form>
-                            </div>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Mobile Cards -->
-        <div class="sm:hidden divide-y divide-slate-100">
-            {% for jd in jd_histories %}
-            <div class="px-4 py-4">
-                <div class="flex items-start gap-3">
-                    <div class="flex-1 min-w-0">
-                        <p class="text-sm font-semibold text-slate-800 truncate">
-                            {{ jd_names.get(jd.id, 'Job Description') }}
-                        </p>
-                        <p class="text-xs text-slate-400 mt-0.5">{{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '' }}</p>
-                    </div>
-                    <div class="flex-shrink-0 text-center">
-                        {% if jd.status == 'completed' and jd.results_json %}
-                            {% set score = jd_scores.get(jd.id, 0) %}
-                            <div class="inline-flex flex-col items-center">
-                                <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs
-                                    {% if score >= 85 %}bg-emerald-100 text-emerald-700
-                                    {% elif score >= 70 %}bg-blue-100 text-blue-700
-                                    {% elif score >= 50 %}bg-amber-100 text-amber-700
-                                    {% elif score >= 30 %}bg-orange-100 text-orange-700
-                                    {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
-                                <span class="mt-0.5 text-[9px] font-bold
-                                    {% if score >= 85 %}text-emerald-600
-                                    {% elif score >= 70 %}text-blue-600
-                                    {% elif score >= 50 %}text-amber-600
-                                    {% elif score >= 30 %}text-orange-600
-                                    {% else %}text-red-600{% endif %}">
-                                    {% if score >= 85 %}Perfect{% elif score >= 70 %}Great{% elif score >= 50 %}Maybe{% elif score >= 30 %}Low{% else %}Reject{% endif %}
-                                </span>
-                            </div>
-                        {% elif jd.status == 'analyzing' %}
-                            <svg class="animate-spin w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                        {% elif jd.status == 'failed' %}
-                            <span class="text-xs text-red-500 font-bold">Failed</span>
-                        {% endif %}
-                    </div>
-                </div>
-                <div class="flex items-center gap-2 mt-2">
-                    {% if jd.status == 'completed' %}
-                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
-                    {% elif jd.status == 'analyzing' %}
-                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Progress</a>
-                    {% endif %}
-                    <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline"
-                          onsubmit="return confirm('Delete this analysis?')">
-                        <button type="submit" class="text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-lg transition">Delete</button>
-                    </form>
-                </div>
-            </div>
-            {% endfor %}
-        </div>
+        </form>
     </div>
-    {% endif %}
+
+    <!-- Results Area -->
+    <div id="results-area">
+        <!-- Empty state (shown initially) -->
+        <div id="empty-state" class="bg-white rounded-2xl shadow-lg border border-slate-100 p-12 text-center">
+            <div class="w-20 h-20 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
+                <svg class="w-10 h-10 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+            </div>
+            <h3 class="text-xl font-bold text-slate-900 mb-2">Search for Jobs</h3>
+            <p class="text-slate-500 max-w-sm mx-auto text-sm">Enter a job title or keywords above to find matching positions. We'll show you how well your resume matches each listing.</p>
+        </div>
+
+        <!-- Loading state -->
+        <div id="loading-state" class="hidden text-center py-16">
+            <div class="relative w-16 h-16 mx-auto mb-4">
+                <div class="absolute inset-0 rounded-full border-4 border-slate-200"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-brand-500 border-r-emerald-500 animate-spin"></div>
+                <div class="absolute inset-0 flex items-center justify-center">
+                    <svg class="w-6 h-6 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                </div>
+            </div>
+            <p class="text-sm text-slate-500 font-medium">Searching jobs & calculating match scores...</p>
+            <p class="text-xs text-slate-400 mt-1">This may take a few seconds</p>
+        </div>
+
+        <!-- Error state -->
+        <div id="error-state" class="hidden bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
+            <svg class="w-10 h-10 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+            <h3 class="text-base font-bold text-red-800 mb-1">Search Error</h3>
+            <p id="error-message" class="text-sm text-red-600"></p>
+        </div>
+
+        <!-- No results state -->
+        <div id="no-results" class="hidden bg-white rounded-2xl shadow-lg border border-slate-100 p-12 text-center">
+            <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+            <h3 class="text-lg font-bold text-slate-700 mb-1">No Jobs Found</h3>
+            <p class="text-sm text-slate-500">Try broadening your search terms or changing your filters.</p>
+        </div>
+
+        <!-- Results grid (populated by JS) -->
+        <div id="jobs-grid" class="hidden space-y-4"></div>
+    </div>
 
 </div>
 
 <script>
-function switchTab(tab) {
-    // Reset all tabs
-    document.querySelectorAll('.jd-tab').forEach(btn => {
-        btn.classList.remove('bg-white', 'text-brand-700', 'shadow-sm');
-        btn.classList.add('text-slate-500', 'hover:text-slate-700');
-    });
-    // Activate clicked tab
-    const activeBtn = document.querySelector(`.jd-tab[data-tab="${tab}"]`);
-    activeBtn.classList.add('bg-white', 'text-brand-700', 'shadow-sm');
-    activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700');
-    // Toggle panels
-    document.querySelectorAll('.jd-panel').forEach(p => p.classList.add('hidden'));
-    document.getElementById(`panel-${tab}`).classList.remove('hidden');
+let currentCredits = {{ credits_remaining }};
+
+async function searchJobs(e) {
+    e.preventDefault();
+
+    const query = document.getElementById('search-query').value.trim();
+    const location = document.getElementById('search-location').value.trim();
+    const type = document.getElementById('search-type').value;
+    const experience = document.getElementById('search-experience').value;
+
+    if (!query) return;
+
+    // Show loading
+    document.getElementById('empty-state').classList.add('hidden');
+    document.getElementById('no-results').classList.add('hidden');
+    document.getElementById('jobs-grid').classList.add('hidden');
+    document.getElementById('error-state').classList.add('hidden');
+    document.getElementById('loading-state').classList.remove('hidden');
+    document.getElementById('result-count').classList.add('hidden');
+    document.getElementById('searchBtn').disabled = true;
+
+    const params = new URLSearchParams({ q: query, location, type, experience });
+    try {
+        const resp = await fetch('/jobs/search?' + params);
+        const data = await resp.json();
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('searchBtn').disabled = false;
+
+        if (data.error) {
+            document.getElementById('error-message').textContent = data.error;
+            document.getElementById('error-state').classList.remove('hidden');
+            return;
+        }
+
+        if (!data.jobs || data.jobs.length === 0) {
+            document.getElementById('no-results').classList.remove('hidden');
+            return;
+        }
+
+        document.getElementById('result-count').textContent = data.jobs.length + ' job' + (data.jobs.length !== 1 ? 's' : '') + ' found';
+        document.getElementById('result-count').classList.remove('hidden');
+        renderJobs(data.jobs);
+    } catch (err) {
+        document.getElementById('loading-state').classList.add('hidden');
+        document.getElementById('searchBtn').disabled = false;
+        document.getElementById('error-message').textContent = 'Network error. Please try again.';
+        document.getElementById('error-state').classList.remove('hidden');
+    }
 }
 
-// Prevent double-submit
-document.querySelector('form')?.addEventListener('submit', function() {
-    const btn = document.getElementById('submit-btn');
+function renderJobs(jobs) {
+    const grid = document.getElementById('jobs-grid');
+    grid.innerHTML = '';
+
+    jobs.forEach((job, idx) => {
+        const card = document.createElement('div');
+        card.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition';
+        card.id = 'job-card-' + idx;
+
+        // ATS score badge
+        let scoreBadge = '';
+        if (job.ats_score !== null && job.ats_score !== undefined) {
+            const s = job.ats_score;
+            let sc, sl;
+            if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
+            else if (s >= 70) { sc = 'bg-blue-100 text-blue-700'; sl = 'Good Match'; }
+            else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
+            else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
+            else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
+            scoreBadge = `
+                <div class="text-center flex-shrink-0">
+                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
+                    <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
+                </div>`;
+        }
+
+        // Tags
+        let tags = '';
+        if (job.employment_type) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${job.employment_type}</span>`;
+        if (job.is_remote) tags += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Remote</span>';
+        if (job.salary_min) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">${formatSalary(job)}</span>`;
+        if (job.posted_date) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">${job.posted_date}</span>`;
+
+        // Company logo
+        const logo = job.company_logo
+            ? `<img src="${escHtml(job.company_logo)}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<span class=\\'text-lg font-bold text-slate-400\\'>${escHtml((job.company || '?')[0])}</span>'">`
+            : `<span class="text-lg font-bold text-slate-400">${escHtml((job.company || '?')[0])}</span>`;
+
+        card.innerHTML = `
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
+                    ${logo}
+                </div>
+                <div class="flex-1 min-w-0">
+                    <h3 class="text-sm font-bold text-slate-800 leading-snug">${escHtml(job.title)}</h3>
+                    <p class="text-xs text-slate-500 mt-0.5">${escHtml(job.company)}${job.location ? ' &middot; ' + escHtml(job.location) : ''}</p>
+                    <div class="flex flex-wrap gap-1.5 mt-2">${tags}</div>
+                    <p class="text-xs text-slate-400 mt-2 line-clamp-2">${escHtml(job.description_snippet || '')}</p>
+                    <div class="flex items-center gap-2 mt-3">
+                        ${job.apply_url ? `<a href="${escHtml(job.apply_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-1.5 rounded-lg transition">Apply <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>` : ''}
+                        <button onclick="deepAnalyze(${idx}, this)" data-job-idx="${idx}"
+                            class="deep-analyze-btn inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
+                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                            Deep Analyze (3 credits)
+                        </button>
+                    </div>
+                </div>
+                <div class="hidden sm:block">${scoreBadge}</div>
+            </div>
+            <!-- Mobile score -->
+            ${scoreBadge ? `<div class="sm:hidden flex justify-end mt-3 pt-3 border-t border-slate-100">${scoreBadge}</div>` : ''}
+        `;
+        grid.appendChild(card);
+    });
+
+    grid.classList.remove('hidden');
+
+    // Store jobs data globally for deep analyze
+    window._jobResults = jobs;
+}
+
+async function deepAnalyze(idx, btn) {
+    const job = window._jobResults[idx];
+    if (!job) return;
+
+    if (currentCredits < 3) {
+        alert('You need 3 credits for deep analysis. You have ' + currentCredits + '. Buy more credits first.');
+        return;
+    }
+
+    // Confirm
+    if (!confirm('Deep ATS analysis costs 3 credits. You have ' + currentCredits + ' credits. Proceed?')) return;
+
+    // Show loading on button
+    const origHTML = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = `
-        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-        Processing...
-    `;
-});
+    btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Analyzing...';
+
+    try {
+        const resp = await fetch('/jobs/deep-analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_id: job.job_id,
+                description: job.description,
+            }),
+        });
+
+        const data = await resp.json();
+
+        if (data.error) {
+            alert(data.error);
+            btn.disabled = false;
+            btn.innerHTML = origHTML;
+            return;
+        }
+
+        // Update credits
+        if (data.credits_remaining !== undefined) {
+            currentCredits = data.credits_remaining;
+        }
+
+        // Update the score badge on the card
+        const card = document.getElementById('job-card-' + idx);
+        if (card && data.ats_score !== undefined) {
+            const s = data.ats_score;
+            let sc, sl;
+            if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
+            else if (s >= 70) { sc = 'bg-blue-100 text-blue-700'; sl = 'Good Match'; }
+            else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
+            else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
+            else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
+
+            const newBadge = `<div class="text-center flex-shrink-0">
+                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
+                <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
+                <span class="block mt-0.5 text-[8px] text-slate-400">AI Score</span>
+            </div>`;
+
+            // Update desktop score
+            const desktopScore = card.querySelector('.hidden.sm\\:block');
+            if (desktopScore) desktopScore.innerHTML = newBadge;
+
+            // Update mobile score
+            const mobileScore = card.querySelector('.sm\\:hidden.flex.justify-end');
+            if (mobileScore) mobileScore.innerHTML = newBadge;
+        }
+
+        // Replace button with success message
+        btn.className = 'inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg';
+        btn.innerHTML = '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Deep Score: ' + data.ats_score;
+        btn.disabled = true;
+
+    } catch (err) {
+        alert('Network error. Please try again.');
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+    }
+}
+
+function formatSalary(job) {
+    if (!job.salary_min) return '';
+    const curr = job.salary_currency || '$';
+    const period = job.salary_period || 'year';
+    if (job.salary_max) return curr + Number(job.salary_min).toLocaleString() + '-' + curr + Number(job.salary_max).toLocaleString() + '/' + period;
+    return curr + Number(job.salary_min).toLocaleString() + '/' + period;
+}
+
+function escHtml(str) {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+}
 </script>
 
 {% endblock %}

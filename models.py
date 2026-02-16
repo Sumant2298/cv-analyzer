@@ -144,3 +144,40 @@ class JDAnalysis(db.Model):
 
     def __repr__(self):
         return f'<JDAnalysis id={self.id} user={self.user_id} status={self.status}>'
+
+
+class JobSearchCache(db.Model):
+    """Cache for job search API results to conserve rate-limited API calls."""
+    __tablename__ = 'job_search_cache'
+
+    id = db.Column(db.Integer, primary_key=True)
+    query_hash = db.Column(db.String(64), nullable=False, index=True)
+    query_params = db.Column(db.Text, nullable=False)
+    results_json = db.Column(db.Text, nullable=False)
+    result_count = db.Column(db.Integer, default=0)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    expires_at = db.Column(db.DateTime, nullable=False)
+
+    def __repr__(self):
+        return f'<JobSearchCache hash={self.query_hash[:8]} count={self.result_count}>'
+
+
+class JobATSScore(db.Model):
+    """Cached ATS scores for jobs analyzed against a user's resume."""
+    __tablename__ = 'job_ats_scores'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    job_id = db.Column(db.String(128), nullable=False)
+    resume_id = db.Column(db.Integer, db.ForeignKey('user_resumes.id'), nullable=False)
+    ats_score = db.Column(db.Integer, nullable=False)
+    matched_skills = db.Column(db.Text)
+    missing_skills = db.Column(db.Text)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    __table_args__ = (
+        db.UniqueConstraint('user_id', 'job_id', 'resume_id', name='uq_user_job_resume'),
+    )
+
+    def __repr__(self):
+        return f'<JobATSScore user={self.user_id} job={self.job_id[:20]} score={self.ats_score}>'

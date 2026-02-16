@@ -548,6 +548,55 @@ def extract_skills_from_cv(cv_text: str) -> dict:
     }
 
 
+def quick_ats_score(cv_text: str, jd_text: str) -> dict:
+    """Fast keyword-based ATS score (no LLM).
+
+    Extracts skills from both CV and JD using the skill dictionary,
+    then computes overlap percentage. Also uses RAKE keywords as fallback.
+
+    Returns dict with: score (0-100), matched_skills, missing_skills.
+    """
+    cv_skills = extract_skills_from_cv(cv_text)
+    jd_skills = extract_skills_from_cv(jd_text)
+
+    cv_skill_set = set(s.lower() for s in cv_skills.get('skills_found', []))
+    jd_skill_set = set(s.lower() for s in jd_skills.get('skills_found', []))
+
+    if jd_skill_set:
+        matched = cv_skill_set & jd_skill_set
+        missing = jd_skill_set - cv_skill_set
+        score = min(100, int(len(matched) / max(len(jd_skill_set), 1) * 100))
+        return {
+            'score': score,
+            'matched_skills': [s.title() for s in sorted(matched)][:10],
+            'missing_skills': [s.title() for s in sorted(missing)][:10],
+        }
+
+    # Fallback: use RAKE keywords from JD
+    try:
+        from rake_nltk import Rake
+        _ensure_nltk()
+        rake = Rake(min_length=1, max_length=3)
+        rake.extract_keywords_from_text(jd_text)
+        jd_keywords = set(kw.lower() for kw in rake.get_ranked_phrases()[:30])
+        cv_lower = cv_text.lower()
+        matched_kw = [kw for kw in jd_keywords if kw in cv_lower]
+        missing_kw = [kw for kw in jd_keywords if kw not in cv_lower]
+        score = min(100, int(len(matched_kw) / max(len(jd_keywords), 1) * 100))
+        return {
+            'score': score,
+            'matched_skills': [kw.title() for kw in matched_kw[:10]],
+            'missing_skills': [kw.title() for kw in missing_kw[:10]],
+        }
+    except (ImportError, Exception):
+        # Last resort: simple word overlap
+        jd_words = set(w.lower() for w in jd_text.split() if len(w) > 3)
+        cv_words = set(w.lower() for w in cv_text.split() if len(w) > 3)
+        overlap = jd_words & cv_words
+        score = min(100, int(len(overlap) / max(len(jd_words), 1) * 100))
+        return {'score': score, 'matched_skills': [], 'missing_skills': []}
+
+
 # ---------------------------------------------------------------------------
 # CV Quality Score (Composite)
 # ---------------------------------------------------------------------------
