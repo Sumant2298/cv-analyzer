@@ -23,7 +23,8 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
 from analyzer import analyze_cv_against_jd
-from models import db, User, Transaction, CreditUsage, LLMUsage, StoredCV, UserResume, JDAnalysis
+from models import (db, User, Transaction, CreditUsage, LLMUsage, StoredCV,
+                    UserResume, JDAnalysis, JobPreferences, JobPool)
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -165,6 +166,33 @@ with app.app_context():
                 logger.info('Migration: added jd_text column to jd_analyses')
     except Exception as e:
         logger.info('Migration check (jd_analyses jd_text): %s', e)
+        db.session.rollback()
+
+    # Migration: create job_preferences and job_pool tables if missing
+    try:
+        from sqlalchemy import inspect as _jp_inspect
+        _jp_insp = _jp_inspect(db.engine)
+        _existing_tables = _jp_insp.get_table_names()
+        if 'job_preferences' not in _existing_tables:
+            JobPreferences.__table__.create(db.engine)
+            logger.info('Migration: created job_preferences table')
+        if 'job_pool' not in _existing_tables:
+            JobPool.__table__.create(db.engine)
+            logger.info('Migration: created job_pool table')
+    except Exception as e:
+        logger.info('Migration check (job_preferences/job_pool): %s', e)
+        db.session.rollback()
+
+    # Cleanup: remove stale job_pool entries older than 14 days
+    try:
+        from datetime import timedelta as _td
+        _pool_cutoff = datetime.utcnow() - _td(days=14)
+        _deleted = JobPool.query.filter(JobPool.fetched_at < _pool_cutoff).delete()
+        db.session.commit()
+        if _deleted:
+            logger.info('Job pool cleanup: removed %d stale entries', _deleted)
+    except Exception as e:
+        logger.info('Job pool cleanup: %s', e)
         db.session.rollback()
 
 # ---------------------------------------------------------------------------
@@ -1305,7 +1333,7 @@ def analyze_jd():
 
 @app.route('/jobs')
 def jobs_page():
-    """Jobs page — search public job listings and match against resume."""
+    """Jobs page — search public job listings with saved filter preferences."""
     if not session.get('user_id'):
         session['_login_next'] = url_for('jobs_page')
         flash('Please sign in to search for jobs.', 'warning')
@@ -1318,15 +1346,33 @@ def jobs_page():
 
     primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
 
+    # Load saved preferences (if any)
+    prefs = JobPreferences.query.filter_by(user_id=user.id).first()
+    show_wizard = not prefs or not prefs.setup_completed
+    preferences_json = json.dumps(prefs.to_dict()) if prefs and prefs.setup_completed else 'null'
+
     return render_template('jobs.html',
                            primary_resume=primary,
                            credits_remaining=user.credits,
+                           show_wizard=show_wizard,
+                           preferences_json=preferences_json,
                            active_section='jobs')
 
 
-@app.route('/jobs/search')
-def jobs_search():
-    """AJAX endpoint — search public job listings via JSearch API."""
+@app.route('/jobs/preferences', methods=['GET'])
+def jobs_get_preferences():
+    """Return user's saved job preferences as JSON."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    prefs = JobPreferences.query.filter_by(user_id=session['user_id']).first()
+    if not prefs:
+        return jsonify({'setup_completed': False})
+    return jsonify(prefs.to_dict())
+
+
+@app.route('/jobs/preferences', methods=['POST'])
+def jobs_save_preferences():
+    """Save or update user's job search preferences."""
     if not session.get('user_id'):
         return jsonify({'error': 'Not authenticated'}), 401
 
@@ -1334,21 +1380,103 @@ def jobs_search():
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
-    query = request.args.get('q', '').strip()
-    location = request.args.get('location', '').strip()
-    employment_type = request.args.get('type', '').strip()
-    experience = request.args.get('experience', '').strip()
-    page = request.args.get('page', 1, type=int)
+    data = request.get_json(silent=True) or {}
 
-    if not query:
-        return jsonify({'error': 'Search query required', 'jobs': [], 'total_count': 0})
+    prefs = JobPreferences.query.filter_by(user_id=user.id).first()
+    if not prefs:
+        prefs = JobPreferences(user_id=user.id)
+        db.session.add(prefs)
 
-    from job_search import search_jobs
-    results = search_jobs(
-        query=query, location=location,
-        employment_type=employment_type,
-        experience=experience, page=page,
-    )
+    prefs.update_from_dict(data)
+
+    try:
+        db.session.commit()
+        logger.info('Saved job preferences for user %s', user.id)
+        return jsonify({'success': True, 'preferences': prefs.to_dict()})
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Failed to save job preferences: %s', e)
+        return jsonify({'error': 'Failed to save preferences'}), 500
+
+
+@app.route('/jobs/skills-suggest')
+def jobs_skills_suggest():
+    """Lightweight autocomplete endpoint for skills tag input."""
+    q = request.args.get('q', '').lower().strip()
+    if len(q) < 2:
+        return jsonify([])
+    from skills_data import ALL_KNOWN_SKILLS
+    matches = sorted([s for s in ALL_KNOWN_SKILLS if q in s.lower()])[:10]
+    return jsonify(matches)
+
+
+@app.route('/jobs/search')
+def jobs_search():
+    """AJAX endpoint — search jobs via saved preferences or direct query."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    use_preferences = request.args.get('use_preferences', '') == '1'
+
+    if use_preferences:
+        # Preference-based search: pool-first, then API fallback
+        prefs_obj = JobPreferences.query.filter_by(user_id=user.id).first()
+        if not prefs_obj or not prefs_obj.setup_completed:
+            return jsonify({'error': 'No saved preferences', 'jobs': [], 'total_count': 0})
+
+        prefs = prefs_obj.to_dict()
+
+        # Check if there's at least one meaningful filter
+        if not prefs.get('job_titles') and not prefs.get('skills'):
+            return jsonify({'error': 'Please add at least one job title or skill in your preferences',
+                            'jobs': [], 'total_count': 0})
+
+        from job_filter import build_jsearch_params, apply_local_filters, search_from_pool
+
+        # Try local pool first
+        pool_results = search_from_pool(prefs)
+        if pool_results is not None:
+            jobs = pool_results
+            source = 'pool'
+        else:
+            # Fall back to API
+            api_params = build_jsearch_params(prefs)
+            from job_search import search_jobs
+            api_results = search_jobs(
+                query=api_params.get('query', ''),
+                location=api_params.get('location', ''),
+                employment_type=api_params.get('employment_type', ''),
+                experience=api_params.get('experience', ''),
+            )
+            if api_results.get('error'):
+                return jsonify(api_results)
+            # Apply local filters on API results
+            jobs = apply_local_filters(api_results.get('jobs', []), prefs)
+            source = 'api'
+
+        results = {'jobs': jobs, 'total_count': len(jobs), 'source': source}
+
+    else:
+        # Direct query search (backward compatible)
+        query = request.args.get('q', '').strip()
+        location = request.args.get('location', '').strip()
+        employment_type = request.args.get('type', '').strip()
+        experience = request.args.get('experience', '').strip()
+        page = request.args.get('page', 1, type=int)
+
+        if not query:
+            return jsonify({'error': 'Search query required', 'jobs': [], 'total_count': 0})
+
+        from job_search import search_jobs
+        results = search_jobs(
+            query=query, location=location,
+            employment_type=employment_type,
+            experience=experience, page=page,
+        )
 
     # Compute quick ATS scores if user has a primary resume
     primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()

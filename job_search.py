@@ -99,6 +99,7 @@ def search_jobs(query, location='', employment_type='',
     # Normalize results
     jobs = []
     for item in data.get('data', []):
+        raw_emp_type = item.get('job_employment_type', '')
         jobs.append({
             'job_id': item.get('job_id', ''),
             'title': item.get('job_title', ''),
@@ -107,8 +108,10 @@ def search_jobs(query, location='', employment_type='',
             'location': _format_location(item),
             'description': (item.get('job_description', '') or '')[:3000],
             'description_snippet': _make_snippet(item.get('job_description', '')),
-            'employment_type': _format_employment_type(item.get('job_employment_type', '')),
+            'employment_type': _format_employment_type(raw_emp_type),
+            'employment_type_raw': raw_emp_type,  # Keep raw for pool storage
             'posted_date': _format_date(item.get('job_posted_at_datetime_utc', '')),
+            'posted_date_raw': item.get('job_posted_at_datetime_utc', ''),  # ISO string for pool
             'apply_url': item.get('job_apply_link', ''),
             'is_remote': item.get('job_is_remote', False),
             'salary_min': item.get('job_min_salary'),
@@ -119,7 +122,7 @@ def search_jobs(query, location='', employment_type='',
 
     result = {'jobs': jobs, 'total_count': len(jobs)}
 
-    # Cache results
+    # Cache results (blob cache for exact query replay)
     try:
         cache_entry = JobSearchCache(
             query_hash=cache_key,
@@ -134,6 +137,9 @@ def search_jobs(query, location='', employment_type='',
     except Exception as e:
         logger.error('Failed to cache job search results: %s', e)
         db.session.rollback()
+
+    # Stock the local job pool with individual records
+    _store_jobs_in_pool(jobs, query)
 
     return result
 
@@ -192,3 +198,59 @@ def _format_date(date_str):
             return dt.strftime('%b %d, %Y')
     except (ValueError, AttributeError):
         return date_str[:10] if len(date_str) >= 10 else date_str
+
+
+def _store_jobs_in_pool(jobs, query):
+    """Upsert individual jobs into the local JobPool for future local search.
+
+    Called after every successful API fetch. Jobs that already exist
+    get their fetched_at timestamp refreshed; new jobs are inserted.
+    """
+    from models import db, JobPool
+
+    if not jobs:
+        return
+
+    stored = 0
+    for job in jobs:
+        try:
+            existing = JobPool.query.filter_by(job_id=job['job_id']).first()
+            if existing:
+                existing.fetched_at = datetime.utcnow()
+                continue
+
+            pool_entry = JobPool(
+                job_id=job['job_id'],
+                title=job.get('title', ''),
+                company=job.get('company', ''),
+                company_logo=job.get('company_logo', ''),
+                location=job.get('location', ''),
+                description=job.get('description', ''),
+                description_snippet=job.get('description_snippet', ''),
+                employment_type=job.get('employment_type_raw', ''),
+                employment_type_display=job.get('employment_type', ''),
+                posted_date_raw=job.get('posted_date_raw', ''),
+                posted_date_display=job.get('posted_date', ''),
+                apply_url=job.get('apply_url', ''),
+                is_remote=job.get('is_remote', False),
+                salary_min=job.get('salary_min'),
+                salary_max=job.get('salary_max'),
+                salary_currency=job.get('salary_currency', ''),
+                salary_period=job.get('salary_period', ''),
+                source_query=query[:500] if query else '',
+                title_lower=(job.get('title', '') or '').lower(),
+                company_lower=(job.get('company', '') or '').lower(),
+                description_lower=((job.get('description', '') or '')[:3000]).lower(),
+            )
+            db.session.add(pool_entry)
+            stored += 1
+        except Exception:
+            continue
+
+    try:
+        db.session.commit()
+        if stored:
+            logger.info('Job pool: stored %d new jobs from query "%s"', stored, query[:50])
+    except Exception as e:
+        logger.error('Failed to store jobs in pool: %s', e)
+        db.session.rollback()

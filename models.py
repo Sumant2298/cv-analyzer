@@ -181,3 +181,168 @@ class JobATSScore(db.Model):
 
     def __repr__(self):
         return f'<JobATSScore user={self.user_id} job={self.job_id[:20]} score={self.ats_score}>'
+
+
+class JobPreferences(db.Model):
+    """Saved job search filter preferences per user.
+
+    One row per user. Multi-value fields stored as JSON text arrays.
+    Covers 4 filter sections: Basic Job Criteria, Compensation,
+    Areas of Interest, Company Insights.
+    """
+    __tablename__ = 'job_preferences'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, unique=True, index=True)
+
+    # Section 1: Basic Job Criteria
+    job_titles = db.Column(db.Text, default='[]')              # JSON array of strings
+    experience_level = db.Column(db.String(30), default='any')  # any|no_experience|under_3_years|more_than_3_years|no_degree
+    employment_types = db.Column(db.Text, default='[]')         # JSON: ["FULLTIME","CONTRACTOR"]
+    work_mode = db.Column(db.String(20), default='any')         # any|remote|hybrid|onsite
+    locations = db.Column(db.Text, default='[]')                # JSON array of strings
+
+    # Section 2: Compensation Range (INR)
+    salary_min = db.Column(db.Integer, nullable=True)           # In INR, e.g. 500000
+    salary_max = db.Column(db.Integer, nullable=True)
+    salary_period = db.Column(db.String(10), default='annual')  # annual|monthly
+
+    # Section 3: Areas of Interest
+    industries = db.Column(db.Text, default='[]')               # JSON array
+    functional_areas = db.Column(db.Text, default='[]')         # JSON array
+    skills = db.Column(db.Text, default='[]')                   # JSON array
+
+    # Section 4: Company Insights
+    company_sizes = db.Column(db.Text, default='[]')            # JSON: ["startup","mid_size","enterprise","mnc"]
+    company_types = db.Column(db.Text, default='[]')            # JSON: ["product","service","consulting","startup"]
+    companies_include = db.Column(db.Text, default='[]')        # JSON array of company names
+    companies_exclude = db.Column(db.Text, default='[]')        # JSON array of company names
+
+    # Meta
+    setup_completed = db.Column(db.Boolean, default=False, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship('User', backref=db.backref('job_preferences', uselist=False))
+
+    def __repr__(self):
+        return f'<JobPreferences user={self.user_id} setup={self.setup_completed}>'
+
+    def _parse_json(self, field_name):
+        """Parse a JSON text field into a Python list."""
+        import json
+        val = getattr(self, field_name, '[]')
+        try:
+            return json.loads(val) if val else []
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    def _set_json(self, field_name, value):
+        """Serialize a list to JSON text and set on the field."""
+        import json
+        setattr(self, field_name, json.dumps(value if value else []))
+
+    def to_dict(self):
+        """Return all preferences as a plain dict for JSON responses / templates."""
+        return {
+            'job_titles': self._parse_json('job_titles'),
+            'experience_level': self.experience_level or 'any',
+            'employment_types': self._parse_json('employment_types'),
+            'work_mode': self.work_mode or 'any',
+            'locations': self._parse_json('locations'),
+            'salary_min': self.salary_min,
+            'salary_max': self.salary_max,
+            'salary_period': self.salary_period or 'annual',
+            'industries': self._parse_json('industries'),
+            'functional_areas': self._parse_json('functional_areas'),
+            'skills': self._parse_json('skills'),
+            'company_sizes': self._parse_json('company_sizes'),
+            'company_types': self._parse_json('company_types'),
+            'companies_include': self._parse_json('companies_include'),
+            'companies_exclude': self._parse_json('companies_exclude'),
+            'setup_completed': self.setup_completed,
+        }
+
+    def update_from_dict(self, data):
+        """Update fields from a plain dict (e.g. from JSON request body)."""
+        import json
+        json_fields = [
+            'job_titles', 'employment_types', 'locations', 'industries',
+            'functional_areas', 'skills', 'company_sizes', 'company_types',
+            'companies_include', 'companies_exclude',
+        ]
+        for field in json_fields:
+            if field in data:
+                val = data[field]
+                setattr(self, field, json.dumps(val if isinstance(val, list) else []))
+
+        str_fields = ['experience_level', 'work_mode', 'salary_period']
+        for field in str_fields:
+            if field in data:
+                setattr(self, field, data[field] or getattr(self, field))
+
+        if 'salary_min' in data:
+            self.salary_min = int(data['salary_min']) if data['salary_min'] else None
+        if 'salary_max' in data:
+            self.salary_max = int(data['salary_max']) if data['salary_max'] else None
+
+        self.setup_completed = True
+        self.updated_at = datetime.utcnow()
+
+
+class JobPool(db.Model):
+    """Local pool of individual job records fetched from JSearch API.
+
+    Stores denormalized job data for local search/filtering without
+    re-calling the API. Each job_id is globally unique.
+    """
+    __tablename__ = 'job_pool'
+
+    id = db.Column(db.Integer, primary_key=True)
+    job_id = db.Column(db.String(256), unique=True, nullable=False, index=True)
+    title = db.Column(db.String(500), nullable=False)
+    company = db.Column(db.String(300), default='')
+    company_logo = db.Column(db.String(512), default='')
+    location = db.Column(db.String(300), default='')
+    description = db.Column(db.Text, default='')
+    description_snippet = db.Column(db.Text, default='')
+    employment_type = db.Column(db.String(30), default='')          # FULLTIME, PARTTIME, etc.
+    employment_type_display = db.Column(db.String(30), default='')  # Full-time, Part-time, etc.
+    posted_date_raw = db.Column(db.String(50), default='')          # ISO date string from API
+    posted_date_display = db.Column(db.String(50), default='')
+    apply_url = db.Column(db.String(1024), default='')
+    is_remote = db.Column(db.Boolean, default=False)
+    salary_min = db.Column(db.Float, nullable=True)
+    salary_max = db.Column(db.Float, nullable=True)
+    salary_currency = db.Column(db.String(10), default='')
+    salary_period = db.Column(db.String(20), default='')
+    fetched_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    source_query = db.Column(db.String(500), default='')
+    # Lowercase copies for efficient SQL LIKE search
+    title_lower = db.Column(db.String(500), default='', index=True)
+    company_lower = db.Column(db.String(300), default='')
+    description_lower = db.Column(db.Text, default='')
+
+    def __repr__(self):
+        return f'<JobPool {self.job_id[:20]} {self.title[:30]}>'
+
+    def to_dict(self):
+        """Convert to dict matching search_jobs() output format."""
+        return {
+            'job_id': self.job_id,
+            'title': self.title,
+            'company': self.company,
+            'company_logo': self.company_logo,
+            'location': self.location,
+            'description': self.description,
+            'description_snippet': self.description_snippet,
+            'employment_type': self.employment_type_display or self.employment_type,
+            'posted_date': self.posted_date_display,
+            'posted_date_raw': self.posted_date_raw,
+            'apply_url': self.apply_url,
+            'is_remote': self.is_remote,
+            'salary_min': self.salary_min,
+            'salary_max': self.salary_max,
+            'salary_currency': self.salary_currency,
+            'salary_period': self.salary_period,
+        }

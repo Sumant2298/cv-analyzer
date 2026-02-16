@@ -11,6 +11,13 @@
             <h1 class="text-2xl font-bold text-slate-800">Find Jobs</h1>
             <p class="text-sm text-slate-500 mt-1">Search public job listings and see how your resume matches</p>
         </div>
+        {% if not show_wizard %}
+        <button onclick="openEditPrefs()" id="editPrefsBtn"
+            class="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+            Edit Filters
+        </button>
+        {% endif %}
     </div>
 
     <!-- Primary Resume Indicator -->
@@ -29,68 +36,349 @@
     </div>
     {% endif %}
 
-    <!-- Search / Filter Form -->
-    <div class="bg-white rounded-2xl shadow-lg border border-slate-200 p-5 mb-6">
-        <form id="jobSearchForm" onsubmit="searchJobs(event)" class="space-y-4">
-            <!-- Row 1: Keyword + Location -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Title / Keywords</label>
-                    <input type="text" name="q" id="search-query" placeholder="e.g. Python Developer, Product Manager"
-                        class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition" required>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Location</label>
-                    <input type="text" name="location" id="search-location" placeholder="e.g. Bangalore, Remote, USA"
-                        class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition">
-                </div>
-            </div>
-            <!-- Row 2: Job Type + Experience -->
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Type</label>
-                    <select name="type" id="search-type" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition bg-white">
-                        <option value="">All Types</option>
-                        <option value="FULLTIME">Full-time</option>
-                        <option value="PARTTIME">Part-time</option>
-                        <option value="CONTRACTOR">Contract</option>
-                        <option value="INTERN">Internship</option>
-                    </select>
-                </div>
-                <div>
-                    <label class="block text-xs font-medium text-slate-600 mb-1.5">Experience Level</label>
-                    <select name="experience" id="search-experience" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none transition bg-white">
-                        <option value="">Any Level</option>
-                        <option value="no_experience">Entry Level / No Experience</option>
-                        <option value="under_3_years">Under 3 Years</option>
-                        <option value="more_than_3_years">3+ Years</option>
-                        <option value="no_degree">No Degree Required</option>
-                    </select>
-                </div>
-            </div>
-            <!-- Search Button -->
-            <div class="flex items-center gap-3">
-                <button type="submit" id="searchBtn"
-                    class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-8 rounded-xl shadow-lg transition text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
-                    Search Jobs
-                </button>
-                <span id="result-count" class="text-xs text-slate-400 hidden"></span>
-            </div>
-        </form>
+    <!-- Preferences Summary Bar (return visits only) -->
+    <div id="prefs-summary" class="hidden bg-white rounded-xl border border-slate-200 p-3 mb-6 shadow-sm">
+        <div class="flex items-center gap-2 flex-wrap">
+            <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
+            <span id="prefs-summary-text" class="text-xs text-slate-600"></span>
+        </div>
     </div>
 
-    <!-- Results Area -->
+    <!-- ===== WIZARD MODAL (first visit) ===== -->
+    {% if show_wizard %}
+    <div id="wizard-overlay" class="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" style="backdrop-filter:blur(4px)">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+            <!-- Wizard Header -->
+            <div class="p-6 pb-4 border-b border-slate-100">
+                <h2 class="text-xl font-bold text-slate-800">Set Up Your Job Preferences</h2>
+                <p class="text-sm text-slate-500 mt-1">Tell us what you're looking for. We'll save these and find matching jobs for you.</p>
+                <!-- Step indicators -->
+                <div class="flex gap-2 mt-4">
+                    <div id="step-dot-1" class="h-1.5 flex-1 rounded-full bg-brand-500 transition-colors"></div>
+                    <div id="step-dot-2" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+                    <div id="step-dot-3" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+                    <div id="step-dot-4" class="h-1.5 flex-1 rounded-full bg-slate-200 transition-colors"></div>
+                </div>
+            </div>
+
+            <div class="p-6">
+                <!-- Step 1: Basic Job Criteria -->
+                <div id="wiz-step-1" class="wiz-step">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">1</span>
+                        Basic Job Criteria
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Job Titles / Roles you're looking for</label>
+                            <div id="wiz-job-titles" class="tag-input-wrap"></div>
+                            <p class="text-[10px] text-slate-400 mt-1">Type and press Enter to add multiple</p>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1.5">Experience Level</label>
+                                <select id="wiz-experience" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                                    <option value="any">Any Level</option>
+                                    <option value="no_experience">Entry Level / No Experience</option>
+                                    <option value="under_3_years">Under 3 Years</option>
+                                    <option value="more_than_3_years">3+ Years</option>
+                                    <option value="no_degree">No Degree Required</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1.5">Work Mode</label>
+                                <div id="wiz-work-mode" class="flex flex-wrap gap-2">
+                                    <button type="button" onclick="togglePill(this,'wiz-work-mode')" data-value="any" class="pill-btn active text-xs px-3 py-1.5 rounded-full border transition">Any</button>
+                                    <button type="button" onclick="togglePill(this,'wiz-work-mode')" data-value="remote" class="pill-btn text-xs px-3 py-1.5 rounded-full border transition">Remote</button>
+                                    <button type="button" onclick="togglePill(this,'wiz-work-mode')" data-value="hybrid" class="pill-btn text-xs px-3 py-1.5 rounded-full border transition">Hybrid</button>
+                                    <button type="button" onclick="togglePill(this,'wiz-work-mode')" data-value="onsite" class="pill-btn text-xs px-3 py-1.5 rounded-full border transition">On-site</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Employment Type</label>
+                            <div id="wiz-emp-types" class="flex flex-wrap gap-2">
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="FULLTIME" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Full-time</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="PARTTIME" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Part-time</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="CONTRACTOR" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Contract</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="INTERN" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Internship</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Preferred Locations</label>
+                            <div id="wiz-locations" class="tag-input-wrap"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: Compensation Range -->
+                <div id="wiz-step-2" class="wiz-step hidden">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">2</span>
+                        Compensation Range
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Quick Select (LPA = Lakhs Per Annum)</label>
+                            <div class="flex flex-wrap gap-2">
+                                <button type="button" onclick="setSalaryPreset(300000,600000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">3-6 LPA</button>
+                                <button type="button" onclick="setSalaryPreset(600000,1200000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">6-12 LPA</button>
+                                <button type="button" onclick="setSalaryPreset(1200000,2500000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">12-25 LPA</button>
+                                <button type="button" onclick="setSalaryPreset(2500000,5000000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">25-50 LPA</button>
+                                <button type="button" onclick="setSalaryPreset(5000000,null)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">50+ LPA</button>
+                            </div>
+                        </div>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1.5">Minimum Salary (INR)</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">&#8377;</span>
+                                    <input type="number" id="wiz-salary-min" placeholder="e.g. 600000"
+                                        class="w-full border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                                </div>
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-slate-600 mb-1.5">Maximum Salary (INR)</label>
+                                <div class="relative">
+                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">&#8377;</span>
+                                    <input type="number" id="wiz-salary-max" placeholder="e.g. 2500000"
+                                        class="w-full border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
+                                </div>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Salary Period</label>
+                            <div class="flex gap-2">
+                                <button type="button" onclick="togglePill(this,'wiz-salary-period')" data-value="annual" class="pill-btn active text-xs px-4 py-1.5 rounded-full border transition" id="wiz-salary-period-annual">Annual</button>
+                                <button type="button" onclick="togglePill(this,'wiz-salary-period')" data-value="monthly" class="pill-btn text-xs px-4 py-1.5 rounded-full border transition" id="wiz-salary-period-monthly">Monthly</button>
+                            </div>
+                        </div>
+                        <p class="text-[10px] text-slate-400">Jobs without salary info are always shown. Leave blank to skip salary filtering.</p>
+                    </div>
+                </div>
+
+                <!-- Step 3: Areas of Interest -->
+                <div id="wiz-step-3" class="wiz-step hidden">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">3</span>
+                        Areas of Interest
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Industries</label>
+                            <div id="wiz-industries" class="flex flex-wrap gap-2">
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="IT & Software" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">IT & Software</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Finance & Banking" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Finance & Banking</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Healthcare" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Healthcare</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="E-commerce" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">E-commerce</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Education" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Education</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Manufacturing" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Manufacturing</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Consulting" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Consulting</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Media & Entertainment" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Media & Entertainment</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Telecom" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Telecom</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Government & PSU" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Government & PSU</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Functional Areas</label>
+                            <div id="wiz-functional" class="flex flex-wrap gap-2">
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Engineering" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Engineering</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Product" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Product</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Design" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Design</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Marketing" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Marketing</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Sales" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Sales</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="HR & People Ops" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">HR & People Ops</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Finance & Accounting" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Finance & Accounting</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Operations" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Operations</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Data Science & Analytics" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Data Science & Analytics</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="DevOps & Infra" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">DevOps & Infra</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="QA & Testing" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">QA & Testing</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Customer Support" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Customer Support</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="Management" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Management</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Skills / Technologies</label>
+                            <div id="wiz-skills" class="tag-input-wrap" data-autocomplete="true"></div>
+                            <p class="text-[10px] text-slate-400 mt-1">Type to search skills (e.g. Python, React, AWS)</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 4: Company Insights -->
+                <div id="wiz-step-4" class="wiz-step hidden">
+                    <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">4</span>
+                        Company Insights
+                    </h3>
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Preferred Company Size</label>
+                            <div id="wiz-company-sizes" class="flex flex-wrap gap-2">
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="startup" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Startup (1-50)</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="mid_size" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Mid-size (51-500)</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="enterprise" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Large (500-5000)</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="mnc" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">MNC (5000+)</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-2">Company Type</label>
+                            <div id="wiz-company-types" class="flex flex-wrap gap-2">
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="product" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Product</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="service" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Service / IT</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="consulting" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Consulting</button>
+                                <button type="button" onclick="toggleMultiPill(this)" data-value="startup" class="mpill-btn text-xs px-3 py-1.5 rounded-full border transition">Startup</button>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Companies to Include</label>
+                            <div id="wiz-companies-include" class="tag-input-wrap"></div>
+                            <p class="text-[10px] text-slate-400 mt-1">Only show jobs from these companies (leave blank for all)</p>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1.5">Companies to Exclude</label>
+                            <div id="wiz-companies-exclude" class="tag-input-wrap"></div>
+                            <p class="text-[10px] text-slate-400 mt-1">Hide jobs from these companies</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Wizard Footer -->
+            <div class="p-6 pt-4 border-t border-slate-100 flex items-center justify-between">
+                <button type="button" onclick="skipWizard()" class="text-xs text-slate-400 hover:text-slate-600 transition">Skip for now</button>
+                <div class="flex gap-3">
+                    <button type="button" id="wiz-back-btn" onclick="wizStep(-1)" class="hidden text-sm font-medium text-slate-600 hover:text-slate-800 px-4 py-2 rounded-xl transition">Back</button>
+                    <button type="button" id="wiz-next-btn" onclick="wizStep(1)"
+                        class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg transition text-sm">
+                        Next
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- ===== FILTER PANEL (return visits — collapsible) ===== -->
+    <div id="filter-panel" class="hidden bg-white rounded-2xl shadow-lg border border-slate-200 mb-6 overflow-hidden">
+        <div class="p-5 space-y-4">
+            <!-- Accordion sections use same IDs but with 'fp-' prefix -->
+            <!-- Section 1 -->
+            <div class="border border-slate-100 rounded-xl overflow-hidden">
+                <button type="button" onclick="toggleAccordion('fp-sec-1')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <span>Basic Job Criteria</span>
+                    <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="fp-sec-1" class="hidden p-3 pt-0 space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Job Titles / Roles</label>
+                        <div id="fp-job-titles" class="tag-input-wrap"></div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Experience</label>
+                            <select id="fp-experience" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white">
+                                <option value="any">Any Level</option>
+                                <option value="no_experience">Entry Level</option>
+                                <option value="under_3_years">Under 3 Years</option>
+                                <option value="more_than_3_years">3+ Years</option>
+                                <option value="no_degree">No Degree Required</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Work Mode</label>
+                            <div id="fp-work-mode" class="flex flex-wrap gap-1.5">
+                                <button type="button" onclick="togglePill(this,'fp-work-mode')" data-value="any" class="pill-btn active text-[10px] px-2.5 py-1 rounded-full border transition">Any</button>
+                                <button type="button" onclick="togglePill(this,'fp-work-mode')" data-value="remote" class="pill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Remote</button>
+                                <button type="button" onclick="togglePill(this,'fp-work-mode')" data-value="hybrid" class="pill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Hybrid</button>
+                                <button type="button" onclick="togglePill(this,'fp-work-mode')" data-value="onsite" class="pill-btn text-[10px] px-2.5 py-1 rounded-full border transition">On-site</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Employment Type</label>
+                        <div id="fp-emp-types" class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="FULLTIME" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Full-time</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="PARTTIME" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Part-time</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="CONTRACTOR" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Contract</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="INTERN" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Internship</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Locations</label>
+                        <div id="fp-locations" class="tag-input-wrap"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Section 2 -->
+            <div class="border border-slate-100 rounded-xl overflow-hidden">
+                <button type="button" onclick="toggleAccordion('fp-sec-2')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <span>Compensation Range</span>
+                    <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="fp-sec-2" class="hidden p-3 pt-0 space-y-3">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Min (INR)</label>
+                            <input type="number" id="fp-salary-min" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 600000">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Max (INR)</label>
+                            <input type="number" id="fp-salary-max" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 2500000">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <!-- Section 3 -->
+            <div class="border border-slate-100 rounded-xl overflow-hidden">
+                <button type="button" onclick="toggleAccordion('fp-sec-3')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <span>Areas of Interest</span>
+                    <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="fp-sec-3" class="hidden p-3 pt-0 space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Skills</label>
+                        <div id="fp-skills" class="tag-input-wrap" data-autocomplete="true"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Section 4 -->
+            <div class="border border-slate-100 rounded-xl overflow-hidden">
+                <button type="button" onclick="toggleAccordion('fp-sec-4')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
+                    <span>Company Insights</span>
+                    <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="fp-sec-4" class="hidden p-3 pt-0 space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Exclude Companies</label>
+                        <div id="fp-companies-exclude" class="tag-input-wrap"></div>
+                    </div>
+                </div>
+            </div>
+            <!-- Update Button -->
+            <div class="flex items-center gap-3 pt-2">
+                <button type="button" onclick="updateAndSearch()" id="updateSearchBtn"
+                    class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-6 rounded-xl shadow-lg transition text-sm disabled:opacity-50">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    Update & Search
+                </button>
+                <button type="button" onclick="closeFilterPanel()" class="text-xs text-slate-400 hover:text-slate-600 transition">Cancel</button>
+                <span id="result-count" class="text-xs text-slate-400 hidden ml-auto"></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== RESULTS AREA ===== -->
     <div id="results-area">
-        <!-- Empty state (shown initially) -->
+        <!-- Empty state -->
         <div id="empty-state" class="bg-white rounded-2xl shadow-lg border border-slate-100 p-12 text-center">
             <div class="w-20 h-20 bg-brand-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
                 <svg class="w-10 h-10 text-brand-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
             </div>
             <h3 class="text-xl font-bold text-slate-900 mb-2">Search for Jobs</h3>
-            <p class="text-slate-500 max-w-sm mx-auto text-sm">Enter a job title or keywords above to find matching positions. We'll show you how well your resume matches each listing.</p>
+            <p class="text-slate-500 max-w-sm mx-auto text-sm">Set up your preferences to find matching positions. We'll show how well your resume matches each listing.</p>
         </div>
-
         <!-- Loading state -->
         <div id="loading-state" class="hidden text-center py-16">
             <div class="relative w-16 h-16 mx-auto mb-4">
@@ -103,78 +391,384 @@
             <p class="text-sm text-slate-500 font-medium">Searching jobs & calculating match scores...</p>
             <p class="text-xs text-slate-400 mt-1">This may take a few seconds</p>
         </div>
-
         <!-- Error state -->
         <div id="error-state" class="hidden bg-red-50 border border-red-200 rounded-2xl p-8 text-center">
             <svg class="w-10 h-10 text-red-400 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
             <h3 class="text-base font-bold text-red-800 mb-1">Search Error</h3>
             <p id="error-message" class="text-sm text-red-600"></p>
         </div>
-
-        <!-- No results state -->
+        <!-- No results -->
         <div id="no-results" class="hidden bg-white rounded-2xl shadow-lg border border-slate-100 p-12 text-center">
             <svg class="w-12 h-12 text-slate-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
             <h3 class="text-lg font-bold text-slate-700 mb-1">No Jobs Found</h3>
-            <p class="text-sm text-slate-500">Try broadening your search terms or changing your filters.</p>
+            <p class="text-sm text-slate-500">Try broadening your filters or changing your preferences.</p>
         </div>
-
-        <!-- Results grid (populated by JS) -->
+        <!-- Results grid -->
         <div id="jobs-grid" class="hidden space-y-4"></div>
     </div>
 
 </div>
 
+<!-- ===== STYLES ===== -->
+<style>
+.pill-btn { border-color: #e2e8f0; color: #64748b; background: white; }
+.pill-btn.active { border-color: #6366f1; color: #6366f1; background: #eef2ff; font-weight: 600; }
+.mpill-btn { border-color: #e2e8f0; color: #64748b; background: white; }
+.mpill-btn.active { border-color: #6366f1; color: #6366f1; background: #eef2ff; font-weight: 600; }
+.tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; min-height: 42px; padding: 6px 10px; border: 1px solid #e2e8f0; border-radius: 12px; background: white; cursor: text; position: relative; }
+.tag-input-wrap:focus-within { border-color: #6366f1; box-shadow: 0 0 0 2px rgba(99,102,241,0.2); }
+.tag-input-wrap .tag-chip { display: inline-flex; align-items: center; gap: 4px; background: #eef2ff; color: #4338ca; font-size: 12px; font-weight: 500; padding: 2px 8px; border-radius: 999px; white-space: nowrap; }
+.tag-input-wrap .tag-chip button { cursor: pointer; color: #6366f1; font-size: 14px; line-height: 1; opacity: 0.6; }
+.tag-input-wrap .tag-chip button:hover { opacity: 1; }
+.tag-input-wrap input { border: none; outline: none; flex: 1; min-width: 100px; font-size: 13px; padding: 4px 0; background: transparent; }
+.tag-autocomplete { position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #e2e8f0; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); z-index: 20; max-height: 180px; overflow-y: auto; display: none; }
+.tag-autocomplete.show { display: block; }
+.tag-autocomplete div { padding: 8px 12px; font-size: 13px; cursor: pointer; color: #334155; }
+.tag-autocomplete div:hover { background: #f1f5f9; }
+.accordion-chevron.open { transform: rotate(180deg); }
+</style>
+
+<!-- ===== JAVASCRIPT ===== -->
 <script>
 let currentCredits = {{ credits_remaining }};
+let savedPrefs = {{ preferences_json|safe }};
+let currentWizStep = 1;
+const totalWizSteps = 4;
 
-async function searchJobs(e) {
-    e.preventDefault();
+// Tag input instances (keyed by container ID)
+const tagInstances = {};
 
-    const query = document.getElementById('search-query').value.trim();
-    const location = document.getElementById('search-location').value.trim();
-    const type = document.getElementById('search-type').value;
-    const experience = document.getElementById('search-experience').value;
+// ===================== TAG INPUT WIDGET =====================
+function initTagInput(containerId, initialTags) {
+    const wrap = document.getElementById(containerId);
+    if (!wrap) return;
+    const hasAC = wrap.dataset.autocomplete === 'true';
 
-    if (!query) return;
+    // Clear existing
+    wrap.innerHTML = '';
+    const tags = [];
 
-    // Show loading
-    document.getElementById('empty-state').classList.add('hidden');
-    document.getElementById('no-results').classList.add('hidden');
-    document.getElementById('jobs-grid').classList.add('hidden');
-    document.getElementById('error-state').classList.add('hidden');
-    document.getElementById('loading-state').classList.remove('hidden');
-    document.getElementById('result-count').classList.add('hidden');
-    document.getElementById('searchBtn').disabled = true;
+    // Build input
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Type and press Enter...';
 
-    const params = new URLSearchParams({ q: query, location, type, experience });
+    // Autocomplete dropdown
+    let acDropdown = null;
+    let acTimeout = null;
+    if (hasAC) {
+        acDropdown = document.createElement('div');
+        acDropdown.className = 'tag-autocomplete';
+        wrap.appendChild(acDropdown);
+    }
+
+    function addTag(text) {
+        text = text.trim();
+        if (!text || tags.includes(text)) return;
+        tags.push(text);
+        const chip = document.createElement('span');
+        chip.className = 'tag-chip';
+        chip.innerHTML = escHtml(text) + '<button type="button">&times;</button>';
+        chip.querySelector('button').onclick = () => { chip.remove(); tags.splice(tags.indexOf(text), 1); };
+        wrap.insertBefore(chip, input);
+        input.value = '';
+        if (acDropdown) acDropdown.classList.remove('show');
+    }
+
+    input.addEventListener('keydown', (e) => {
+        if ((e.key === 'Enter' || e.key === ',') && input.value.trim()) {
+            e.preventDefault();
+            addTag(input.value);
+        }
+        if (e.key === 'Backspace' && !input.value && tags.length) {
+            const last = tags.pop();
+            const chips = wrap.querySelectorAll('.tag-chip');
+            if (chips.length) chips[chips.length - 1].remove();
+        }
+    });
+
+    // Autocomplete for skills
+    if (hasAC) {
+        input.addEventListener('input', () => {
+            clearTimeout(acTimeout);
+            const q = input.value.trim();
+            if (q.length < 2) { acDropdown.classList.remove('show'); return; }
+            acTimeout = setTimeout(async () => {
+                try {
+                    const resp = await fetch('/jobs/skills-suggest?q=' + encodeURIComponent(q));
+                    const results = await resp.json();
+                    acDropdown.innerHTML = '';
+                    results.filter(s => !tags.includes(s)).forEach(s => {
+                        const div = document.createElement('div');
+                        div.textContent = s;
+                        div.onclick = () => { addTag(s); };
+                        acDropdown.appendChild(div);
+                    });
+                    acDropdown.classList.toggle('show', acDropdown.children.length > 0);
+                } catch(e) { acDropdown.classList.remove('show'); }
+            }, 300);
+        });
+        // Close on outside click
+        document.addEventListener('click', (e) => {
+            if (!wrap.contains(e.target)) acDropdown.classList.remove('show');
+        });
+    }
+
+    wrap.appendChild(input);
+    wrap.addEventListener('click', () => input.focus());
+
+    // Add initial tags
+    (initialTags || []).forEach(t => addTag(t));
+
+    tagInstances[containerId] = { getTags: () => [...tags], addTag };
+}
+
+// ===================== PILL TOGGLES =====================
+function togglePill(btn, groupId) {
+    // Single-select: deactivate siblings, activate this
+    const container = groupId ? document.getElementById(groupId) : btn.parentElement;
+    if (!container) return;
+    container.querySelectorAll('.pill-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+}
+
+function toggleMultiPill(btn) {
+    btn.classList.toggle('active');
+}
+
+function getActivePill(groupId) {
+    const el = document.getElementById(groupId);
+    if (!el) return 'any';
+    const active = el.querySelector('.pill-btn.active');
+    return active ? active.dataset.value : 'any';
+}
+
+function getActiveMultiPills(groupId) {
+    const el = document.getElementById(groupId);
+    if (!el) return [];
+    return Array.from(el.querySelectorAll('.mpill-btn.active')).map(b => b.dataset.value);
+}
+
+function setActivePill(groupId, value) {
+    const el = document.getElementById(groupId);
+    if (!el) return;
+    el.querySelectorAll('.pill-btn').forEach(b => {
+        b.classList.toggle('active', b.dataset.value === value);
+    });
+}
+
+function setActiveMultiPills(groupId, values) {
+    const el = document.getElementById(groupId);
+    if (!el) return;
+    el.querySelectorAll('.mpill-btn').forEach(b => {
+        b.classList.toggle('active', (values || []).includes(b.dataset.value));
+    });
+}
+
+// ===================== ACCORDION =====================
+function toggleAccordion(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const isHidden = el.classList.contains('hidden');
+    el.classList.toggle('hidden');
+    const chevron = el.previousElementSibling.querySelector('.accordion-chevron');
+    if (chevron) chevron.classList.toggle('open', isHidden);
+}
+
+// ===================== SALARY PRESETS =====================
+function setSalaryPreset(min, max) {
+    const minEl = document.getElementById('wiz-salary-min') || document.getElementById('fp-salary-min');
+    const maxEl = document.getElementById('wiz-salary-max') || document.getElementById('fp-salary-max');
+    if (minEl) minEl.value = min || '';
+    if (maxEl) maxEl.value = max || '';
+}
+
+// ===================== WIZARD NAVIGATION =====================
+function wizStep(dir) {
+    const next = currentWizStep + dir;
+    if (next < 1 || next > totalWizSteps) {
+        if (next > totalWizSteps) savePreferencesAndSearch('wiz');
+        return;
+    }
+    document.getElementById('wiz-step-' + currentWizStep).classList.add('hidden');
+    document.getElementById('wiz-step-' + next).classList.remove('hidden');
+    currentWizStep = next;
+
+    // Update dots
+    for (let i = 1; i <= totalWizSteps; i++) {
+        document.getElementById('step-dot-' + i).className = 'h-1.5 flex-1 rounded-full transition-colors ' + (i <= currentWizStep ? 'bg-brand-500' : 'bg-slate-200');
+    }
+
+    // Show/hide back button
+    document.getElementById('wiz-back-btn').classList.toggle('hidden', currentWizStep === 1);
+
+    // Change next button text on last step
+    const nextBtn = document.getElementById('wiz-next-btn');
+    if (currentWizStep === totalWizSteps) {
+        nextBtn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg> Save & Search Jobs';
+    } else {
+        nextBtn.innerHTML = 'Next <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>';
+    }
+}
+
+function skipWizard() {
+    const overlay = document.getElementById('wizard-overlay');
+    if (overlay) overlay.remove();
+}
+
+// ===================== COLLECT PREFERENCES =====================
+function collectPreferences(prefix) {
+    return {
+        job_titles: tagInstances[prefix + '-job-titles'] ? tagInstances[prefix + '-job-titles'].getTags() : [],
+        experience_level: (document.getElementById(prefix + '-experience') || {}).value || 'any',
+        employment_types: getActiveMultiPills(prefix + '-emp-types'),
+        work_mode: getActivePill(prefix + '-work-mode'),
+        locations: tagInstances[prefix + '-locations'] ? tagInstances[prefix + '-locations'].getTags() : [],
+        salary_min: (document.getElementById(prefix + '-salary-min') || {}).value || null,
+        salary_max: (document.getElementById(prefix + '-salary-max') || {}).value || null,
+        salary_period: getActivePill(prefix + '-salary-period') || 'annual',
+        industries: getActiveMultiPills(prefix + '-industries'),
+        functional_areas: getActiveMultiPills(prefix + '-functional'),
+        skills: tagInstances[prefix + '-skills'] ? tagInstances[prefix + '-skills'].getTags() : [],
+        company_sizes: getActiveMultiPills(prefix + '-company-sizes'),
+        company_types: getActiveMultiPills(prefix + '-company-types'),
+        companies_include: tagInstances[prefix + '-companies-include'] ? tagInstances[prefix + '-companies-include'].getTags() : [],
+        companies_exclude: tagInstances[prefix + '-companies-exclude'] ? tagInstances[prefix + '-companies-exclude'].getTags() : [],
+    };
+}
+
+// ===================== SAVE & SEARCH =====================
+async function savePreferencesAndSearch(prefix) {
+    const prefs = collectPreferences(prefix);
+
+    // Save to server
     try {
-        const resp = await fetch('/jobs/search?' + params);
+        const resp = await fetch('/jobs/preferences', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(prefs),
+        });
         const data = await resp.json();
-        document.getElementById('loading-state').classList.add('hidden');
-        document.getElementById('searchBtn').disabled = false;
+        if (data.success) {
+            savedPrefs = data.preferences;
+        }
+    } catch (e) {
+        console.error('Failed to save preferences:', e);
+    }
+
+    // Close wizard if open
+    const overlay = document.getElementById('wizard-overlay');
+    if (overlay) overlay.remove();
+
+    // Update summary bar
+    updatePrefsSummary(prefs);
+
+    // Show edit button
+    const editBtn = document.getElementById('editPrefsBtn');
+    if (editBtn) editBtn.classList.remove('hidden');
+
+    // Trigger search
+    searchWithPrefs();
+}
+
+async function updateAndSearch() {
+    await savePreferencesAndSearch('fp');
+    closeFilterPanel();
+}
+
+// ===================== SEARCH FUNCTIONS =====================
+async function searchWithPrefs() {
+    showState('loading');
+
+    try {
+        const resp = await fetch('/jobs/search?use_preferences=1');
+        const data = await resp.json();
 
         if (data.error) {
             document.getElementById('error-message').textContent = data.error;
-            document.getElementById('error-state').classList.remove('hidden');
+            showState('error');
             return;
         }
 
         if (!data.jobs || data.jobs.length === 0) {
-            document.getElementById('no-results').classList.remove('hidden');
+            showState('no-results');
             return;
         }
 
-        document.getElementById('result-count').textContent = data.jobs.length + ' job' + (data.jobs.length !== 1 ? 's' : '') + ' found';
-        document.getElementById('result-count').classList.remove('hidden');
+        const countEl = document.getElementById('result-count');
+        countEl.textContent = data.jobs.length + ' job' + (data.jobs.length !== 1 ? 's' : '') + ' found' + (data.source === 'pool' ? ' (cached)' : '');
+        countEl.classList.remove('hidden');
         renderJobs(data.jobs);
+        showState('grid');
     } catch (err) {
-        document.getElementById('loading-state').classList.add('hidden');
-        document.getElementById('searchBtn').disabled = false;
         document.getElementById('error-message').textContent = 'Network error. Please try again.';
-        document.getElementById('error-state').classList.remove('hidden');
+        showState('error');
     }
 }
 
+function showState(state) {
+    ['empty-state', 'loading-state', 'error-state', 'no-results', 'jobs-grid'].forEach(id => {
+        document.getElementById(id).classList.add('hidden');
+    });
+    const map = { empty: 'empty-state', loading: 'loading-state', error: 'error-state', 'no-results': 'no-results', grid: 'jobs-grid' };
+    if (map[state]) document.getElementById(map[state]).classList.remove('hidden');
+}
+
+// ===================== PREFERENCES SUMMARY =====================
+function updatePrefsSummary(prefs) {
+    const parts = [];
+    if (prefs.job_titles && prefs.job_titles.length) parts.push(prefs.job_titles.slice(0, 2).join(', '));
+    if (prefs.locations && prefs.locations.length) parts.push(prefs.locations.slice(0, 2).join(', '));
+    const empMap = { FULLTIME: 'Full-time', PARTTIME: 'Part-time', CONTRACTOR: 'Contract', INTERN: 'Internship' };
+    if (prefs.employment_types && prefs.employment_types.length) parts.push(prefs.employment_types.map(t => empMap[t] || t).join(', '));
+    if (prefs.work_mode && prefs.work_mode !== 'any') parts.push(prefs.work_mode.charAt(0).toUpperCase() + prefs.work_mode.slice(1));
+    if (prefs.salary_min || prefs.salary_max) {
+        const fmt = n => (n / 100000).toFixed(1) + 'L';
+        if (prefs.salary_min && prefs.salary_max) parts.push(fmt(prefs.salary_min) + '-' + fmt(prefs.salary_max));
+        else if (prefs.salary_min) parts.push(fmt(prefs.salary_min) + '+');
+        else parts.push('Up to ' + fmt(prefs.salary_max));
+    }
+    if (prefs.skills && prefs.skills.length) parts.push(prefs.skills.slice(0, 3).join(', '));
+
+    const summaryEl = document.getElementById('prefs-summary');
+    const textEl = document.getElementById('prefs-summary-text');
+    if (parts.length) {
+        textEl.textContent = parts.join('  \u00b7  ');
+        summaryEl.classList.remove('hidden');
+    } else {
+        summaryEl.classList.add('hidden');
+    }
+}
+
+// ===================== FILTER PANEL =====================
+function openEditPrefs() {
+    const panel = document.getElementById('filter-panel');
+    panel.classList.remove('hidden');
+
+    // Init tag inputs for filter panel with saved values
+    if (savedPrefs) {
+        initTagInput('fp-job-titles', savedPrefs.job_titles);
+        initTagInput('fp-locations', savedPrefs.locations);
+        initTagInput('fp-skills', savedPrefs.skills);
+        initTagInput('fp-companies-exclude', savedPrefs.companies_exclude);
+        document.getElementById('fp-experience').value = savedPrefs.experience_level || 'any';
+        setActivePill('fp-work-mode', savedPrefs.work_mode || 'any');
+        setActiveMultiPills('fp-emp-types', savedPrefs.employment_types);
+        document.getElementById('fp-salary-min').value = savedPrefs.salary_min || '';
+        document.getElementById('fp-salary-max').value = savedPrefs.salary_max || '';
+    } else {
+        initTagInput('fp-job-titles', []);
+        initTagInput('fp-locations', []);
+        initTagInput('fp-skills', []);
+        initTagInput('fp-companies-exclude', []);
+    }
+}
+
+function closeFilterPanel() {
+    document.getElementById('filter-panel').classList.add('hidden');
+}
+
+// ===================== RENDER JOBS (unchanged logic) =====================
 function renderJobs(jobs) {
     const grid = document.getElementById('jobs-grid');
     grid.innerHTML = '';
@@ -184,7 +778,6 @@ function renderJobs(jobs) {
         card.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition';
         card.id = 'job-card-' + idx;
 
-        // ATS score badge
         let scoreBadge = '';
         if (job.ats_score !== null && job.ats_score !== undefined) {
             const s = job.ats_score;
@@ -194,30 +787,25 @@ function renderJobs(jobs) {
             else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
             else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
             else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
-            scoreBadge = `
-                <div class="text-center flex-shrink-0">
-                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
-                    <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
-                </div>`;
+            scoreBadge = `<div class="text-center flex-shrink-0">
+                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
+                <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
+            </div>`;
         }
 
-        // Tags
         let tags = '';
         if (job.employment_type) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${job.employment_type}</span>`;
         if (job.is_remote) tags += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Remote</span>';
         if (job.salary_min) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">${formatSalary(job)}</span>`;
         if (job.posted_date) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">${job.posted_date}</span>`;
 
-        // Company logo
         const logo = job.company_logo
             ? `<img src="${escHtml(job.company_logo)}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<span class=\\'text-lg font-bold text-slate-400\\'>${escHtml((job.company || '?')[0])}</span>'">`
             : `<span class="text-lg font-bold text-slate-400">${escHtml((job.company || '?')[0])}</span>`;
 
         card.innerHTML = `
             <div class="flex items-start gap-4">
-                <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
-                    ${logo}
-                </div>
+                <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">${logo}</div>
                 <div class="flex-1 min-w-0">
                     <h3 class="text-sm font-bold text-slate-800 leading-snug">${escHtml(job.title)}</h3>
                     <p class="text-xs text-slate-500 mt-0.5">${escHtml(job.company)}${job.location ? ' &middot; ' + escHtml(job.location) : ''}</p>
@@ -234,31 +822,22 @@ function renderJobs(jobs) {
                 </div>
                 <div class="hidden sm:block">${scoreBadge}</div>
             </div>
-            <!-- Mobile score -->
             ${scoreBadge ? `<div class="sm:hidden flex justify-end mt-3 pt-3 border-t border-slate-100">${scoreBadge}</div>` : ''}
         `;
         grid.appendChild(card);
     });
 
     grid.classList.remove('hidden');
-
-    // Store jobs data globally for deep analyze
     window._jobResults = jobs;
 }
 
+// ===================== DEEP ANALYZE (unchanged) =====================
 async function deepAnalyze(idx, btn) {
     const job = window._jobResults[idx];
     if (!job) return;
+    if (currentCredits < 3) { alert('You need 3 credits. You have ' + currentCredits + '. Buy more first.'); return; }
+    if (!confirm('Deep ATS analysis costs 3 credits. You have ' + currentCredits + '. Proceed?')) return;
 
-    if (currentCredits < 3) {
-        alert('You need 3 credits for deep analysis. You have ' + currentCredits + '. Buy more credits first.');
-        return;
-    }
-
-    // Confirm
-    if (!confirm('Deep ATS analysis costs 3 credits. You have ' + currentCredits + ' credits. Proceed?')) return;
-
-    // Show loading on button
     const origHTML = btn.innerHTML;
     btn.disabled = true;
     btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Analyzing...';
@@ -267,27 +846,12 @@ async function deepAnalyze(idx, btn) {
         const resp = await fetch('/jobs/deep-analyze', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                job_id: job.job_id,
-                description: job.description,
-            }),
+            body: JSON.stringify({ job_id: job.job_id, description: job.description }),
         });
-
         const data = await resp.json();
+        if (data.error) { alert(data.error); btn.disabled = false; btn.innerHTML = origHTML; return; }
+        if (data.credits_remaining !== undefined) currentCredits = data.credits_remaining;
 
-        if (data.error) {
-            alert(data.error);
-            btn.disabled = false;
-            btn.innerHTML = origHTML;
-            return;
-        }
-
-        // Update credits
-        if (data.credits_remaining !== undefined) {
-            currentCredits = data.credits_remaining;
-        }
-
-        // Update the score badge on the card
         const card = document.getElementById('job-card-' + idx);
         if (card && data.ats_score !== undefined) {
             const s = data.ats_score;
@@ -297,32 +861,14 @@ async function deepAnalyze(idx, btn) {
             else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
             else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
             else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
-
-            const newBadge = `<div class="text-center flex-shrink-0">
-                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
-                <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
-                <span class="block mt-0.5 text-[8px] text-slate-400">AI Score</span>
-            </div>`;
-
-            // Update desktop score
-            const desktopScore = card.querySelector('.hidden.sm\\:block');
-            if (desktopScore) desktopScore.innerHTML = newBadge;
-
-            // Update mobile score
-            const mobileScore = card.querySelector('.sm\\:hidden.flex.justify-end');
-            if (mobileScore) mobileScore.innerHTML = newBadge;
+            const newBadge = `<div class="text-center flex-shrink-0"><span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span><span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span><span class="block mt-0.5 text-[8px] text-slate-400">AI Score</span></div>`;
+            const ds = card.querySelector('.hidden.sm\\:block'); if (ds) ds.innerHTML = newBadge;
+            const ms = card.querySelector('.sm\\:hidden.flex.justify-end'); if (ms) ms.innerHTML = newBadge;
         }
-
-        // Replace button with success message
         btn.className = 'inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg';
         btn.innerHTML = '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Deep Score: ' + data.ats_score;
         btn.disabled = true;
-
-    } catch (err) {
-        alert('Network error. Please try again.');
-        btn.disabled = false;
-        btn.innerHTML = origHTML;
-    }
+    } catch (err) { alert('Network error. Please try again.'); btn.disabled = false; btn.innerHTML = origHTML; }
 }
 
 function formatSalary(job) {
@@ -339,6 +885,24 @@ function escHtml(str) {
     div.textContent = str;
     return div.innerHTML;
 }
+
+// ===================== INIT ON PAGE LOAD =====================
+document.addEventListener('DOMContentLoaded', () => {
+    {% if show_wizard %}
+    // Wizard mode: init tag inputs for wizard
+    initTagInput('wiz-job-titles', []);
+    initTagInput('wiz-locations', []);
+    initTagInput('wiz-skills', []);
+    initTagInput('wiz-companies-include', []);
+    initTagInput('wiz-companies-exclude', []);
+    {% else %}
+    // Return visit: show summary, auto-search
+    if (savedPrefs && savedPrefs.setup_completed) {
+        updatePrefsSummary(savedPrefs);
+        searchWithPrefs();
+    }
+    {% endif %}
+});
 </script>
 
 {% endblock %}
