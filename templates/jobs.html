@@ -314,6 +314,13 @@
                             <input type="number" id="fp-salary-max" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 2500000">
                         </div>
                     </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Salary Period</label>
+                        <div id="fp-salary-period" class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="togglePill(this,'fp-salary-period')" data-value="annual" class="pill-btn active text-[10px] px-2.5 py-1 rounded-full border transition">Annual</button>
+                            <button type="button" onclick="togglePill(this,'fp-salary-period')" data-value="monthly" class="pill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Monthly</button>
+                        </div>
+                    </div>
                 </div>
             </div>
             <!-- Section 3 (cascading) -->
@@ -332,7 +339,10 @@
                         <div id="fp-functional" class="flex flex-wrap gap-1.5"></div>
                     </div>
                     <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">Skills</label>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">
+                            Skills
+                            <span id="fp-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your selection)</span>
+                        </label>
                         <div id="fp-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
                         <div id="fp-skills" class="tag-input-wrap" data-autocomplete="true"></div>
                     </div>
@@ -345,6 +355,28 @@
                     <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
                 <div id="fp-sec-4" class="hidden p-3 pt-0 space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Company Size</label>
+                        <div id="fp-company-sizes" class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="startup" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Startup (1-50)</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="mid_size" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Mid-size (51-500)</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="enterprise" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Large (500-5000)</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="mnc" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">MNC (5000+)</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Company Type</label>
+                        <div id="fp-company-types" class="flex flex-wrap gap-1.5">
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="product" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Product</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="service" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Service / IT</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="consulting" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Consulting</button>
+                            <button type="button" onclick="toggleMultiPill(this)" data-value="startup" class="mpill-btn text-[10px] px-2.5 py-1 rounded-full border transition">Startup</button>
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Include Companies</label>
+                        <div id="fp-companies-include" class="tag-input-wrap"></div>
+                    </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Exclude Companies</label>
                         <div id="fp-companies-exclude" class="tag-input-wrap"></div>
@@ -440,7 +472,9 @@ async function loadCategoryTree() {
     try {
         const resp = await fetch('/jobs/category-tree');
         categoryTree = await resp.json();
-        renderIndustryPills('wiz-industries', 'wiz');
+        if (document.getElementById('wiz-industries')) {
+            renderIndustryPills('wiz-industries', 'wiz');
+        }
     } catch (e) {
         console.error('Failed to load category tree:', e);
     }
@@ -705,7 +739,7 @@ function toggleMultiPill(btn) {
 
 function getActivePill(groupId) {
     const el = document.getElementById(groupId);
-    if (!el) return 'any';
+    if (!el) return null;
     const active = el.querySelector('.pill-btn.active');
     return active ? active.dataset.value : 'any';
 }
@@ -947,19 +981,25 @@ function openEditPrefs() {
         initTagInput('fp-job-titles', savedPrefs.job_titles);
         initTagInput('fp-locations', savedPrefs.locations);
         initTagInput('fp-skills', savedPrefs.skills);
+        initTagInput('fp-companies-include', savedPrefs.companies_include);
         initTagInput('fp-companies-exclude', savedPrefs.companies_exclude);
         document.getElementById('fp-experience').value = savedPrefs.experience_level || 'any';
         setActivePill('fp-work-mode', savedPrefs.work_mode || 'any');
         setActiveMultiPills('fp-emp-types', savedPrefs.employment_types);
         document.getElementById('fp-salary-min').value = savedPrefs.salary_min || '';
         document.getElementById('fp-salary-max').value = savedPrefs.salary_max || '';
+        setActivePill('fp-salary-period', savedPrefs.salary_period || 'annual');
+        setActiveMultiPills('fp-company-sizes', savedPrefs.company_sizes);
+        setActiveMultiPills('fp-company-types', savedPrefs.company_types);
         // Render cascading filter panel with saved industry/role selections
         renderFilterPanelCascade();
     } else {
         initTagInput('fp-job-titles', []);
         initTagInput('fp-locations', []);
         initTagInput('fp-skills', []);
+        initTagInput('fp-companies-include', []);
         initTagInput('fp-companies-exclude', []);
+        renderFilterPanelCascade();
     }
 }
 
@@ -1103,8 +1143,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initTagInput('wiz-companies-include', []);
         initTagInput('wiz-companies-exclude', []);
         {% else %}
-        // Return visit: render filter panel cascade + load snapshot
-        renderFilterPanelCascade();
+        // Return visit: load snapshot (cascade renders when filter panel opens)
         if (savedPrefs && savedPrefs.setup_completed) {
             updatePrefsSummary(savedPrefs);
             loadJobsPage();
