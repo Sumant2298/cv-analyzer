@@ -309,14 +309,3 @@ INDIAN_CITIES = [
     'Kochi', 'Indore', 'Lucknow', 'Coimbatore', 'Thiruvananthapuram',
     'Visakhapatnam', 'Nagpur', 'Bhubaneswar', 'Remote',
 ]
-
-# Aliases for city name matching (alternate spellings → canonical name)
-CITY_ALIASES = {
-    'bengaluru': 'Bangalore',
-    'gurugram': 'Gurgaon',
-    'bombay': 'Mumbai',
-    'calcutta': 'Kolkata',
-    'madras': 'Chennai',
-    'trivandrum': 'Thiruvananthapuram',
-    'vizag': 'Visakhapatnam',
-}

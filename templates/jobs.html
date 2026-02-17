@@ -145,13 +145,8 @@
                         </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1.5">Preferred Locations</label>
-                            <div id="wiz-locations-wrap" class="relative">
-                                <div id="wiz-locations-selected" class="tag-input-wrap" onclick="document.getElementById('wiz-locations-search').focus();">
-                                    <input type="text" id="wiz-locations-search" placeholder="Type a city name..."
-                                        oninput="debouncedLocationSearch('wiz')" autocomplete="off">
-                                </div>
-                                <div id="wiz-locations-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto"></div>
-                            </div>
+                            <div id="wiz-locations-selected" class="flex flex-wrap gap-1.5 mb-2"></div>
+                            <div id="wiz-locations-grid" class="flex flex-wrap gap-1.5"></div>
                         </div>
                     </div>
                 </div>
@@ -307,13 +302,8 @@
                     </div>
                     <div>
                         <label class="block text-xs font-medium text-slate-600 mb-1">Locations</label>
-                        <div id="fp-locations-wrap" class="relative">
-                            <div id="fp-locations-selected" class="tag-input-wrap" onclick="document.getElementById('fp-locations-search').focus();">
-                                <input type="text" id="fp-locations-search" placeholder="Type a city name..."
-                                    oninput="debouncedLocationSearch('fp')" autocomplete="off">
-                            </div>
-                            <div id="fp-locations-dropdown" class="hidden absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-lg z-20 max-h-48 overflow-y-auto"></div>
-                        </div>
+                        <div id="fp-locations-selected" class="flex flex-wrap gap-1 mb-1.5"></div>
+                        <div id="fp-locations-grid" class="flex flex-wrap gap-1"></div>
                     </div>
                 </div>
             </div>
@@ -639,115 +629,59 @@ async function fetchTitleSuggestions(prefix) {
     }
 }
 
-// ===================== LOCATION AUTOCOMPLETE =====================
-let locationSearchTimeout = {};
-
-// Client-side city list + aliases for instant fallback
-const _localCities = ['Bangalore','Mumbai','Delhi NCR','Hyderabad','Chennai','Pune','Kolkata','Ahmedabad','Noida','Gurgaon','Jaipur','Chandigarh','Kochi','Indore','Lucknow','Coimbatore','Thiruvananthapuram','Visakhapatnam','Nagpur','Bhubaneswar','Remote'];
-const _cityAliases = {bengaluru:'Bangalore',gurugram:'Gurgaon',bombay:'Mumbai',calcutta:'Kolkata',madras:'Chennai',trivandrum:'Thiruvananthapuram',vizag:'Visakhapatnam'};
-
-function _localCityMatch(q) {
-    const ql = q.toLowerCase();
-    const matches = _localCities.filter(c => c.toLowerCase().includes(ql));
-    Object.entries(_cityAliases).forEach(([alias, canonical]) => {
-        if (alias.includes(ql) && !matches.includes(canonical)) matches.push(canonical);
-    });
-    return matches.slice(0, 10);
-}
-
-function _renderLocationDropdown(prefix, cities, dropdown) {
-    dropdown.innerHTML = '';
-    cities.forEach(city => {
-        const div = document.createElement('div');
-        div.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 transition';
-        div.dataset.city = city;
-        div.textContent = city;
-        const s = selectedLocations[prefix] || new Set();
-        if (s.has(city)) div.classList.add('bg-brand-50', 'font-semibold', 'text-brand-700');
-        div.onclick = () => { toggleLocationSelection(prefix, city); updateLocationDropdownState(prefix); };
-        dropdown.appendChild(div);
-    });
-    dropdown.classList.toggle('hidden', dropdown.children.length === 0);
-}
-
-function debouncedLocationSearch(prefix) {
-    clearTimeout(locationSearchTimeout[prefix]);
-    const input = document.getElementById(prefix + '-locations-search');
-    const dropdown = document.getElementById(prefix + '-locations-dropdown');
-    if (!input || !dropdown) return;
-
-    const q = input.value.trim();
-    if (q.length < 2) {
-        dropdown.classList.add('hidden');
-        return;
-    }
-
-    // Show local matches immediately (no network delay)
-    _renderLocationDropdown(prefix, _localCityMatch(q), dropdown);
-
-    // Then try server for richer results (Nominatim)
-    locationSearchTimeout[prefix] = setTimeout(async () => {
-        try {
-            const resp = await fetch('/jobs/location-autocomplete?q=' + encodeURIComponent(q), {credentials: 'same-origin'});
-            if (!resp.ok) return; // keep showing local matches
-            const data = await resp.json();
-            const suggestions = (data.suggestions || []).map(loc => loc.city).filter(Boolean);
-            if (suggestions.length > 0) {
-                _renderLocationDropdown(prefix, suggestions, dropdown);
-            }
-        } catch (e) {
-            console.error('Location autocomplete API failed, using local matches:', e);
-            // Local matches already showing, no action needed
-        }
-    }, 300);
-}
+// ===================== LOCATION CITY GRID =====================
+const _cities = ['Bangalore','Mumbai','Delhi NCR','Hyderabad','Chennai','Pune','Kolkata','Ahmedabad','Noida','Gurgaon','Jaipur','Chandigarh','Kochi','Indore','Lucknow','Coimbatore','Thiruvananthapuram','Visakhapatnam','Nagpur','Bhubaneswar','Remote'];
 
 if (!selectedLocations['wiz']) selectedLocations['wiz'] = new Set();
 if (!selectedLocations['fp']) selectedLocations['fp'] = new Set();
+
+function renderCityGrid(prefix) {
+    const grid = document.getElementById(prefix + '-locations-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+    const s = selectedLocations[prefix] || new Set();
+    const isSmall = prefix === 'fp';
+    _cities.forEach(city => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.dataset.city = city;
+        btn.textContent = city;
+        if (isSmall) {
+            btn.className = 'text-[10px] px-2 py-0.5 rounded-full border transition cursor-pointer';
+        } else {
+            btn.className = 'text-xs px-3 py-1.5 rounded-full border transition cursor-pointer';
+        }
+        if (s.has(city)) {
+            btn.classList.add('bg-brand-100', 'border-brand-400', 'text-brand-700', 'font-semibold');
+        } else {
+            btn.classList.add('border-slate-200', 'text-slate-600', 'hover:bg-brand-50', 'hover:border-brand-300');
+        }
+        btn.onclick = () => toggleLocationSelection(prefix, city);
+        grid.appendChild(btn);
+    });
+}
 
 function toggleLocationSelection(prefix, city) {
     if (!selectedLocations[prefix]) selectedLocations[prefix] = new Set();
     const s = selectedLocations[prefix];
     if (s.has(city)) s.delete(city); else s.add(city);
-    renderSelectedLocations(prefix);
-    updateLocationDropdownState(prefix);
+    renderSelectedChips(prefix);
+    renderCityGrid(prefix);
 }
 
-function renderSelectedLocations(prefix) {
+function renderSelectedChips(prefix) {
     const container = document.getElementById(prefix + '-locations-selected');
     if (!container) return;
-    const input = document.getElementById(prefix + '-locations-search');
-    container.querySelectorAll('.loc-chip').forEach(c => c.remove());
+    container.innerHTML = '';
     const s = selectedLocations[prefix] || new Set();
     s.forEach(city => {
         const chip = document.createElement('span');
-        chip.className = 'loc-chip tag-chip inline-flex items-center gap-1 text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full';
+        chip.className = 'inline-flex items-center gap-1 text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full';
         chip.innerHTML = escHtml(city) + ' <button type="button" class="hover:text-red-500 font-bold">&times;</button>';
         chip.querySelector('button').onclick = (e) => { e.stopPropagation(); toggleLocationSelection(prefix, city); };
-        if (input) container.insertBefore(chip, input); else container.appendChild(chip);
+        container.appendChild(chip);
     });
 }
-
-function updateLocationDropdownState(prefix) {
-    const dropdown = document.getElementById(prefix + '-locations-dropdown');
-    if (!dropdown) return;
-    const s = selectedLocations[prefix] || new Set();
-    dropdown.querySelectorAll('[data-city]').forEach(div => {
-        const sel = s.has(div.dataset.city);
-        div.classList.toggle('bg-brand-50', sel);
-        div.classList.toggle('font-semibold', sel);
-        div.classList.toggle('text-brand-700', sel);
-    });
-}
-
-// Close location dropdowns on outside click
-document.addEventListener('click', (e) => {
-    ['wiz', 'fp'].forEach(p => {
-        const wrap = document.getElementById(p + '-locations-wrap');
-        const dropdown = document.getElementById(p + '-locations-dropdown');
-        if (wrap && dropdown && !wrap.contains(e.target)) dropdown.classList.add('hidden');
-    });
-});
 
 // ===================== TAG INPUT WIDGET =====================
 function initTagInput(containerId, initialTags) {
@@ -1133,7 +1067,8 @@ function openEditPrefs() {
 
         // Restore locations
         selectedLocations['fp'] = new Set(savedPrefs.locations || []);
-        renderSelectedLocations('fp');
+        renderSelectedChips('fp');
+        renderCityGrid('fp');
 
         // Restore salary
         document.getElementById('fp-salary-min').value = savedPrefs.salary_min || '';
@@ -1142,6 +1077,8 @@ function openEditPrefs() {
 
     } else {
         // No saved prefs
+        selectedLocations['fp'] = new Set();
+        renderCityGrid('fp');
     }
 }
 
@@ -1277,9 +1214,10 @@ function escHtml(str) {
 document.addEventListener('DOMContentLoaded', () => {
     loadCategoryTree().then(() => {
         {% if show_wizard %}
-        // Wizard mode: init cascade + tag inputs
+        // Wizard mode: init cascade + city grid
         initCascadeDropdowns('wiz');
         selectedLocations['wiz'] = new Set();
+        renderCityGrid('wiz');
         {% else %}
         // Return visit: load snapshot
         if (savedPrefs && savedPrefs.setup_completed) {
