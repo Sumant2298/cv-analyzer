@@ -1612,8 +1612,10 @@ def jobs_search():
         prefs = prefs_obj.to_dict()
 
         # Check if there's at least one meaningful filter
-        if not prefs.get('job_titles') and not prefs.get('skills'):
-            return jsonify({'error': 'Please add at least one job title or skill in your preferences',
+        has_titles = bool(prefs.get('job_titles'))
+        has_taxonomy = bool(prefs.get('industries') or prefs.get('functional_areas'))
+        if not has_titles and not has_taxonomy:
+            return jsonify({'error': 'Please select a function/role or add job titles in your preferences',
                             'jobs': [], 'total_count': 0})
 
         from job_filter import (build_jsearch_params, apply_local_filters,

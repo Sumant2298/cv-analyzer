@@ -220,26 +220,34 @@ def search_jobs(query, location='', employment_type='',
     if experience:
         api_params['job_requirements'] = experience
 
-    try:
-        resp = http_requests.get(
-            f'https://{JSEARCH_HOST}/search',
-            headers=headers,
-            params=api_params,
-            timeout=15,
-        )
-        resp.raise_for_status()
-        data = resp.json()
-    except http_requests.exceptions.Timeout:
-        logger.error('JSearch API timeout')
-        return {'jobs': [], 'total_count': 0, 'error': 'Job search timed out. Please try again.'}
-    except http_requests.exceptions.HTTPError as e:
-        logger.error('JSearch API HTTP error: %s | params: %s', e, api_params)
-        if resp.status_code == 429:
-            return {'jobs': [], 'total_count': 0, 'error': 'API rate limit reached. Please try again later.'}
-        return {'jobs': [], 'total_count': 0, 'error': f'Job search error: {resp.status_code}'}
-    except Exception as e:
-        logger.error('JSearch API error: %s', e)
-        return {'jobs': [], 'total_count': 0, 'error': str(e)}
+    # Retry once on timeout (JSearch can be slow on first call)
+    data = None
+    last_error = None
+    for attempt in range(2):
+        try:
+            resp = http_requests.get(
+                f'https://{JSEARCH_HOST}/search',
+                headers=headers,
+                params=api_params,
+                timeout=25,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            break
+        except http_requests.exceptions.Timeout:
+            logger.warning('JSearch API timeout (attempt %d/2)', attempt + 1)
+            last_error = 'Job search timed out. Please try again.'
+        except http_requests.exceptions.HTTPError as e:
+            logger.error('JSearch API HTTP error: %s | params: %s', e, api_params)
+            if resp.status_code == 429:
+                return {'jobs': [], 'total_count': 0, 'error': 'API rate limit reached. Please try again later.'}
+            return {'jobs': [], 'total_count': 0, 'error': f'Job search error: {resp.status_code}'}
+        except Exception as e:
+            logger.error('JSearch API error: %s', e)
+            return {'jobs': [], 'total_count': 0, 'error': str(e)}
+
+    if data is None:
+        return {'jobs': [], 'total_count': 0, 'error': last_error or 'Job search failed.'}
 
     # Normalize results
     jobs = []
