@@ -1,23 +1,14 @@
 {% extends "dashboard_base.html" %}
-{% block title %}Find Jobs — LevelUpX{% endblock %}
+{% block title %}Jobs — LevelUpX{% endblock %}
 {% block page_title %}Jobs{% endblock %}
 {% block content %}
 
 <div class="max-w-5xl mx-auto anim-fade-up">
 
     <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800">Find Jobs</h1>
-            <p class="text-sm text-slate-500 mt-1">Search public job listings and see how your resume matches</p>
-        </div>
-        {% if not show_wizard %}
-        <button onclick="openEditPrefs()" id="editPrefsBtn"
-            class="inline-flex items-center gap-2 text-sm font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-4 py-2 rounded-xl transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
-            Edit Filters
-        </button>
-        {% endif %}
+    <div class="mb-6">
+        <h1 class="text-2xl font-bold text-slate-800">Jobs</h1>
+        <p class="text-sm text-slate-500 mt-1">Search public job listings and see how your resume matches</p>
     </div>
 
     <!-- Primary Resume Indicator -->
@@ -38,9 +29,14 @@
 
     <!-- Preferences Summary Bar (return visits only) -->
     <div id="prefs-summary" class="hidden bg-white rounded-xl border border-slate-200 p-3 mb-6 shadow-sm">
-        <div class="flex items-center gap-2 flex-wrap">
+        <div class="flex items-center gap-2">
             <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
-            <span id="prefs-summary-text" class="text-xs text-slate-600"></span>
+            <span id="prefs-summary-text" class="text-xs text-slate-600 flex-1 min-w-0"></span>
+            <button onclick="openEditPrefs()" id="editPrefsBtn"
+                class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition flex-shrink-0">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"/></svg>
+                Edit Filters
+            </button>
         </div>
     </div>
 
@@ -886,12 +882,8 @@ async function savePreferencesAndSearch(prefix) {
     const overlay = document.getElementById('wizard-overlay');
     if (overlay) overlay.remove();
 
-    // Update summary bar
+    // Update summary bar (includes Edit Filters button)
     updatePrefsSummary(prefs);
-
-    // Show edit button
-    const editBtn = document.getElementById('editPrefsBtn');
-    if (editBtn) editBtn.classList.remove('hidden');
 
     // Trigger search (force=true to bypass cache after pref change)
     searchWithPrefs(true);
