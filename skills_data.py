@@ -304,8 +304,19 @@ def get_role_family(function_id, role_family_id):
 # Indian cities for location dropdown (predefined, no free typing)
 # ---------------------------------------------------------------------------
 INDIAN_CITIES = [
-    'Bangalore', 'Bengaluru', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Chennai', 'Pune',
-    'Kolkata', 'Ahmedabad', 'Noida', 'Gurgaon', 'Gurugram', 'Jaipur', 'Chandigarh',
+    'Bangalore', 'Mumbai', 'Delhi NCR', 'Hyderabad', 'Chennai', 'Pune',
+    'Kolkata', 'Ahmedabad', 'Noida', 'Gurgaon', 'Jaipur', 'Chandigarh',
     'Kochi', 'Indore', 'Lucknow', 'Coimbatore', 'Thiruvananthapuram',
     'Visakhapatnam', 'Nagpur', 'Bhubaneswar', 'Remote',
 ]
+
+# Aliases for city name matching (alternate spellings → canonical name)
+CITY_ALIASES = {
+    'bengaluru': 'Bangalore',
+    'gurugram': 'Gurgaon',
+    'bombay': 'Mumbai',
+    'calcutta': 'Kolkata',
+    'madras': 'Chennai',
+    'trivandrum': 'Thiruvananthapuram',
+    'vizag': 'Visakhapatnam',
+}

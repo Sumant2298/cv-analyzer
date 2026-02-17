@@ -1530,8 +1530,14 @@ def jobs_location_autocomplete():
     if len(q) < 2:
         return jsonify({'suggestions': []})
 
-    from skills_data import INDIAN_CITIES
-    local_matches = [c for c in INDIAN_CITIES if q.lower() in c.lower()]
+    from skills_data import INDIAN_CITIES, CITY_ALIASES
+    ql = q.lower()
+    # Direct match on canonical names
+    local_matches = [c for c in INDIAN_CITIES if ql in c.lower()]
+    # Also match via aliases (e.g. "bengaluru" → "Bangalore")
+    for alias, canonical in CITY_ALIASES.items():
+        if ql in alias and canonical not in local_matches:
+            local_matches.append(canonical)
 
     try:
         resp = http_requests.get(
