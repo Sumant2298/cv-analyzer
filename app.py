@@ -1458,16 +1458,6 @@ def jobs_save_preferences():
         return jsonify({'error': 'Failed to save preferences'}), 500
 
 
-@app.route('/jobs/skills-suggest')
-def jobs_skills_suggest():
-    """Lightweight autocomplete endpoint for skills tag input."""
-    q = request.args.get('q', '').lower().strip()
-    if len(q) < 2:
-        return jsonify([])
-    from skills_data import ALL_KNOWN_SKILLS
-    matches = sorted([s for s in ALL_KNOWN_SKILLS if q in s.lower()])[:10]
-    return jsonify(matches)
-
 
 @app.route('/jobs/suggest-titles', methods=['POST'])
 def jobs_suggest_titles():
@@ -1530,55 +1520,6 @@ def jobs_suggest_titles():
         return jsonify({'titles': fallback, 'fallback': True})
 
 
-@app.route('/jobs/suggest-skills', methods=['POST'])
-def jobs_suggest_skills():
-    """LLM-powered skill suggestions from Function + Role Family + Level."""
-    if not session.get('user_id'):
-        return jsonify({'error': 'Not authenticated'}), 401
-
-    data = request.get_json(silent=True) or {}
-    function_id = data.get('function_id', '')
-    role_family_id = data.get('role_family_id', '')
-    level_id = data.get('level_id', '')
-
-    if not function_id or not role_family_id:
-        return jsonify({'error': 'function_id and role_family_id required'}), 400
-
-    from skills_data import TAXONOMY, LEVEL_LABELS
-    func_data = TAXONOMY.get(function_id, {})
-    func_label = func_data.get('label', function_id)
-    rf_data = func_data.get('role_families', {}).get(role_family_id, {})
-    rf_label = rf_data.get('label', role_family_id)
-    level_label = LEVEL_LABELS.get(level_id, level_id) if level_id else 'any level'
-
-    system = (
-        'You are a technical recruiting expert. Return ONLY a valid JSON object '
-        'with a single key "skills" containing an array of 8-12 strings. '
-        'Each string is a specific technical skill, tool, or technology.'
-    )
-    prompt = (
-        f'List 8-12 in-demand skills/technologies for this role:\n'
-        f'- Function: {func_label}\n'
-        f'- Role Family: {rf_label}\n'
-        f'- Level: {level_label}\n'
-        f'Include a mix of core technical skills, tools, and frameworks '
-        f'that employers commonly require for this role in 2025-2026.'
-    )
-
-    try:
-        from llm_service import _call_llm
-        result = _call_llm(system, prompt, max_tokens=500, temperature=0.5, timeout=15.0)
-        skills = result.get('skills', [])
-        if not isinstance(skills, list):
-            skills = []
-        skills = [str(s) for s in skills if isinstance(s, str) and s.strip()][:12]
-        return jsonify({'skills': skills})
-    except Exception as e:
-        logger.error('LLM skill suggestion failed: %s', e)
-        fallback_skills = rf_data.get('skills', [])[:8]
-        return jsonify({'skills': fallback_skills, 'fallback': True})
-
-
 @app.route('/jobs/location-autocomplete')
 def jobs_location_autocomplete():
     """Location typeahead using Nominatim (OpenStreetMap) with local fallback."""
@@ -1601,6 +1542,7 @@ def jobs_location_autocomplete():
                 'addressdetails': 1,
                 'limit': 8,
                 'featuretype': 'city',
+                'countrycodes': 'in',
             },
             headers={'User-Agent': 'LevelUpX-JobSearch/1.0'},
             timeout=5,

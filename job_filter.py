@@ -56,11 +56,6 @@ def build_jsearch_params(prefs: dict) -> dict:
         except ImportError:
             pass
 
-    # Top 2 skills boost relevance
-    skills = prefs.get('skills', [])
-    if skills:
-        query_parts.append(' '.join(skills[:2]))
-
     # Function boost keyword (from taxonomy)
     if func_ids:
         try:
@@ -149,8 +144,6 @@ def apply_local_filters(jobs: List[dict], prefs: dict) -> List[dict]:
             continue
         if not _passes_salary(job, prefs):
             continue
-        if not _passes_skills(job, prefs):
-            continue
         if not _passes_functional_areas(job, prefs):
             continue
         filtered.append(job)
@@ -227,17 +220,6 @@ def _passes_salary(job: dict, prefs: dict) -> bool:
     if umax != float('inf') and jmin and jmin > umax:
         return False
     return True
-
-
-def _passes_skills(job: dict, prefs: dict) -> bool:
-    """At least one preferred skill must appear in job title + description."""
-    skills = prefs.get('skills', [])
-    if not skills:
-        return True
-    desc = (job.get('description', '') or '').lower()
-    title = (job.get('title', '') or '').lower()
-    text = title + ' ' + desc
-    return any(skill.lower() in text for skill in skills)
 
 
 def _passes_functional_areas(job: dict, prefs: dict) -> bool:

@@ -156,34 +156,13 @@
                     </div>
                 </div>
 
-                <!-- Step 3: Skills & Compensation -->
+                <!-- Step 3: Expected Salary Range -->
                 <div id="wiz-step-3" class="wiz-step hidden">
                     <h3 class="text-base font-bold text-slate-800 mb-4 flex items-center gap-2">
                         <span class="w-6 h-6 rounded-full bg-brand-100 text-brand-700 text-xs font-bold flex items-center justify-center">3</span>
-                        Skills & Compensation
+                        Expected Salary Range
                     </h3>
                     <div class="space-y-4">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1.5">
-                                Skills / Technologies
-                                <span id="wiz-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your role)</span>
-                            </label>
-                            <div class="flex items-center gap-2 mb-2">
-                                <button type="button" id="wiz-suggest-skills-btn" onclick="fetchSkillSuggestions('wiz')" disabled
-                                    class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg border border-brand-200 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                    Suggest Skills
-                                </button>
-                                <span id="wiz-skills-loading" class="hidden text-xs text-slate-400">
-                                    <svg class="w-3.5 h-3.5 animate-spin inline mr-1" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                    Generating...
-                                </span>
-                                <span id="wiz-skills-error" class="hidden text-xs text-red-500"></span>
-                            </div>
-                            <div id="wiz-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
-                            <div id="wiz-skills" class="tag-input-wrap" data-autocomplete="true"></div>
-                            <p class="text-[10px] text-slate-400 mt-1">Click suggestions or type to search</p>
-                        </div>
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-2">Salary Range (Quick Select)</label>
                             <div class="flex flex-wrap gap-2">
@@ -338,33 +317,13 @@
                     </div>
                 </div>
             </div>
-            <!-- Section 3: Skills & Compensation -->
+            <!-- Section 3: Expected Salary Range -->
             <div class="border border-slate-100 rounded-xl overflow-hidden">
                 <button type="button" onclick="toggleAccordion('fp-sec-3')" class="w-full flex items-center justify-between p-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition">
-                    <span>Skills & Compensation</span>
+                    <span>Expected Salary Range</span>
                     <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
                 <div id="fp-sec-3" class="hidden p-3 pt-0 space-y-3">
-                    <div>
-                        <label class="block text-xs font-medium text-slate-600 mb-1">
-                            Skills
-                            <span id="fp-skills-hint" class="text-slate-400 font-normal hidden">(suggested for your role)</span>
-                        </label>
-                        <div class="flex items-center gap-2 mb-1.5">
-                            <button type="button" id="fp-suggest-skills-btn" onclick="fetchSkillSuggestions('fp')" disabled
-                                class="inline-flex items-center gap-1 text-[10px] font-medium text-brand-600 bg-brand-50 hover:bg-brand-100 px-2.5 py-1 rounded-lg border border-brand-200 transition disabled:opacity-50 disabled:cursor-not-allowed">
-                                <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/></svg>
-                                Suggest Skills
-                            </button>
-                            <span id="fp-skills-loading" class="hidden text-[10px] text-slate-400">
-                                <svg class="w-3 h-3 animate-spin inline mr-0.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
-                                Generating...
-                            </span>
-                            <span id="fp-skills-error" class="hidden text-[10px] text-red-500"></span>
-                        </div>
-                        <div id="fp-suggested-skills" class="flex flex-wrap gap-1.5 mb-2 hidden"></div>
-                        <div id="fp-skills" class="tag-input-wrap" data-autocomplete="true"></div>
-                    </div>
                     <div class="grid grid-cols-2 gap-3">
                         <div>
                             <label class="block text-xs font-medium text-slate-600 mb-1">Min Salary (INR)</label>
@@ -539,8 +498,6 @@ function onRoleFamilyChange(prefix) {
     const roleSelect = document.getElementById(prefix + '-job-role');
     const levelSection = document.getElementById(prefix + '-level-section');
     const levelSelect = document.getElementById(prefix + '-job-level');
-    const suggestedContainer = document.getElementById(prefix + '-suggested-skills');
-    const hintEl = document.getElementById(prefix + '-skills-hint');
 
     const selectedFn = fnSelect ? fnSelect.value : '';
     const selectedRF = roleSelect ? roleSelect.value : '';
@@ -565,31 +522,6 @@ function onRoleFamilyChange(prefix) {
     levelSelect.disabled = false;
     levelSection.classList.remove('hidden');
 
-    // Show suggested skills for the selected role family
-    const rfData = taxonomyData.functions[selectedFn]
-        && taxonomyData.functions[selectedFn].role_families
-        && taxonomyData.functions[selectedFn].role_families[selectedRF];
-
-    if (rfData && suggestedContainer) {
-        suggestedContainer.innerHTML = '';
-        const existingInst = tagInstances[prefix + '-skills'];
-        const existingTags = existingInst ? existingInst.getTags() : [];
-        (rfData.skills || []).forEach(skill => {
-            if (existingTags.includes(skill)) return;
-            const btn = document.createElement('button');
-            btn.type = 'button';
-            btn.className = 'text-[11px] px-2.5 py-1 rounded-full border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition';
-            btn.textContent = '+ ' + skill;
-            btn.onclick = function() { addTagToInput(prefix + '-skills', skill); btn.remove(); };
-            suggestedContainer.appendChild(btn);
-        });
-        suggestedContainer.classList.toggle('hidden', suggestedContainer.children.length === 0);
-        if (hintEl) hintEl.classList.toggle('hidden', suggestedContainer.children.length === 0);
-    }
-
-    // Enable "Suggest Skills" button
-    const suggestSkillsBtn = document.getElementById(prefix + '-suggest-skills-btn');
-    if (suggestSkillsBtn) suggestSkillsBtn.disabled = false;
 }
 
 function onLevelChange(prefix) {
@@ -707,72 +639,6 @@ async function fetchTitleSuggestions(prefix) {
     }
 }
 
-// ===================== LLM SKILL SUGGESTIONS =====================
-async function fetchSkillSuggestions(prefix) {
-    const fnSelect = document.getElementById(prefix + '-job-function');
-    const roleSelect = document.getElementById(prefix + '-job-role');
-    const levelSelect = document.getElementById(prefix + '-job-level');
-
-    const funcId = fnSelect ? fnSelect.value : '';
-    const rfId = roleSelect ? roleSelect.value : '';
-    const levelId = levelSelect ? levelSelect.value : '';
-
-    if (!funcId || !rfId) return;
-
-    const btn = document.getElementById(prefix + '-suggest-skills-btn');
-    const loading = document.getElementById(prefix + '-skills-loading');
-    const errorEl = document.getElementById(prefix + '-skills-error');
-    const suggestedContainer = document.getElementById(prefix + '-suggested-skills');
-    const hintEl = document.getElementById(prefix + '-skills-hint');
-
-    if (btn) btn.disabled = true;
-    if (loading) loading.classList.remove('hidden');
-    if (errorEl) { errorEl.classList.add('hidden'); errorEl.textContent = ''; }
-
-    try {
-        const resp = await fetch('/jobs/suggest-skills', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ function_id: funcId, role_family_id: rfId, level_id: levelId }),
-        });
-        const data = await resp.json();
-        if (data.error) throw new Error(data.error);
-
-        const skills = data.skills || [];
-        if (suggestedContainer) {
-            suggestedContainer.innerHTML = '';
-            const existingInst = tagInstances[prefix + '-skills'];
-            const existingTags = existingInst ? existingInst.getTags() : [];
-
-            skills.forEach(skill => {
-                if (existingTags.includes(skill)) return;
-                const chip = document.createElement('button');
-                chip.type = 'button';
-                chip.className = 'text-[11px] px-2.5 py-1 rounded-full border border-dashed border-brand-300 text-brand-600 hover:bg-brand-50 transition';
-                chip.textContent = '+ ' + skill;
-                chip.onclick = function() { addTagToInput(prefix + '-skills', skill); chip.remove(); };
-                suggestedContainer.appendChild(chip);
-            });
-
-            suggestedContainer.classList.toggle('hidden', suggestedContainer.children.length === 0);
-            if (hintEl) hintEl.classList.toggle('hidden', suggestedContainer.children.length === 0);
-        }
-
-        if (data.fallback && errorEl) {
-            errorEl.textContent = 'AI unavailable, showing default skills';
-            errorEl.classList.remove('hidden');
-        }
-    } catch (e) {
-        if (errorEl) {
-            errorEl.textContent = 'Failed to suggest skills. Try again.';
-            errorEl.classList.remove('hidden');
-        }
-    } finally {
-        if (loading) loading.classList.add('hidden');
-        if (btn) btn.disabled = false;
-    }
-}
-
 // ===================== LOCATION AUTOCOMPLETE =====================
 let locationSearchTimeout = {};
 
@@ -868,31 +734,10 @@ document.addEventListener('click', (e) => {
     });
 });
 
-function addTagToInput(containerId, tag) {
-    const inst = tagInstances[containerId];
-    if (!inst) return;
-    const tags = inst.getTags ? inst.getTags() : inst;
-    if (tags.includes(tag)) return;
-    if (inst.addTag) { inst.addTag(tag); return; }
-    // fallback for raw arrays
-    tags.push(tag);
-    const wrap = document.getElementById(containerId);
-    if (!wrap) return;
-    const input = wrap.querySelector('input');
-    if (input) {
-        const chip = document.createElement('span');
-        chip.className = 'tag-chip inline-flex items-center gap-1 text-xs bg-brand-50 text-brand-700 px-2 py-0.5 rounded-full';
-        chip.innerHTML = escHtml(tag) + ' <button type="button" class="hover:text-red-500 font-bold">&times;</button>';
-        chip.querySelector('button').onclick = function() { const idx = tags.indexOf(tag); if (idx > -1) tags.splice(idx, 1); chip.remove(); };
-        wrap.insertBefore(chip, input);
-    }
-}
-
 // ===================== TAG INPUT WIDGET =====================
 function initTagInput(containerId, initialTags) {
     const wrap = document.getElementById(containerId);
     if (!wrap) return;
-    const hasAC = wrap.dataset.autocomplete === 'true';
 
     // Clear existing
     wrap.innerHTML = '';
@@ -902,15 +747,6 @@ function initTagInput(containerId, initialTags) {
     const input = document.createElement('input');
     input.type = 'text';
     input.placeholder = 'Type and press Enter...';
-
-    // Autocomplete dropdown
-    let acDropdown = null;
-    let acTimeout = null;
-    if (hasAC) {
-        acDropdown = document.createElement('div');
-        acDropdown.className = 'tag-autocomplete';
-        wrap.appendChild(acDropdown);
-    }
 
     function addTag(text) {
         text = text.trim();
@@ -922,7 +758,6 @@ function initTagInput(containerId, initialTags) {
         chip.querySelector('button').onclick = () => { chip.remove(); tags.splice(tags.indexOf(text), 1); };
         wrap.insertBefore(chip, input);
         input.value = '';
-        if (acDropdown) acDropdown.classList.remove('show');
     }
 
     input.addEventListener('keydown', (e) => {
@@ -936,33 +771,6 @@ function initTagInput(containerId, initialTags) {
             if (chips.length) chips[chips.length - 1].remove();
         }
     });
-
-    // Autocomplete for skills
-    if (hasAC) {
-        input.addEventListener('input', () => {
-            clearTimeout(acTimeout);
-            const q = input.value.trim();
-            if (q.length < 2) { acDropdown.classList.remove('show'); return; }
-            acTimeout = setTimeout(async () => {
-                try {
-                    const resp = await fetch('/jobs/skills-suggest?q=' + encodeURIComponent(q));
-                    const results = await resp.json();
-                    acDropdown.innerHTML = '';
-                    results.filter(s => !tags.includes(s)).forEach(s => {
-                        const div = document.createElement('div');
-                        div.textContent = s;
-                        div.onclick = () => { addTag(s); };
-                        acDropdown.appendChild(div);
-                    });
-                    acDropdown.classList.toggle('show', acDropdown.children.length > 0);
-                } catch(e) { acDropdown.classList.remove('show'); }
-            }, 300);
-        });
-        // Close on outside click
-        document.addEventListener('click', (e) => {
-            if (!wrap.contains(e.target)) acDropdown.classList.remove('show');
-        });
-    }
 
     wrap.appendChild(input);
     wrap.addEventListener('click', () => input.focus());
@@ -1103,7 +911,6 @@ function collectPreferences(prefix) {
         industries: industries,
         functional_areas: functionalAreas,
         level: level,
-        skills: tagInstances[prefix + '-skills'] ? tagInstances[prefix + '-skills'].getTags() : [],
     };
 }
 
@@ -1255,8 +1062,6 @@ function updatePrefsSummary(prefs) {
         else if (prefs.salary_min) parts.push(fmt(prefs.salary_min) + '+');
         else parts.push('Up to ' + fmt(prefs.salary_max));
     }
-    if (prefs.skills && prefs.skills.length) parts.push(prefs.skills.slice(0, 3).join(', '));
-
     const summaryEl = document.getElementById('prefs-summary');
     const textEl = document.getElementById('prefs-summary-text');
     if (parts.length) {
@@ -1320,10 +1125,8 @@ function openEditPrefs() {
         document.getElementById('fp-salary-max').value = savedPrefs.salary_max || '';
         setActivePill('fp-salary-period', savedPrefs.salary_period || 'annual');
 
-        // Restore skills
-        initTagInput('fp-skills', savedPrefs.skills);
     } else {
-        initTagInput('fp-skills', []);
+        // No saved prefs
     }
 }
 
@@ -1461,7 +1264,6 @@ document.addEventListener('DOMContentLoaded', () => {
         {% if show_wizard %}
         // Wizard mode: init cascade + tag inputs
         initCascadeDropdowns('wiz');
-        initTagInput('wiz-skills', []);
         selectedLocations['wiz'] = new Set();
         {% else %}
         // Return visit: load snapshot
