@@ -227,6 +227,20 @@ with app.app_context():
         logger.info('Migration check (job_preferences level): %s', e)
         db.session.rollback()
 
+    # Migration: add 'source' column to job_pool table if missing
+    try:
+        from sqlalchemy import inspect as _jp2_inspect, text as _jp2_text
+        _jp2_insp = _jp2_inspect(db.engine)
+        if 'job_pool' in _jp2_insp.get_table_names():
+            _pool_cols = [c['name'] for c in _jp2_insp.get_columns('job_pool')]
+            if 'source' not in _pool_cols:
+                db.session.execute(_jp2_text("ALTER TABLE job_pool ADD COLUMN source VARCHAR(30) DEFAULT 'jsearch'"))
+                db.session.commit()
+                logger.info('Migration: added source column to job_pool')
+    except Exception as e:
+        logger.info('Migration check (job_pool source): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
@@ -1620,12 +1634,13 @@ def jobs_search():
             return jsonify({'error': 'Please select a function/role or add job titles in your preferences',
                             'jobs': [], 'total_count': 0})
 
-        from job_filter import (build_jsearch_params, apply_local_filters,
+        from job_filter import (apply_local_filters,
                                 search_from_pool, normalize_api_params_for_cache)
-        from job_search import (search_jobs, check_quota, get_cached_search,
+        from job_search import (search_jobs_multi, get_cached_search,
                                 get_stale_cache)
 
         warning = None
+        sources_used = []
         normalized, cache_key = normalize_api_params_for_cache(prefs, page=page)
         logger.info('Search: query=%r, location=%r, titles=%r, industries=%r, func_areas=%r, cache_key=%s',
                      normalized.get('query'), normalized.get('location'),
@@ -1638,63 +1653,40 @@ def jobs_search():
         if cached_result:
             jobs = apply_local_filters(cached_result.get('jobs', []), prefs)
             source = 'cache'
+            sources_used = cached_result.get('sources', [])
         else:
-            # 2. Cache miss — check quota before calling API
-            under_limit, calls_made, limit = check_quota()
-
-            if not under_limit:
-                # Quota exceeded — try pool, then stale cache
-                pool_results = search_from_pool(prefs)
-                if pool_results is not None:
-                    jobs = pool_results
-                    source = 'pool'
-                else:
+            # 2. Cache miss — try pool first (skip if force-refresh or paginating)
+            pool_results = None if (force_refresh or page > 1) else search_from_pool(prefs)
+            if pool_results is not None:
+                jobs = pool_results
+                source = 'pool'
+            else:
+                # 3. Pool miss — call all active providers in parallel
+                multi_results = search_jobs_multi(
+                    prefs=prefs, page=page,
+                    force_refresh=force_refresh,
+                    cache_key=cache_key,
+                    normalized_params=normalized,
+                )
+                if multi_results.get('error') and not multi_results.get('jobs'):
+                    # All providers failed — try stale cache as last resort
                     stale_result, _ = get_stale_cache(cache_key)
                     if stale_result:
                         jobs = apply_local_filters(stale_result.get('jobs', []), prefs)
                         source = 'cache'
+                        warning = multi_results.get('error', '')
                     else:
-                        jobs = []
-                        source = 'quota_exceeded'
-                warning = f'Monthly API quota reached ({calls_made}/{limit}). Showing cached results.'
-            else:
-                # 3. Quota OK — try pool first (skip if force-refresh or paginating), then API
-                pool_results = None if (force_refresh or page > 1) else search_from_pool(prefs)
-                if pool_results is not None:
-                    jobs = pool_results
-                    source = 'pool'
+                        return jsonify(multi_results)
                 else:
-                    api_params = build_jsearch_params(prefs)
-                    api_results = search_jobs(
-                        query=api_params.get('query', ''),
-                        location=api_params.get('location', ''),
-                        employment_type=api_params.get('employment_type', ''),
-                        experience=api_params.get('experience', ''),
-                        page=page,
-                        cache_key=cache_key,
-                        normalized_params=normalized,
-                    )
-                    if api_results.get('error'):
-                        return jsonify(api_results)
-                    jobs = apply_local_filters(api_results.get('jobs', []), prefs)
+                    jobs = apply_local_filters(multi_results.get('jobs', []), prefs)
                     source = 'api'
-
-        # Deduplicate by job_id
-        seen_ids = set()
-        deduped = []
-        for job in jobs:
-            jid = job.get('job_id', '')
-            if jid and jid in seen_ids:
-                continue
-            if jid:
-                seen_ids.add(jid)
-            deduped.append(job)
-        jobs = deduped
+                    sources_used = multi_results.get('sources', [])
 
         results = {
             'jobs': jobs,
             'total_count': len(jobs),
             'source': source,
+            'sources': sources_used,
             'cache_key': cache_key[:12],
             'page': page,
         }

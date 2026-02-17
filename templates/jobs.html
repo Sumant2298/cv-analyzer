@@ -979,6 +979,7 @@ async function searchWithPrefs(force) {
         const countEl = document.getElementById('result-count');
         let sourceLabel = '';
         if (data.source === 'cache' || data.source === 'pool') sourceLabel = ' (cached)';
+        else if (data.sources && data.sources.length > 1) sourceLabel = ' (from ' + data.sources.length + ' sources)';
         countEl.textContent = data.jobs.length + ' job' + (data.jobs.length !== 1 ? 's' : '') + ' found' + sourceLabel;
         countEl.classList.remove('hidden');
 
@@ -1219,6 +1220,12 @@ function _buildJobCard(job, idx) {
     if (job.is_remote) tags += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Remote</span>';
     if (job.salary_min) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">${formatSalary(job)}</span>`;
     if (job.posted_date) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">${job.posted_date}</span>`;
+    // Source badge (show for non-JSearch providers)
+    if (job.source && job.source !== 'jsearch') {
+        const _srcColors = { adzuna: 'bg-purple-50 text-purple-600', jooble: 'bg-cyan-50 text-cyan-600', remoteok: 'bg-green-50 text-green-600', remotive: 'bg-indigo-50 text-indigo-600' };
+        const _srcNames = { adzuna: 'Adzuna', jooble: 'Jooble', remoteok: 'RemoteOK', remotive: 'Remotive' };
+        tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full ${_srcColors[job.source] || 'bg-slate-50 text-slate-500'}">${_srcNames[job.source] || job.source}</span>`;
+    }
 
     const logo = job.company_logo
         ? `<img src="${escHtml(job.company_logo)}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<span class=\\'text-lg font-bold text-slate-400\\'>${escHtml((job.company || '?')[0])}</span>'">`

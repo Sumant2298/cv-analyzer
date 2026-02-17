@@ -401,6 +401,7 @@ def normalize_api_params_for_cache(prefs: dict, page: int = 1) -> tuple:
         'experience': api_params.get('experience', '').strip().lower(),
         'remote_jobs_only': api_params.get('remote_jobs_only', False),
         'page': page,
+        'source': 'multi',  # Differentiate from legacy single-source cache entries
     }
 
     cache_key = hashlib.sha256(

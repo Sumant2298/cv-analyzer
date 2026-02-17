@@ -121,7 +121,7 @@ def get_stale_cache(cache_key):
 
 
 def store_search_cache(cache_key, normalized_params, result,
-                       ttl_hours=None, page=1):
+                       ttl_hours=None, page=1, source='jsearch'):
     """Store or update a cache entry for a search result set.
 
     Upserts: if a row with the same query_hash exists (even expired),
@@ -141,7 +141,7 @@ def store_search_cache(cache_key, normalized_params, result,
             existing.created_at = datetime.utcnow()
             existing.expires_at = datetime.utcnow() + timedelta(hours=ttl_hours)
             existing.page = page
-            existing.source = 'jsearch'
+            existing.source = source
         else:
             entry = JobSearchCache(
                 query_hash=cache_key,
@@ -150,7 +150,7 @@ def store_search_cache(cache_key, normalized_params, result,
                 result_count=len(result.get('jobs', [])),
                 expires_at=datetime.utcnow() + timedelta(hours=ttl_hours),
                 page=page,
-                source='jsearch',
+                source=source,
             )
             db.session.add(entry)
         db.session.commit()
@@ -347,6 +347,146 @@ def _format_date(date_str):
         return date_str[:10] if len(date_str) >= 10 else date_str
 
 
+# ---------------------------------------------------------------------------
+# Multi-source search orchestrator
+# ---------------------------------------------------------------------------
+
+def search_jobs_multi(prefs, page=1, force_refresh=False,
+                      cache_key=None, normalized_params=None):
+    """Search multiple job API providers in parallel and merge results.
+
+    Args:
+        prefs: User preferences dict (from JobPreferences.to_dict())
+        page: Page number for pagination
+        force_refresh: Skip cache if True
+        cache_key: Pre-computed cache key
+        normalized_params: Normalized API params dict
+
+    Returns:
+        dict with 'jobs', 'total_count', 'sources', optional 'error'
+    """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from job_providers import get_active_providers, PROVIDER_PRIORITY
+
+    providers = get_active_providers()
+    if not providers:
+        return {'jobs': [], 'total_count': 0, 'error': 'No job providers configured.'}
+
+    # Check cache first (skip if force refresh)
+    if cache_key and not force_refresh:
+        cached_result, _ = get_cached_search(cache_key)
+        if cached_result:
+            logger.info('Multi-source cache hit for hash=%s', cache_key[:8])
+            return cached_result
+
+    # Check quota per provider (main thread — DB access)
+    eligible = []
+    for p in providers:
+        if p.monthly_quota == 0:
+            eligible.append(p)  # Unlimited
+        else:
+            under, calls, limit = check_quota(p.name, p.monthly_quota)
+            if under:
+                eligible.append(p)
+            else:
+                logger.info('Provider %s over quota (%d/%d), skipping', p.name, calls, limit)
+
+    if not eligible:
+        # All providers exhausted — caller should try pool/stale cache
+        return {'jobs': [], 'total_count': 0, 'sources': [],
+                'error': 'All job providers have reached their quota limits.'}
+
+    # Build params for each provider (main thread)
+    provider_params = {}
+    for p in eligible:
+        try:
+            provider_params[p.name] = p.build_params(prefs)
+        except Exception as e:
+            logger.warning('Provider %s build_params failed: %s', p.name, e)
+
+    # Fetch from all providers in parallel (worker threads — HTTP only, no DB)
+    all_jobs = []
+    sources_used = []
+
+    def _fetch_one(provider):
+        try:
+            params = provider_params.get(provider.name, {})
+            jobs = provider.fetch(params, page=page)
+            return provider.name, jobs
+        except Exception as e:
+            logger.warning('Provider %s fetch failed: %s', provider.name, e)
+            return provider.name, []
+
+    with ThreadPoolExecutor(max_workers=5) as executor:
+        futures = {
+            executor.submit(_fetch_one, p): p.name
+            for p in eligible
+            if p.name in provider_params
+        }
+        for future in as_completed(futures, timeout=30):
+            try:
+                name, jobs = future.result(timeout=25)
+                if jobs:
+                    all_jobs.extend(jobs)
+                    sources_used.append(name)
+                    logger.info('Provider %s returned %d jobs', name, len(jobs))
+            except Exception as e:
+                name = futures[future]
+                logger.warning('Provider %s timed out or failed: %s', name, e)
+
+    # Increment quota for providers that succeeded (main thread — DB access)
+    for name in sources_used:
+        provider = next((p for p in eligible if p.name == name), None)
+        if provider and provider.monthly_quota > 0:
+            increment_quota(name)
+
+    # Deduplicate: primary by job_id, secondary by (title, company)
+    seen_ids = set()
+    seen_titles = set()
+    deduped = []
+
+    # Sort by provider priority (lower = higher priority)
+    all_jobs.sort(key=lambda j: PROVIDER_PRIORITY.get(j.get('source', ''), 99))
+
+    for job in all_jobs:
+        jid = job.get('job_id', '')
+        if jid and jid in seen_ids:
+            continue
+        # Secondary dedup: same title + company across providers
+        title_key = ((job.get('title', '') or '')[:50].lower(),
+                     (job.get('company', '') or '').lower())
+        if title_key[0] and title_key[1] and title_key in seen_titles:
+            continue
+        if jid:
+            seen_ids.add(jid)
+        if title_key[0] and title_key[1]:
+            seen_titles.add(title_key)
+        deduped.append(job)
+
+    result = {
+        'jobs': deduped,
+        'total_count': len(deduped),
+        'sources': sorted(set(sources_used)),
+    }
+
+    # Cache the merged result
+    if cache_key:
+        store_search_cache(cache_key, normalized_params or {},
+                           result, page=page, source='multi')
+
+    # Stock the pool with all new jobs
+    query_str = (normalized_params or {}).get('query', '')
+    _store_jobs_in_pool(deduped, query_str)
+
+    logger.info('Multi-source search: %d jobs from %s (page %d)',
+                len(deduped), sources_used, page)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Job pool storage
+# ---------------------------------------------------------------------------
+
 def _store_jobs_in_pool(jobs, query):
     """Upsert individual jobs into the local JobPool for future local search.
 
@@ -384,6 +524,7 @@ def _store_jobs_in_pool(jobs, query):
                 salary_max=job.get('salary_max'),
                 salary_currency=job.get('salary_currency', ''),
                 salary_period=job.get('salary_period', ''),
+                source=job.get('source', 'jsearch'),
                 source_query=query[:500] if query else '',
                 title_lower=(job.get('title', '') or '').lower(),
                 company_lower=(job.get('company', '') or '').lower(),

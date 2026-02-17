@@ -320,6 +320,7 @@ class JobPool(db.Model):
     salary_period = db.Column(db.String(20), default='')
     fetched_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
     source_query = db.Column(db.String(500), default='')
+    source = db.Column(db.String(30), default='jsearch')  # Provider: jsearch, adzuna, jooble, remoteok, remotive
     # Lowercase copies for efficient SQL LIKE search
     title_lower = db.Column(db.String(500), default='', index=True)
     company_lower = db.Column(db.String(300), default='')
@@ -339,6 +340,7 @@ class JobPool(db.Model):
             'description': self.description,
             'description_snippet': self.description_snippet,
             'employment_type': self.employment_type_display or self.employment_type,
+            'employment_type_raw': self.employment_type,
             'posted_date': self.posted_date_display,
             'posted_date_raw': self.posted_date_raw,
             'apply_url': self.apply_url,
@@ -347,6 +349,7 @@ class JobPool(db.Model):
             'salary_max': self.salary_max,
             'salary_currency': self.salary_currency,
             'salary_period': self.salary_period,
+            'source': self.source or 'jsearch',
         }
 
 
