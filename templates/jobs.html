@@ -380,6 +380,22 @@
         <p id="quota-warning" class="text-xs text-amber-600 hidden mb-3"></p>
         <!-- Results grid -->
         <div id="jobs-grid" class="hidden space-y-4"></div>
+        <!-- Load More button -->
+        <div id="load-more-wrap" class="hidden text-center py-6">
+            <button onclick="loadMoreJobs()" id="load-more-btn"
+                class="inline-flex items-center gap-2 text-sm font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 border border-brand-200 px-6 py-2.5 rounded-xl transition">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                Load More Jobs
+            </button>
+            <div id="load-more-spinner" class="hidden inline-flex items-center gap-2 text-sm text-slate-500">
+                <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                Loading more jobs...
+            </div>
+        </div>
+        <!-- End of results indicator -->
+        <div id="no-more-results" class="hidden text-center py-4">
+            <p class="text-xs text-slate-400">No more results to load</p>
+        </div>
     </div>
 
 </div>
@@ -912,6 +928,10 @@ async function loadJobsPage() {
             countEl.classList.remove('hidden');
             renderJobs(snap.jobs);
             showState('grid');
+            // Snapshot is always page 1 — show Load More
+            _currentPage = 1;
+            _hasMoreResults = true;
+            if (snap.jobs.length >= 10) _showLoadMore();
             // If stale or older than 2 hours, refresh in background
             if (snap.is_stale || snap.snapshot_age_minutes > 120) {
                 searchWithPrefs();
@@ -926,13 +946,19 @@ async function loadJobsPage() {
 }
 
 let _searchGeneration = 0;  // Incremented on each search to prevent stale race conditions
+let _currentPage = 1;       // Current page for pagination
+let _hasMoreResults = true;  // Whether there are more pages to load
+let _isLoadingMore = false;  // Prevent concurrent load-more requests
 
 async function searchWithPrefs(force) {
     const thisGen = ++_searchGeneration;
+    _currentPage = 1;
+    _hasMoreResults = true;
     showState('loading');
+    _hideLoadMore();
 
     try {
-        const url = '/jobs/search?use_preferences=1' + (force ? '&force=1' : '');
+        const url = '/jobs/search?use_preferences=1&page=1' + (force ? '&force=1' : '');
         const resp = await fetch(url);
         const data = await resp.json();
 
@@ -964,11 +990,88 @@ async function searchWithPrefs(force) {
 
         renderJobs(data.jobs);
         showState('grid');
+
+        // Show Load More if we got a full page (~10 results)
+        if (data.jobs.length >= 10) {
+            _showLoadMore();
+        }
     } catch (err) {
         if (thisGen !== _searchGeneration) return;  // Ignore errors from superseded searches
         document.getElementById('error-message').textContent = 'Network error. Please try again.';
         showState('error');
     }
+}
+
+// ===================== LOAD MORE (PAGINATION) =====================
+async function loadMoreJobs() {
+    if (_isLoadingMore || !_hasMoreResults) return;
+    _isLoadingMore = true;
+
+    const btn = document.getElementById('load-more-btn');
+    const spinner = document.getElementById('load-more-spinner');
+    if (btn) btn.classList.add('hidden');
+    if (spinner) spinner.classList.remove('hidden');
+
+    const nextPage = _currentPage + 1;
+    const thisGen = _searchGeneration;  // Capture current generation
+
+    try {
+        const url = '/jobs/search?use_preferences=1&page=' + nextPage;
+        const resp = await fetch(url);
+        const data = await resp.json();
+
+        // Discard if a new search was started while loading more
+        if (thisGen !== _searchGeneration) { _isLoadingMore = false; return; }
+
+        if (data.error || !data.jobs || data.jobs.length === 0) {
+            _hasMoreResults = false;
+            _hideLoadMore();
+            document.getElementById('no-more-results').classList.remove('hidden');
+            _isLoadingMore = false;
+            return;
+        }
+
+        _currentPage = nextPage;
+
+        // Append new jobs to grid
+        appendJobs(data.jobs);
+
+        // Update result count
+        const totalJobs = (window._jobResults || []).length;
+        const countEl = document.getElementById('result-count');
+        countEl.textContent = totalJobs + ' job' + (totalJobs !== 1 ? 's' : '') + ' found';
+        countEl.classList.remove('hidden');
+
+        // Show/hide Load More based on whether we got a full page
+        if (data.jobs.length >= 10) {
+            _showLoadMore();
+        } else {
+            _hasMoreResults = false;
+            _hideLoadMore();
+            document.getElementById('no-more-results').classList.remove('hidden');
+        }
+    } catch (err) {
+        if (thisGen !== _searchGeneration) { _isLoadingMore = false; return; }
+        // Show the button again on error so user can retry
+        _showLoadMore();
+    } finally {
+        _isLoadingMore = false;
+    }
+}
+
+function _showLoadMore() {
+    const wrap = document.getElementById('load-more-wrap');
+    const btn = document.getElementById('load-more-btn');
+    const spinner = document.getElementById('load-more-spinner');
+    if (wrap) wrap.classList.remove('hidden');
+    if (btn) btn.classList.remove('hidden');
+    if (spinner) spinner.classList.add('hidden');
+    document.getElementById('no-more-results').classList.add('hidden');
+}
+
+function _hideLoadMore() {
+    const wrap = document.getElementById('load-more-wrap');
+    if (wrap) wrap.classList.add('hidden');
 }
 
 function showState(state) {
@@ -977,6 +1080,11 @@ function showState(state) {
     });
     const map = { empty: 'empty-state', loading: 'loading-state', error: 'error-state', 'no-results': 'no-results', grid: 'jobs-grid' };
     if (map[state]) document.getElementById(map[state]).classList.remove('hidden');
+    // Hide pagination elements when not showing grid
+    if (state !== 'grid') {
+        _hideLoadMore();
+        document.getElementById('no-more-results').classList.add('hidden');
+    }
 }
 
 // ===================== PREFERENCES SUMMARY =====================
@@ -1086,73 +1194,92 @@ function closeFilterPanel() {
     document.getElementById('filter-panel').classList.add('hidden');
 }
 
-// ===================== RENDER JOBS (unchanged logic) =====================
+// ===================== RENDER JOBS =====================
+function _buildJobCard(job, idx) {
+    const card = document.createElement('div');
+    card.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition';
+    card.id = 'job-card-' + idx;
+
+    let scoreBadge = '';
+    {
+        const useDeep = job.has_deep_score && job.deep_ats_score !== undefined;
+        const s = useDeep ? job.deep_ats_score : job.ats_score;
+        const scoreLabel = useDeep ? 'AI Score' : 'Quick';
+        if (s !== null && s !== undefined) {
+            let sc, sl;
+            if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
+            else if (s >= 70) { sc = 'bg-blue-100 text-blue-700'; sl = 'Good Match'; }
+            else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
+            else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
+            else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
+            scoreBadge = `<div class="text-center flex-shrink-0">
+                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
+                <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
+                <span class="block mt-0.5 text-[8px] text-slate-400">${scoreLabel}</span>
+            </div>`;
+        }
+    }
+
+    let tags = '';
+    if (job.employment_type) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${job.employment_type}</span>`;
+    if (job.is_remote) tags += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Remote</span>';
+    if (job.salary_min) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">${formatSalary(job)}</span>`;
+    if (job.posted_date) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">${job.posted_date}</span>`;
+
+    const logo = job.company_logo
+        ? `<img src="${escHtml(job.company_logo)}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<span class=\\'text-lg font-bold text-slate-400\\'>${escHtml((job.company || '?')[0])}</span>'">`
+        : `<span class="text-lg font-bold text-slate-400">${escHtml((job.company || '?')[0])}</span>`;
+
+    card.innerHTML = `
+        <div class="flex items-start gap-4">
+            <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">${logo}</div>
+            <div class="flex-1 min-w-0">
+                <h3 class="text-sm font-bold text-slate-800 leading-snug">${escHtml(job.title)}</h3>
+                <p class="text-xs text-slate-500 mt-0.5">${escHtml(job.company)}${job.location ? ' &middot; ' + escHtml(job.location) : ''}</p>
+                <div class="flex flex-wrap gap-1.5 mt-2">${tags}</div>
+                <p class="text-xs text-slate-400 mt-2 line-clamp-2">${escHtml(job.description_snippet || '')}</p>
+                <div class="flex items-center gap-2 mt-3">
+                    ${job.apply_url ? `<a href="${escHtml(job.apply_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-1.5 rounded-lg transition">Apply <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>` : ''}
+                    <button onclick="deepAnalyze(${idx}, this)" data-job-idx="${idx}"
+                        class="deep-analyze-btn inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
+                        Deep Analyze (3 credits)
+                    </button>
+                </div>
+            </div>
+            <div class="hidden sm:block">${scoreBadge}</div>
+        </div>
+        ${scoreBadge ? `<div class="sm:hidden flex justify-end mt-3 pt-3 border-t border-slate-100">${scoreBadge}</div>` : ''}
+    `;
+    return card;
+}
+
 function renderJobs(jobs) {
     const grid = document.getElementById('jobs-grid');
     grid.innerHTML = '';
+    window._jobResults = [];
 
-    jobs.forEach((job, idx) => {
-        const card = document.createElement('div');
-        card.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition';
-        card.id = 'job-card-' + idx;
-
-        let scoreBadge = '';
-        {
-            // Use deep score if available, otherwise quick score
-            const useDeep = job.has_deep_score && job.deep_ats_score !== undefined;
-            const s = useDeep ? job.deep_ats_score : job.ats_score;
-            const scoreLabel = useDeep ? 'AI Score' : 'Quick';
-            if (s !== null && s !== undefined) {
-                let sc, sl;
-                if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
-                else if (s >= 70) { sc = 'bg-blue-100 text-blue-700'; sl = 'Good Match'; }
-                else if (s >= 50) { sc = 'bg-amber-100 text-amber-700'; sl = 'Fair Match'; }
-                else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
-                else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
-                scoreBadge = `<div class="text-center flex-shrink-0">
-                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span>
-                    <span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span>
-                    <span class="block mt-0.5 text-[8px] text-slate-400">${scoreLabel}</span>
-                </div>`;
-            }
-        }
-
-        let tags = '';
-        if (job.employment_type) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${job.employment_type}</span>`;
-        if (job.is_remote) tags += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Remote</span>';
-        if (job.salary_min) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">${formatSalary(job)}</span>`;
-        if (job.posted_date) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">${job.posted_date}</span>`;
-
-        const logo = job.company_logo
-            ? `<img src="${escHtml(job.company_logo)}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<span class=\\'text-lg font-bold text-slate-400\\'>${escHtml((job.company || '?')[0])}</span>'">`
-            : `<span class="text-lg font-bold text-slate-400">${escHtml((job.company || '?')[0])}</span>`;
-
-        card.innerHTML = `
-            <div class="flex items-start gap-4">
-                <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">${logo}</div>
-                <div class="flex-1 min-w-0">
-                    <h3 class="text-sm font-bold text-slate-800 leading-snug">${escHtml(job.title)}</h3>
-                    <p class="text-xs text-slate-500 mt-0.5">${escHtml(job.company)}${job.location ? ' &middot; ' + escHtml(job.location) : ''}</p>
-                    <div class="flex flex-wrap gap-1.5 mt-2">${tags}</div>
-                    <p class="text-xs text-slate-400 mt-2 line-clamp-2">${escHtml(job.description_snippet || '')}</p>
-                    <div class="flex items-center gap-2 mt-3">
-                        ${job.apply_url ? `<a href="${escHtml(job.apply_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-1.5 rounded-lg transition">Apply <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>` : ''}
-                        <button onclick="deepAnalyze(${idx}, this)" data-job-idx="${idx}"
-                            class="deep-analyze-btn inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
-                            <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                            Deep Analyze (3 credits)
-                        </button>
-                    </div>
-                </div>
-                <div class="hidden sm:block">${scoreBadge}</div>
-            </div>
-            ${scoreBadge ? `<div class="sm:hidden flex justify-end mt-3 pt-3 border-t border-slate-100">${scoreBadge}</div>` : ''}
-        `;
-        grid.appendChild(card);
+    jobs.forEach((job, i) => {
+        window._jobResults.push(job);
+        grid.appendChild(_buildJobCard(job, i));
     });
 
     grid.classList.remove('hidden');
-    window._jobResults = jobs;
+}
+
+function appendJobs(newJobs) {
+    const grid = document.getElementById('jobs-grid');
+    if (!window._jobResults) window._jobResults = [];
+
+    // Deduplicate against existing results
+    const existingIds = new Set(window._jobResults.map(j => j.job_id).filter(Boolean));
+    const uniqueNewJobs = newJobs.filter(j => !j.job_id || !existingIds.has(j.job_id));
+
+    uniqueNewJobs.forEach(job => {
+        const idx = window._jobResults.length;
+        window._jobResults.push(job);
+        grid.appendChild(_buildJobCard(job, idx));
+    });
 }
 
 // ===================== DEEP ANALYZE (unchanged) =====================

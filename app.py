@@ -1603,6 +1603,7 @@ def jobs_search():
 
     use_preferences = request.args.get('use_preferences', '') == '1'
     force_refresh = request.args.get('force', '') == '1'
+    page = request.args.get('page', 1, type=int)
 
     if use_preferences:
         # Preference-based search: pool-first, then API fallback
@@ -1625,7 +1626,7 @@ def jobs_search():
                                 get_stale_cache)
 
         warning = None
-        normalized, cache_key = normalize_api_params_for_cache(prefs)
+        normalized, cache_key = normalize_api_params_for_cache(prefs, page=page)
         logger.info('Search: query=%r, location=%r, titles=%r, industries=%r, func_areas=%r, cache_key=%s',
                      normalized.get('query'), normalized.get('location'),
                      prefs.get('job_titles', [])[:2], prefs.get('industries'),
@@ -1657,8 +1658,8 @@ def jobs_search():
                         source = 'quota_exceeded'
                 warning = f'Monthly API quota reached ({calls_made}/{limit}). Showing cached results.'
             else:
-                # 3. Quota OK — try pool first (skip if force-refresh), then API
-                pool_results = None if force_refresh else search_from_pool(prefs)
+                # 3. Quota OK — try pool first (skip if force-refresh or paginating), then API
+                pool_results = None if (force_refresh or page > 1) else search_from_pool(prefs)
                 if pool_results is not None:
                     jobs = pool_results
                     source = 'pool'
@@ -1669,6 +1670,7 @@ def jobs_search():
                         location=api_params.get('location', ''),
                         employment_type=api_params.get('employment_type', ''),
                         experience=api_params.get('experience', ''),
+                        page=page,
                         cache_key=cache_key,
                         normalized_params=normalized,
                     )
@@ -1694,6 +1696,7 @@ def jobs_search():
             'total_count': len(jobs),
             'source': source,
             'cache_key': cache_key[:12],
+            'page': page,
         }
         if warning:
             results['warning'] = warning
@@ -1781,8 +1784,8 @@ def jobs_search():
             except Exception:
                 pass
 
-    # Save snapshot for instant load on next visit
-    if use_preferences and results.get('jobs'):
+    # Save snapshot for instant load on next visit (page 1 only)
+    if use_preferences and results.get('jobs') and page == 1:
         try:
             import hashlib as _snap_hashlib
             from models import UserJobSnapshot
