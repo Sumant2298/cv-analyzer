@@ -35,46 +35,36 @@ def build_jsearch_params(prefs: dict) -> dict:
         else:
             query_parts.append(' OR '.join(f'"{t}"' for t in titles[:3]))
 
-    # If no explicit titles, derive from taxonomy selection
+    # If no explicit titles, build query from taxonomy selection
     func_ids = prefs.get('industries', [])      # stores function_id
     rf_ids = prefs.get('functional_areas', [])   # stores role_family_id
     level_id = prefs.get('level', '')
 
     if not titles and rf_ids and func_ids:
         try:
-            from skills_data import TAXONOMY, derive_titles
+            from skills_data import TAXONOMY
             func_id = func_ids[0]
             rf_id = rf_ids[0]
-            derived = derive_titles(rf_id, level_id, func_id) if level_id else []
-            if derived:
-                query_parts.append(' OR '.join(f'"{t}"' for t in derived[:3]))
-            else:
-                # Fallback: use role family keywords
-                rf_data = TAXONOMY.get(func_id, {}).get('role_families', {}).get(rf_id, {})
-                if rf_data.get('keywords'):
-                    query_parts.append(rf_data['keywords'][0])
+            rf_data = TAXONOMY.get(func_id, {}).get('role_families', {}).get(rf_id, {})
+            # Use role family keywords as primary search (e.g. "recruiter", "talent acquisition")
+            keywords = rf_data.get('keywords', [])
+            if keywords:
+                # Use top 2 keywords as OR query for breadth
+                if len(keywords) >= 2:
+                    query_parts.append(f'"{keywords[0]}" OR "{keywords[1]}"')
+                else:
+                    query_parts.append(keywords[0])
         except ImportError:
             pass
 
-    # Function boost keyword (from taxonomy)
-    if func_ids:
+    # If still no query parts and we have a function, use function label
+    if not query_parts and func_ids:
         try:
             from skills_data import TAXONOMY
             func_data = TAXONOMY.get(func_ids[0], {})
-            boost = func_data.get('api_boost_keywords', [])
-            if boost:
-                query_parts.append(boost[0])
-        except ImportError:
-            pass
-
-    # Role family keyword for query refinement
-    if rf_ids and func_ids:
-        try:
-            from skills_data import TAXONOMY
-            func_data = TAXONOMY.get(func_ids[0], {})
-            rf_data = func_data.get('role_families', {}).get(rf_ids[0], {})
-            if rf_data.get('keywords'):
-                query_parts.append(rf_data['keywords'][0])
+            label = func_data.get('label', '')
+            if label:
+                query_parts.append(label)
         except ImportError:
             pass
 
