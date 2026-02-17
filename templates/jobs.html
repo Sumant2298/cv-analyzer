@@ -1042,14 +1042,8 @@ async function loadMoreJobs() {
         countEl.textContent = totalJobs + ' job' + (totalJobs !== 1 ? 's' : '') + ' found';
         countEl.classList.remove('hidden');
 
-        // Show/hide Load More based on whether we got a full page
-        if (data.jobs.length >= 10) {
-            _showLoadMore();
-        } else {
-            _hasMoreResults = false;
-            _hideLoadMore();
-            document.getElementById('no-more-results').classList.remove('hidden');
-        }
+        // Always show Load More — only stop when API returns 0 results (handled above)
+        _showLoadMore();
     } catch (err) {
         if (thisGen !== _searchGeneration) { _isLoadingMore = false; return; }
         // Show the button again on error so user can retry
