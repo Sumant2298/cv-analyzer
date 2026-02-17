@@ -12,6 +12,45 @@ from typing import List, Optional
 
 logger = logging.getLogger(__name__)
 
+# City name aliases: map each display name to all known variants for matching
+# JSearch returns locations like "Bengaluru, Karnataka" but user selects "Bangalore"
+_CITY_ALIASES = {
+    'bangalore':   ['bangalore', 'bengaluru', 'bengalore'],
+    'mumbai':      ['mumbai', 'bombay'],
+    'delhi ncr':   ['delhi ncr', 'delhi', 'new delhi', 'ncr', 'noida', 'gurgaon', 'gurugram', 'ghaziabad', 'faridabad'],
+    'hyderabad':   ['hyderabad', 'secunderabad'],
+    'chennai':     ['chennai', 'madras'],
+    'pune':        ['pune', 'pimpri', 'chinchwad'],
+    'kolkata':     ['kolkata', 'calcutta'],
+    'ahmedabad':   ['ahmedabad', 'gandhinagar'],
+    'noida':       ['noida', 'greater noida'],
+    'gurgaon':     ['gurgaon', 'gurugram'],
+    'kochi':       ['kochi', 'cochin', 'ernakulam'],
+    'thiruvananthapuram': ['thiruvananthapuram', 'trivandrum'],
+    'visakhapatnam': ['visakhapatnam', 'vizag'],
+}
+
+
+def _location_matches(user_city: str, job_location: str) -> bool:
+    """Check if a user-selected city matches a job location string.
+
+    Uses alias expansion so 'Bangalore' matches 'Bengaluru, Karnataka, India'.
+    """
+    job_loc_lower = job_location.lower()
+    city_key = user_city.strip().lower()
+
+    # Check direct match first
+    if city_key in job_loc_lower:
+        return True
+
+    # Check all aliases for this city
+    aliases = _CITY_ALIASES.get(city_key, [])
+    for alias in aliases:
+        if alias in job_loc_lower:
+            return True
+
+    return False
+
 
 # ---------------------------------------------------------------------------
 # 1. Build JSearch API parameters from user preferences
@@ -71,8 +110,17 @@ def build_jsearch_params(prefs: dict) -> dict:
         query = 'software developer'  # Fallback default
 
     # --- Location (first preferred location) ---
+    # Map UI city names to API-friendly names for JSearch
+    _API_CITY_NAMES = {
+        'bangalore': 'Bangalore, India',
+        'delhi ncr': 'Delhi, India',
+        'gurgaon': 'Gurgaon, India',
+        'noida': 'Noida, India',
+        'thiruvananthapuram': 'Thiruvananthapuram, India',
+    }
     locations = prefs.get('locations', [])
-    location = locations[0] if locations else ''
+    raw_loc = locations[0] if locations else ''
+    location = _API_CITY_NAMES.get(raw_loc.lower(), f'{raw_loc}, India' if raw_loc else '')
 
     # --- Employment types ---
     emp_types = prefs.get('employment_types', [])
@@ -125,16 +173,24 @@ def apply_local_filters(jobs: List[dict], prefs: dict) -> List[dict]:
         Filtered list of job dicts.
     """
     filtered = []
+    rejected = {'work_mode': 0, 'location': 0, 'salary': 0, 'functional_area': 0}
     for job in jobs:
         if not _passes_work_mode(job, prefs):
+            rejected['work_mode'] += 1
             continue
         if not _passes_location(job, prefs):
+            rejected['location'] += 1
             continue
         if not _passes_salary(job, prefs):
+            rejected['salary'] += 1
             continue
         if not _passes_functional_areas(job, prefs):
+            rejected['functional_area'] += 1
             continue
         filtered.append(job)
+    if any(rejected.values()):
+        logger.info('Local filters: %d/%d passed (rejected: %s)',
+                     len(filtered), len(jobs), rejected)
     return filtered
 
 
@@ -154,14 +210,19 @@ def _passes_work_mode(job: dict, prefs: dict) -> bool:
 
 
 def _passes_location(job: dict, prefs: dict) -> bool:
-    """Check remaining locations (beyond the first one sent to API)."""
+    """Check remaining locations (beyond the first one sent to API).
+
+    Uses alias-aware matching so 'Bangalore' matches 'Bengaluru, Karnataka'.
+    """
     locations = prefs.get('locations', [])
     if len(locations) <= 1:
         return True  # First location already pushed to API
-    job_loc = (job.get('location', '') or '').lower()
-    # Job matches if it contains ANY of the preferred locations
+    job_loc = (job.get('location', '') or '')
+    if not job_loc:
+        return True  # No location data → include
+    # Job matches if it contains ANY of the preferred locations (alias-aware)
     for loc in locations:
-        if loc.lower() in job_loc:
+        if _location_matches(loc, job_loc):
             return True
     return False
 
@@ -277,10 +338,16 @@ def search_from_pool(prefs: dict, min_results: int = 8, max_age_days: int = 7) -
     elif work_mode == 'onsite':
         query = query.filter(JobPool.is_remote == False)
 
-    # Locations (SQL LIKE on any)
+    # Locations (SQL LIKE on any, with alias expansion)
     locations = prefs.get('locations', [])
     if locations:
-        loc_conditions = [JobPool.location.ilike(f'%{loc}%') for loc in locations]
+        loc_conditions = []
+        for loc in locations:
+            loc_conditions.append(JobPool.location.ilike(f'%{loc}%'))
+            # Add alias variants for broader matching
+            for alias in _CITY_ALIASES.get(loc.lower(), []):
+                if alias != loc.lower():
+                    loc_conditions.append(JobPool.location.ilike(f'%{alias}%'))
         query = query.filter(db.or_(*loc_conditions))
 
     # Order by recency, fetch up to 50
