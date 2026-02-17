@@ -20,6 +20,8 @@
                 <a href="/dashboard" class="text-xs bg-white/15 hover:bg-white/25 text-white/80 px-3 py-1.5 rounded-lg transition font-semibold hidden sm:inline-block">Dashboard</a>
                 <a href="/logout" class="text-xs bg-white/15 hover:bg-white/25 text-white/80 px-3 py-1.5 rounded-lg transition font-semibold hidden sm:inline-block">Sign out</a>
                 {% else %}
+                <a href="/resume-tips" class="text-xs text-white/70 hover:text-white px-2 py-1.5 transition font-medium hidden sm:inline-block">Resume Tips</a>
+                <a href="/blog" class="text-xs text-white/70 hover:text-white px-2 py-1.5 transition font-medium hidden sm:inline-block">Blog</a>
                 <a href="/login" class="text-xs bg-white/15 hover:bg-white/25 text-white/80 px-3 py-1.5 rounded-lg transition font-semibold">Sign In</a>
                 <a href="/login" class="text-xs bg-white hover:bg-slate-100 text-brand-700 px-4 py-1.5 rounded-lg transition font-bold shadow-sm">Join for Free</a>
                 {% endif %}
@@ -55,9 +57,15 @@
     <main>{% block content %}{% endblock %}</main>
 
     <footer class="bg-slate-900 text-slate-400 mt-12 no-print">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8 text-center">
-            <p class="text-sm">LevelUpX &mdash; AI-powered resume intelligence. Your data stays private.</p>
-            <p class="text-xs mt-2 text-slate-500">Powered by AI</p>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-8">
+            <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+                <p class="text-sm">LevelUpX &mdash; AI-powered resume intelligence. Your data stays private.</p>
+                <div class="flex items-center gap-4">
+                    <a href="/resume-tips" class="text-xs text-slate-500 hover:text-slate-300 transition">Resume Tips</a>
+                    <a href="/blog" class="text-xs text-slate-500 hover:text-slate-300 transition">Blog</a>
+                </div>
+            </div>
+            <p class="text-xs mt-3 text-slate-500 text-center sm:text-left">Powered by AI</p>
         </div>
     </footer>
 </body>

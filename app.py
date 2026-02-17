@@ -2435,6 +2435,11 @@ def resume_tips():
     return render_template('resume_tips.html')
 
 
+@app.route('/blog')
+def blog():
+    return render_template('blog.html')
+
+
 # ---------------------------------------------------------------------------
 # My Resumes — store up to 5 resumes per user
 # ---------------------------------------------------------------------------
