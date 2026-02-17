@@ -108,6 +108,8 @@ def build_jsearch_params(prefs: dict) -> dict:
     query = ' '.join(query_parts).strip()
     if not query:
         query = 'software developer'  # Fallback default
+    logger.info('build_jsearch_params: query=%r (titles=%r, func=%r, rf=%r)',
+                query, titles[:1] if titles else [], func_ids, rf_ids)
 
     # --- Location (first preferred location) ---
     # Map UI city names to API-friendly names for JSearch

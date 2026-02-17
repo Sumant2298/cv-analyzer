@@ -893,8 +893,8 @@ async function savePreferencesAndSearch(prefix) {
     const editBtn = document.getElementById('editPrefsBtn');
     if (editBtn) editBtn.classList.remove('hidden');
 
-    // Trigger search
-    searchWithPrefs();
+    // Trigger search (force=true to bypass cache after pref change)
+    searchWithPrefs(true);
 }
 
 async function updateAndSearch() {
@@ -933,12 +933,19 @@ async function loadJobsPage() {
     searchWithPrefs();
 }
 
-async function searchWithPrefs() {
+let _searchGeneration = 0;  // Incremented on each search to prevent stale race conditions
+
+async function searchWithPrefs(force) {
+    const thisGen = ++_searchGeneration;
     showState('loading');
 
     try {
-        const resp = await fetch('/jobs/search?use_preferences=1');
+        const url = '/jobs/search?use_preferences=1' + (force ? '&force=1' : '');
+        const resp = await fetch(url);
         const data = await resp.json();
+
+        // If a newer search was triggered while this one was in-flight, discard results
+        if (thisGen !== _searchGeneration) return;
 
         if (data.error) {
             document.getElementById('error-message').textContent = data.error;
@@ -966,6 +973,7 @@ async function searchWithPrefs() {
         renderJobs(data.jobs);
         showState('grid');
     } catch (err) {
+        if (thisGen !== _searchGeneration) return;  // Ignore errors from superseded searches
         document.getElementById('error-message').textContent = 'Network error. Please try again.';
         showState('error');
     }

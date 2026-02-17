@@ -1602,6 +1602,7 @@ def jobs_search():
         return jsonify({'error': 'User not found'}), 404
 
     use_preferences = request.args.get('use_preferences', '') == '1'
+    force_refresh = request.args.get('force', '') == '1'
 
     if use_preferences:
         # Preference-based search: pool-first, then API fallback
@@ -1625,9 +1626,14 @@ def jobs_search():
 
         warning = None
         normalized, cache_key = normalize_api_params_for_cache(prefs)
+        logger.info('Search: query=%r, location=%r, titles=%r, industries=%r, func_areas=%r, cache_key=%s',
+                     normalized.get('query'), normalized.get('location'),
+                     prefs.get('job_titles', [])[:2], prefs.get('industries'),
+                     prefs.get('functional_areas'), cache_key[:8])
 
         # 1. Check read-through cache (24h TTL, keyed on API params only)
-        cached_result, _ = get_cached_search(cache_key)
+        #    Skip cache if force=1 (user explicitly updated preferences)
+        cached_result, _ = (None, None) if force_refresh else get_cached_search(cache_key)
         if cached_result:
             jobs = apply_local_filters(cached_result.get('jobs', []), prefs)
             source = 'cache'
@@ -1651,8 +1657,8 @@ def jobs_search():
                         source = 'quota_exceeded'
                 warning = f'Monthly API quota reached ({calls_made}/{limit}). Showing cached results.'
             else:
-                # 3. Quota OK — try pool first, then API
-                pool_results = search_from_pool(prefs)
+                # 3. Quota OK — try pool first (skip if force-refresh), then API
+                pool_results = None if force_refresh else search_from_pool(prefs)
                 if pool_results is not None:
                     jobs = pool_results
                     source = 'pool'
