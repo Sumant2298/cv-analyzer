@@ -30,10 +30,8 @@ def build_jsearch_params(prefs: dict) -> dict:
     # --- Job titles (primary search terms) ---
     titles = prefs.get('job_titles', [])
     if titles:
-        if len(titles) == 1:
-            query_parts.append(titles[0])
-        else:
-            query_parts.append(' OR '.join(f'"{t}"' for t in titles[:3]))
+        # Use first title unquoted for broad matching (JSearch works best this way)
+        query_parts.append(titles[0])
 
     # If no explicit titles, build query from taxonomy selection
     func_ids = prefs.get('industries', [])      # stores function_id
