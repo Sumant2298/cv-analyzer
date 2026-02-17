@@ -642,6 +642,34 @@ async function fetchTitleSuggestions(prefix) {
 // ===================== LOCATION AUTOCOMPLETE =====================
 let locationSearchTimeout = {};
 
+// Client-side city list + aliases for instant fallback
+const _localCities = ['Bangalore','Mumbai','Delhi NCR','Hyderabad','Chennai','Pune','Kolkata','Ahmedabad','Noida','Gurgaon','Jaipur','Chandigarh','Kochi','Indore','Lucknow','Coimbatore','Thiruvananthapuram','Visakhapatnam','Nagpur','Bhubaneswar','Remote'];
+const _cityAliases = {bengaluru:'Bangalore',gurugram:'Gurgaon',bombay:'Mumbai',calcutta:'Kolkata',madras:'Chennai',trivandrum:'Thiruvananthapuram',vizag:'Visakhapatnam'};
+
+function _localCityMatch(q) {
+    const ql = q.toLowerCase();
+    const matches = _localCities.filter(c => c.toLowerCase().includes(ql));
+    Object.entries(_cityAliases).forEach(([alias, canonical]) => {
+        if (alias.includes(ql) && !matches.includes(canonical)) matches.push(canonical);
+    });
+    return matches.slice(0, 10);
+}
+
+function _renderLocationDropdown(prefix, cities, dropdown) {
+    dropdown.innerHTML = '';
+    cities.forEach(city => {
+        const div = document.createElement('div');
+        div.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 transition';
+        div.dataset.city = city;
+        div.textContent = city;
+        const s = selectedLocations[prefix] || new Set();
+        if (s.has(city)) div.classList.add('bg-brand-50', 'font-semibold', 'text-brand-700');
+        div.onclick = () => { toggleLocationSelection(prefix, city); updateLocationDropdownState(prefix); };
+        dropdown.appendChild(div);
+    });
+    dropdown.classList.toggle('hidden', dropdown.children.length === 0);
+}
+
 function debouncedLocationSearch(prefix) {
     clearTimeout(locationSearchTimeout[prefix]);
     const input = document.getElementById(prefix + '-locations-search');
@@ -654,35 +682,22 @@ function debouncedLocationSearch(prefix) {
         return;
     }
 
+    // Show local matches immediately (no network delay)
+    _renderLocationDropdown(prefix, _localCityMatch(q), dropdown);
+
+    // Then try server for richer results (Nominatim)
     locationSearchTimeout[prefix] = setTimeout(async () => {
         try {
-            const resp = await fetch('/jobs/location-autocomplete?q=' + encodeURIComponent(q));
+            const resp = await fetch('/jobs/location-autocomplete?q=' + encodeURIComponent(q), {credentials: 'same-origin'});
+            if (!resp.ok) return; // keep showing local matches
             const data = await resp.json();
-            dropdown.innerHTML = '';
-
-            (data.suggestions || []).forEach(loc => {
-                const div = document.createElement('div');
-                div.className = 'px-3 py-2 text-sm cursor-pointer hover:bg-slate-50 transition';
-                const displayText = loc.city;
-                div.dataset.city = displayText;
-                div.textContent = displayText + (loc.country ? ' (' + loc.country + ')' : '');
-
-                const s = selectedLocations[prefix] || new Set();
-                if (s.has(displayText)) {
-                    div.classList.add('bg-brand-50', 'font-semibold', 'text-brand-700');
-                }
-
-                div.onclick = () => {
-                    toggleLocationSelection(prefix, displayText);
-                    updateLocationDropdownState(prefix);
-                };
-                dropdown.appendChild(div);
-            });
-
-            dropdown.classList.toggle('hidden', dropdown.children.length === 0);
+            const suggestions = (data.suggestions || []).map(loc => loc.city).filter(Boolean);
+            if (suggestions.length > 0) {
+                _renderLocationDropdown(prefix, suggestions, dropdown);
+            }
         } catch (e) {
-            console.error('Location autocomplete failed:', e);
-            dropdown.classList.add('hidden');
+            console.error('Location autocomplete API failed, using local matches:', e);
+            // Local matches already showing, no action needed
         }
     }, 300);
 }
