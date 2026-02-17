@@ -260,10 +260,6 @@ class JobPreferences(db.Model):
             'functional_areas': self._parse_json('functional_areas'),
             'level': self.level or '',
             'skills': self._parse_json('skills'),
-            'company_sizes': self._parse_json('company_sizes'),
-            'company_types': self._parse_json('company_types'),
-            'companies_include': self._parse_json('companies_include'),
-            'companies_exclude': self._parse_json('companies_exclude'),
             'setup_completed': self.setup_completed,
         }
 
@@ -272,8 +268,7 @@ class JobPreferences(db.Model):
         import json
         json_fields = [
             'job_titles', 'employment_types', 'locations', 'industries',
-            'functional_areas', 'skills', 'company_sizes', 'company_types',
-            'companies_include', 'companies_exclude',
+            'functional_areas', 'skills',
         ]
         for field in json_fields:
             if field in data:

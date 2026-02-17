@@ -61,11 +61,6 @@ def build_jsearch_params(prefs: dict) -> dict:
     if skills:
         query_parts.append(' '.join(skills[:2]))
 
-    # Include companies (only 1-2, otherwise local filter handles it)
-    includes = prefs.get('companies_include', [])
-    if len(includes) == 1:
-        query_parts.append(includes[0])
-
     # Function boost keyword (from taxonomy)
     if func_ids:
         try:
@@ -102,10 +97,13 @@ def build_jsearch_params(prefs: dict) -> dict:
 
     # --- Experience level (map UI values to JSearch API values) ---
     exp_map = {
+        'fresher': 'no_experience',
         'no_experience': 'no_experience',
-        'under_3_years': 'under_3_years_experience',
-        'more_than_3_years': 'more_than_3_years_experience',
+        '0_3_years': 'under_3_years_experience',
         'under_3_years_experience': 'under_3_years_experience',
+        '3_8_years': 'more_than_3_years_experience',
+        '8_15_years': 'more_than_3_years_experience',
+        '15_plus_years': 'more_than_3_years_experience',
         'more_than_3_years_experience': 'more_than_3_years_experience',
         'no_degree': 'no_degree',
     }
@@ -150,14 +148,6 @@ def apply_local_filters(jobs: List[dict], prefs: dict) -> List[dict]:
         if not _passes_location(job, prefs):
             continue
         if not _passes_salary(job, prefs):
-            continue
-        if not _passes_company_exclude(job, prefs):
-            continue
-        if not _passes_company_include(job, prefs):
-            continue
-        if not _passes_company_size(job, prefs):
-            continue
-        if not _passes_company_type(job, prefs):
             continue
         if not _passes_skills(job, prefs):
             continue
@@ -236,76 +226,6 @@ def _passes_salary(job: dict, prefs: dict) -> bool:
         return False
     if umax != float('inf') and jmin and jmin > umax:
         return False
-    return True
-
-
-def _passes_company_exclude(job: dict, prefs: dict) -> bool:
-    excludes = prefs.get('companies_exclude', [])
-    if not excludes:
-        return True
-    company = (job.get('company', '') or '').lower()
-    for exc in excludes:
-        if exc.lower() in company:
-            return False
-    return True
-
-
-def _passes_company_include(job: dict, prefs: dict) -> bool:
-    """If 3+ companies in include list, treat as strict filter."""
-    includes = prefs.get('companies_include', [])
-    if len(includes) < 3:
-        return True  # 1-2 companies were pushed to API query
-    company = (job.get('company', '') or '').lower()
-    return any(inc.lower() in company for inc in includes)
-
-
-def _passes_company_size(job: dict, prefs: dict) -> bool:
-    """Heuristic company size filter — permissive (include if no indicators)."""
-    sizes = prefs.get('company_sizes', [])
-    if not sizes:
-        return True
-    desc = (job.get('description', '') or '').lower()
-    company = (job.get('company', '') or '').lower()
-    text = desc + ' ' + company
-
-    size_keywords = {
-        'startup': ['startup', 'early stage', 'seed', 'series a', 'series b', 'small team'],
-        'mid_size': ['mid-size', 'midsize', 'growing company', 'series c', 'series d', 'mid size'],
-        'enterprise': ['enterprise', 'fortune 500', 'large organization', 'global company', 'large-scale'],
-        'mnc': ['mnc', 'multinational', 'global presence', 'offices worldwide', 'fortune'],
-    }
-
-    for size in sizes:
-        for kw in size_keywords.get(size, []):
-            if kw in text:
-                return True
-
-    # No indicators found → include job (permissive)
-    return True
-
-
-def _passes_company_type(job: dict, prefs: dict) -> bool:
-    """Heuristic company type filter — permissive."""
-    types = prefs.get('company_types', [])
-    if not types:
-        return True
-    desc = (job.get('description', '') or '').lower()
-    company = (job.get('company', '') or '').lower()
-    text = desc + ' ' + company
-
-    type_keywords = {
-        'product': ['product company', 'product-based', 'saas', 'platform'],
-        'service': ['service company', 'it services', 'outsourcing', 'service-based', 'staffing'],
-        'consulting': ['consulting', 'advisory', 'consultancy'],
-        'startup': ['startup', 'early-stage', 'seed funded', 'venture backed'],
-    }
-
-    for t in types:
-        for kw in type_keywords.get(t, []):
-            if kw in text:
-                return True
-
-    # No indicators → include (permissive)
     return True
 
 

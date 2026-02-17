@@ -1469,6 +1469,177 @@ def jobs_skills_suggest():
     return jsonify(matches)
 
 
+@app.route('/jobs/suggest-titles', methods=['POST'])
+def jobs_suggest_titles():
+    """LLM-powered job title suggestions from Function + Role Family + Level + Experience."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json(silent=True) or {}
+    function_id = data.get('function_id', '')
+    role_family_id = data.get('role_family_id', '')
+    level_id = data.get('level_id', '')
+    experience = data.get('experience', '')
+
+    if not function_id or not role_family_id:
+        return jsonify({'error': 'function_id and role_family_id required'}), 400
+
+    from skills_data import TAXONOMY, LEVEL_LABELS
+    func_data = TAXONOMY.get(function_id, {})
+    func_label = func_data.get('label', function_id)
+    rf_data = func_data.get('role_families', {}).get(role_family_id, {})
+    rf_label = rf_data.get('label', role_family_id)
+    level_label = LEVEL_LABELS.get(level_id, level_id) if level_id else 'any level'
+
+    exp_labels = {
+        'fresher': 'Fresher (0 years)',
+        '0_3_years': '0-3 years experience',
+        '3_8_years': '3-8 years experience',
+        '8_15_years': '8-15 years experience',
+        '15_plus_years': '15+ years experience',
+    }
+    exp_label = exp_labels.get(experience, experience or 'any experience level')
+
+    system = (
+        'You are a job title expert. Return ONLY a valid JSON object '
+        'with a single key "titles" containing an array of 5-8 strings. '
+        'Each string is a realistic job title found on job boards.'
+    )
+    prompt = (
+        f'Generate 5-8 realistic job titles for a candidate with this profile:\n'
+        f'- Function: {func_label}\n'
+        f'- Role Family: {rf_label}\n'
+        f'- Level: {level_label}\n'
+        f'- Experience: {exp_label}\n'
+        f'Return titles commonly used on job boards like LinkedIn, Indeed, Naukri.\n'
+        f'Mix specific and broader titles. Include both Indian and global market titles.'
+    )
+
+    try:
+        from llm_service import _call_llm
+        result = _call_llm(system, prompt, max_tokens=500, temperature=0.5, timeout=15.0)
+        titles = result.get('titles', [])
+        if not isinstance(titles, list):
+            titles = []
+        titles = [str(t) for t in titles if isinstance(t, str) and t.strip()][:8]
+        return jsonify({'titles': titles})
+    except Exception as e:
+        logger.error('LLM title suggestion failed: %s', e)
+        from skills_data import derive_titles
+        fallback = derive_titles(role_family_id, level_id, function_id)
+        return jsonify({'titles': fallback, 'fallback': True})
+
+
+@app.route('/jobs/suggest-skills', methods=['POST'])
+def jobs_suggest_skills():
+    """LLM-powered skill suggestions from Function + Role Family + Level."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json(silent=True) or {}
+    function_id = data.get('function_id', '')
+    role_family_id = data.get('role_family_id', '')
+    level_id = data.get('level_id', '')
+
+    if not function_id or not role_family_id:
+        return jsonify({'error': 'function_id and role_family_id required'}), 400
+
+    from skills_data import TAXONOMY, LEVEL_LABELS
+    func_data = TAXONOMY.get(function_id, {})
+    func_label = func_data.get('label', function_id)
+    rf_data = func_data.get('role_families', {}).get(role_family_id, {})
+    rf_label = rf_data.get('label', role_family_id)
+    level_label = LEVEL_LABELS.get(level_id, level_id) if level_id else 'any level'
+
+    system = (
+        'You are a technical recruiting expert. Return ONLY a valid JSON object '
+        'with a single key "skills" containing an array of 8-12 strings. '
+        'Each string is a specific technical skill, tool, or technology.'
+    )
+    prompt = (
+        f'List 8-12 in-demand skills/technologies for this role:\n'
+        f'- Function: {func_label}\n'
+        f'- Role Family: {rf_label}\n'
+        f'- Level: {level_label}\n'
+        f'Include a mix of core technical skills, tools, and frameworks '
+        f'that employers commonly require for this role in 2025-2026.'
+    )
+
+    try:
+        from llm_service import _call_llm
+        result = _call_llm(system, prompt, max_tokens=500, temperature=0.5, timeout=15.0)
+        skills = result.get('skills', [])
+        if not isinstance(skills, list):
+            skills = []
+        skills = [str(s) for s in skills if isinstance(s, str) and s.strip()][:12]
+        return jsonify({'skills': skills})
+    except Exception as e:
+        logger.error('LLM skill suggestion failed: %s', e)
+        fallback_skills = rf_data.get('skills', [])[:8]
+        return jsonify({'skills': fallback_skills, 'fallback': True})
+
+
+@app.route('/jobs/location-autocomplete')
+def jobs_location_autocomplete():
+    """Location typeahead using Nominatim (OpenStreetMap) with local fallback."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    q = request.args.get('q', '').strip()
+    if len(q) < 2:
+        return jsonify({'suggestions': []})
+
+    from skills_data import INDIAN_CITIES
+    local_matches = [c for c in INDIAN_CITIES if q.lower() in c.lower()]
+
+    try:
+        resp = http_requests.get(
+            'https://nominatim.openstreetmap.org/search',
+            params={
+                'q': q,
+                'format': 'json',
+                'addressdetails': 1,
+                'limit': 8,
+                'featuretype': 'city',
+            },
+            headers={'User-Agent': 'LevelUpX-JobSearch/1.0'},
+            timeout=5,
+        )
+        resp.raise_for_status()
+        results = resp.json()
+
+        suggestions = []
+        seen = set()
+
+        for city in local_matches:
+            key = city.lower()
+            if key not in seen:
+                seen.add(key)
+                suggestions.append({'city': city, 'state': '', 'country': 'India'})
+
+        for r in results:
+            addr = r.get('address', {})
+            city = (addr.get('city') or addr.get('town')
+                    or addr.get('state_district') or r.get('name', ''))
+            state = addr.get('state', '')
+            country = addr.get('country', '')
+            display = city
+            if state:
+                display += f', {state}'
+            key = display.lower()
+            if key not in seen and city:
+                seen.add(key)
+                suggestions.append({'city': display, 'state': state, 'country': country})
+
+        return jsonify({'suggestions': suggestions[:10]})
+    except Exception as e:
+        logger.warning('Nominatim autocomplete failed: %s, falling back to local', e)
+        return jsonify({'suggestions': [
+            {'city': c, 'state': '', 'country': 'India'}
+            for c in local_matches[:10]
+        ]})
+
+
 @app.route('/jobs/snapshot')
 def jobs_snapshot():
     """Return cached job results for instant page load. No API calls."""
