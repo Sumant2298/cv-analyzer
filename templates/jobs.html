@@ -21,6 +21,21 @@
     </div>
     {% endif %}
 
+    <!-- Profile Completion Nudge -->
+    {% if not profile_complete %}
+    <div class="bg-indigo-50 border border-indigo-200 rounded-lg px-3 py-2 mb-3 flex items-center gap-2">
+        <svg class="w-4 h-4 text-indigo-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+        </svg>
+        <p class="text-xs text-indigo-700 flex-1">Complete your profile for faster auto-fill on job applications &mdash;
+            <a href="{{ url_for('my_profile') }}" class="font-semibold hover:underline">Complete Profile &rarr;</a>
+        </p>
+        <button onclick="this.parentElement.remove()" class="text-indigo-400 hover:text-indigo-600 flex-shrink-0">
+            <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+        </button>
+    </div>
+    {% endif %}
+
     <!-- Preferences Summary Bar (return visits only) -->
     <div id="prefs-summary" class="hidden bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 shadow-sm">
         <div class="flex items-center gap-2">

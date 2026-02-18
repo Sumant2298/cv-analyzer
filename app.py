@@ -3415,11 +3415,16 @@ def job_copilot_search():
     show_wizard = not prefs or not prefs.setup_completed
     preferences_json = json.dumps(prefs.to_dict()) if prefs and prefs.setup_completed else 'null'
 
+    # Check if user has completed their profile (for nudge banner)
+    up = UserProfile.query.filter_by(user_id=user.id).first()
+    profile_complete = bool(up and up.setup_completed)
+
     return render_template('jobs.html',
                            primary_resume=primary,
                            credits_remaining=user.credits,
                            show_wizard=show_wizard,
                            preferences_json=preferences_json,
+                           profile_complete=profile_complete,
                            active_category='job_copilot', active_page='search')
 
 
@@ -3820,15 +3825,21 @@ def resume_status(resume_id):
 # ---------------------------------------------------------------------------
 
 def _prefill_profile_from_resume(user, profile_obj):
-    """Pre-populate a new UserProfile from the user's primary resume."""
+    """Merge empty profile fields from the user's primary resume.
+
+    Safe to call on every visit — only fills fields that are still blank,
+    so it never overwrites manual edits.
+    """
     resume = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
     if not resume:
         resume = UserResume.query.filter_by(user_id=user.id).order_by(
             UserResume.updated_at.desc()).first()
     if not resume:
         parts = (user.name or '').split(None, 1)
-        profile_obj.first_name = parts[0] if parts else ''
-        profile_obj.last_name = parts[1] if len(parts) > 1 else ''
+        if not profile_obj.first_name:
+            profile_obj.first_name = parts[0] if parts else ''
+        if not profile_obj.last_name:
+            profile_obj.last_name = parts[1] if len(parts) > 1 else ''
         return
 
     rp = _build_extension_profile(resume)
@@ -3837,20 +3848,35 @@ def _prefill_profile_from_resume(user, profile_obj):
     work = rp.get('work', [{}])[0] if rp.get('work') else {}
     edu = rp.get('education', [{}])[0] if rp.get('education') else {}
 
-    profile_obj.first_name = b.get('firstName', '')
-    profile_obj.last_name = b.get('lastName', '')
-    profile_obj.phone = b.get('phone', '')
-    profile_obj.city = loc.get('city', '')
-    profile_obj.state = loc.get('region', '')
-    profile_obj.linkedin_url = b.get('linkedin', '')
-    profile_obj.github_url = b.get('github', '')
-    profile_obj.website_url = b.get('website', '')
-    profile_obj.current_company = work.get('company', '')
-    profile_obj.current_title = work.get('position', '') or b.get('title', '')
-    profile_obj.university = edu.get('institution', '')
-    profile_obj.degree = edu.get('studyType', '')
-    profile_obj.major = edu.get('area', '')
-    profile_obj.gpa = edu.get('score', '')
+    # Only fill empty fields — never overwrite user edits
+    if not profile_obj.first_name:
+        profile_obj.first_name = b.get('firstName', '')
+    if not profile_obj.last_name:
+        profile_obj.last_name = b.get('lastName', '')
+    if not profile_obj.phone:
+        profile_obj.phone = b.get('phone', '')
+    if not profile_obj.city:
+        profile_obj.city = loc.get('city', '')
+    if not profile_obj.state:
+        profile_obj.state = loc.get('region', '')
+    if not profile_obj.linkedin_url:
+        profile_obj.linkedin_url = b.get('linkedin', '')
+    if not profile_obj.github_url:
+        profile_obj.github_url = b.get('github', '')
+    if not profile_obj.website_url:
+        profile_obj.website_url = b.get('website', '')
+    if not profile_obj.current_company:
+        profile_obj.current_company = work.get('company', '')
+    if not profile_obj.current_title:
+        profile_obj.current_title = work.get('position', '') or b.get('title', '')
+    if not profile_obj.university:
+        profile_obj.university = edu.get('institution', '')
+    if not profile_obj.degree:
+        profile_obj.degree = edu.get('studyType', '')
+    if not profile_obj.major:
+        profile_obj.major = edu.get('area', '')
+    if not profile_obj.gpa:
+        profile_obj.gpa = edu.get('score', '')
 
 
 @app.route('/my-profile')
@@ -3868,9 +3894,10 @@ def my_profile():
     profile = UserProfile.query.filter_by(user_id=user.id).first()
     if not profile:
         profile = UserProfile(user_id=user.id)
-        _prefill_profile_from_resume(user, profile)
         db.session.add(profile)
-        db.session.commit()
+    # Always merge empty fields from resume (safe — never overwrites edits)
+    _prefill_profile_from_resume(user, profile)
+    db.session.commit()
 
     return render_template('my_profile.html',
                            active_section='my_profile',
