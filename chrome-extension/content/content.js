@@ -43,9 +43,27 @@
         return adapter;
       }
     }
-    // Last resort: generic form with name/email fields
-    if (document.querySelector('input[name*="first_name"], input[name*="name"]') &&
-        document.querySelector('input[type="email"], input[name*="email"]')) {
+    // Last resort: generic form detection for unknown ATS platforms
+    const hasApplyForm = document.querySelector(
+      'form[action*="apply"], form[action*="submit"], form[action*="job"], ' +
+      'form[action*="application"], form[action*="candidate"]'
+    );
+    const hasApplyClasses = document.querySelector(
+      '[class*="apply"], [class*="application"], [class*="job-form"], ' +
+      '[class*="candidate"], [class*="career"]'
+    );
+    const hasNameEmail = (
+      document.querySelector('input[name*="first_name"], input[name*="name"]') &&
+      document.querySelector('input[type="email"], input[name*="email"]')
+    );
+    // Check for any form with 3+ visible inputs
+    let hasSubstantialForm = false;
+    for (const form of document.querySelectorAll('form')) {
+      const inputs = form.querySelectorAll('input:not([type="hidden"]), textarea, select');
+      if (inputs.length >= 3) { hasSubstantialForm = true; break; }
+    }
+
+    if (hasApplyForm || hasNameEmail || (hasApplyClasses && hasSubstantialForm)) {
       console.log('[LevelUpX] Detected generic application form');
       return ADAPTERS.find(a => a.name === 'Greenhouse') || ADAPTERS[0];
     }
@@ -153,8 +171,23 @@
       }
       profileCache = profile;
 
+      // Re-detect adapter — DOM may have changed since init (SPA navigation, late-loading forms)
       if (!currentAdapter) {
-        throw new Error('No supported form detected on this page');
+        currentAdapter = detectAdapter();
+      }
+      // Final fallback: create a generic adapter that relies on the label-scanner
+      if (!currentAdapter) {
+        console.log('[LevelUpX] No specific adapter found, using generic label-scanner');
+        currentAdapter = window.LevelUpXBaseAdapter.create({
+          name: 'Generic',
+          hostPatterns: [],
+          formDetector() {
+            return !!document.querySelector('form') &&
+                   !!(document.querySelector('input:not([type="hidden"]), textarea, select'));
+          },
+          fieldMap() { return {}; }, // empty — _scanAndFillByLabels does all the work
+          resumeInputSelectors: ['input[type="file"]'],
+        });
       }
 
       // Let adapter fill the form

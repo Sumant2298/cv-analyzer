@@ -12,6 +12,12 @@
     "https://*.lever.co/*",
     "https://*.naukri.com/*",
     "https://*.linkedin.com/*",
+    "https://*.gem.com/*",
+    "https://*.ashbyhq.com/*",
+    "https://*.bamboohr.com/*",
+    "https://*.icims.com/*",
+    "https://*.smartrecruiters.com/*",
+    "https://*.jobvite.com/*",
     "https://*/*"
   ],
   "background": {
@@ -25,7 +31,13 @@
         "https://jobs.lever.co/*",
         "https://*.lever.co/*",
         "https://*.naukri.com/*",
-        "https://*.linkedin.com/*"
+        "https://*.linkedin.com/*",
+        "https://*.gem.com/*",
+        "https://*.ashbyhq.com/*",
+        "https://*.bamboohr.com/*",
+        "https://*.icims.com/*",
+        "https://*.smartrecruiters.com/*",
+        "https://*.jobvite.com/*"
       ],
       "js": [
         "adapters/base-adapter.js",
