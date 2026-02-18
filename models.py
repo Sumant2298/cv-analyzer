@@ -111,6 +111,11 @@ class UserResume(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Resume editor fields
+    resume_json = db.Column(db.Text)                                   # JSON Resume schema data (NULL for uploaded resumes)
+    template_id = db.Column(db.String(30), default='classic')          # Template: classic | modern | minimal
+    resume_source = db.Column(db.String(20), default='upload')         # Source: upload | editor
+
     # Analysis persistence fields (unified resumes page)
     target_job = db.Column(db.String(200), default='General')
     ats_score = db.Column(db.Integer)                                  # NULL = not yet analyzed

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ label }} — LevelUpX Resume</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        @media print {
+            body { margin: 0; padding: 0; }
+            .print-controls { display: none !important; }
+        }
+        .print-controls {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            background: #1e1b4b; color: white; padding: 12px 24px;
+            display: flex; align-items: center; justify-content: space-between;
+            font-family: 'Inter', sans-serif; box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        }
+        .print-controls button {
+            background: #4f46e5; color: white; border: none; padding: 8px 20px;
+            border-radius: 8px; font-weight: 600; font-size: 14px; cursor: pointer;
+        }
+        .print-controls button:hover { background: #4338ca; }
+        .print-controls .back-link { color: #a5b4fc; text-decoration: none; font-size: 14px; }
+        .print-controls .back-link:hover { color: #c7d2fe; }
+        body { padding-top: 56px; }
+        @media print { body { padding-top: 0; } }
+    </style>
+</head>
+<body>
+    <div class="print-controls">
+        <a class="back-link" href="/resume-studio/editor/{{ resume_id }}">&larr; Back to Editor</a>
+        <div style="display:flex;align-items:center;gap:12px;">
+            <span style="font-size:13px;opacity:0.7;">{{ label }}</span>
+            <button onclick="window.print()">Print / Save as PDF</button>
+        </div>
+    </div>
+
+    <div id="resume-content"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/handlebars@4.7.8/dist/handlebars.min.js"></script>
+    <script src="{{ url_for('static', filename='js/resume-templates.js') }}"></script>
+    <script>
+        Handlebars.registerHelper('join', function(arr, sep) {
+            return Array.isArray(arr) ? arr.join(sep) : '';
+        });
+
+        const resumeData = {{ resume_json | tojson | safe }};
+        const templateId = {{ template_id | tojson | safe }};
+        const tpl = RESUME_TEMPLATES[templateId] || RESUME_TEMPLATES.classic;
+
+        // Inject template CSS
+        const style = document.createElement('style');
+        style.textContent = tpl.css;
+        document.head.appendChild(style);
+
+        // Render resume
+        const compiled = Handlebars.compile(tpl.html);
+        document.getElementById('resume-content').innerHTML = compiled(resumeData);
+    </script>
+</body>
+</html>

@@ -242,6 +242,26 @@ with app.app_context():
         logger.info('Migration check (job_pool source): %s', e)
         db.session.rollback()
 
+    # Migration: add resume editor columns to user_resumes table
+    try:
+        from sqlalchemy import inspect as _re_inspect, text as _re_text
+        _re_insp = _re_inspect(db.engine)
+        if 'user_resumes' in _re_insp.get_table_names():
+            _re_cols = [c['name'] for c in _re_insp.get_columns('user_resumes')]
+            _editor_cols = {
+                'resume_json': 'ALTER TABLE user_resumes ADD COLUMN resume_json TEXT',
+                'template_id': "ALTER TABLE user_resumes ADD COLUMN template_id VARCHAR(30) DEFAULT 'classic'",
+                'resume_source': "ALTER TABLE user_resumes ADD COLUMN resume_source VARCHAR(20) DEFAULT 'upload'",
+            }
+            for col_name, ddl in _editor_cols.items():
+                if col_name not in _re_cols:
+                    db.session.execute(_re_text(ddl))
+                    logger.info('Migration: added %s column to user_resumes', col_name)
+            db.session.commit()
+    except Exception as e:
+        logger.info('Migration check (resume editor): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
@@ -2361,6 +2381,172 @@ def blog():
 # ---------------------------------------------------------------------------
 # Resume Studio — restructured navigation (CV Library, JD Match, Analysis, Rewrite)
 # ---------------------------------------------------------------------------
+
+
+# ── Resume Editor helper ──
+def _json_resume_to_text(data):
+    """Convert JSON Resume data to plain text for analysis compatibility."""
+    parts = []
+    b = data.get('basics', {})
+    if b.get('name'): parts.append(b['name'])
+    if b.get('label'): parts.append(b['label'])
+    if b.get('summary'): parts.append(b['summary'])
+    for w in data.get('work', []):
+        parts.append(f"{w.get('position', '')} at {w.get('name', '')}")
+        if w.get('summary'): parts.append(w['summary'])
+        for h in w.get('highlights', []):
+            parts.append(h)
+    for e in data.get('education', []):
+        parts.append(f"{e.get('studyType', '')} in {e.get('area', '')} from {e.get('institution', '')}")
+    for s in data.get('skills', []):
+        kw = ', '.join(s.get('keywords', []))
+        if s.get('name') or kw:
+            parts.append(f"{s.get('name', '')}: {kw}")
+    for p in data.get('projects', []):
+        if p.get('name'): parts.append(p['name'])
+        if p.get('description'): parts.append(p['description'])
+        for h in p.get('highlights', []):
+            parts.append(h)
+    for a in data.get('awards', []):
+        if a.get('title'): parts.append(a['title'])
+    for c in data.get('certificates', []):
+        if c.get('name'): parts.append(c['name'])
+    return '\n'.join(filter(None, parts))
+
+
+@app.route('/resume-studio/editor')
+@app.route('/resume-studio/editor/<int:resume_id>')
+def resume_editor(resume_id=None):
+    """Resume Editor — create or edit a resume with live preview."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('resume_editor')
+        flash('Please sign in to use the resume editor.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    editor_data = {
+        'resume_id': None,
+        'resume_json': None,
+        'template_id': 'classic',
+        'label': 'My Resume',
+        'is_primary': False,
+    }
+
+    if resume_id:
+        resume = UserResume.query.filter_by(id=resume_id, user_id=user.id).first()
+        if not resume:
+            flash('Resume not found.', 'error')
+            return redirect(url_for('resume_studio_library'))
+        if not resume.resume_json:
+            flash('This resume was uploaded and cannot be edited in the editor.', 'warning')
+            return redirect(url_for('resume_studio_library'))
+        editor_data = {
+            'resume_id': resume.id,
+            'resume_json': resume.resume_json,
+            'template_id': resume.template_id or 'classic',
+            'label': resume.label,
+            'is_primary': resume.is_primary,
+        }
+
+    return render_template('resume_studio/editor.html',
+                           _cat='resume_studio', _pg='editor',
+                           editor_data=editor_data)
+
+
+@app.route('/resume-studio/editor/save', methods=['POST'])
+def resume_editor_save():
+    """Save resume JSON data — create new or update existing."""
+    if not session.get('user_id'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+
+    data = request.get_json()
+    if not data or 'resume_json' not in data:
+        return jsonify({'success': False, 'error': 'Missing resume data'}), 400
+
+    resume_json = data['resume_json']
+    label = data.get('label', 'My Resume')[:100]
+    template_id = data.get('template_id', 'classic')[:30]
+    is_primary = bool(data.get('is_primary', False))
+    resume_id = data.get('resume_id')
+
+    # Convert JSON to text for analysis compatibility
+    extracted_text = _json_resume_to_text(resume_json)
+    json_str = json.dumps(resume_json)
+    file_bytes = json_str.encode('utf-8')
+
+    try:
+        if resume_id:
+            # Update existing
+            resume = UserResume.query.filter_by(id=resume_id, user_id=user.id).first()
+            if not resume:
+                return jsonify({'success': False, 'error': 'Resume not found'}), 404
+            resume.resume_json = json_str
+            resume.template_id = template_id
+            resume.label = label
+            resume.extracted_text = extracted_text[:50000]
+            resume.file_data = file_bytes
+            resume.filename = f'{label}.json'
+            resume.file_size = len(file_bytes)
+            resume.updated_at = datetime.utcnow()
+        else:
+            # Check 5-resume limit
+            count = UserResume.query.filter_by(user_id=user.id).count()
+            if count >= 5:
+                return jsonify({'success': False, 'error': 'You have reached the 5-resume storage limit. Delete a resume first.'}), 400
+
+            resume = UserResume(
+                user_id=user.id,
+                label=label,
+                filename=f'{label}.json',
+                file_data=file_bytes,
+                file_size=len(file_bytes),
+                extracted_text=extracted_text[:50000],
+                resume_json=json_str,
+                template_id=template_id,
+                resume_source='editor',
+                is_primary=(count == 0),  # First resume is auto-primary
+            )
+            db.session.add(resume)
+
+        # Handle primary
+        if is_primary:
+            UserResume.query.filter_by(user_id=user.id, is_primary=True).update({'is_primary': False})
+            resume.is_primary = True
+
+        db.session.commit()
+        return jsonify({'success': True, 'resume_id': resume.id})
+
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Resume editor save error: %s', e)
+        return jsonify({'success': False, 'error': 'Failed to save resume'}), 500
+
+
+@app.route('/resume-studio/editor/print/<int:resume_id>')
+def resume_editor_print(resume_id):
+    """Print-friendly resume page for browser PDF export."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
+    if not resume or not resume.resume_json:
+        flash('Resume not found.', 'error')
+        return redirect(url_for('resume_studio_library'))
+
+    return render_template('resume_studio/print_resume.html',
+                           resume_id=resume.id,
+                           resume_json=resume.resume_json,
+                           template_id=resume.template_id or 'classic',
+                           label=resume.label)
+
 
 @app.route('/resume-studio/library')
 def resume_studio_library():
