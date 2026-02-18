@@ -3,6 +3,7 @@
  *
  * Injected on supported career sites. Detects platform, shows floating panel,
  * orchestrates form filling via platform adapters.
+ * Supports single-shot fill AND fully agentic multi-step navigation.
  */
 
 (function () {
@@ -23,6 +24,7 @@
   let currentAdapter = null;
   let panel = null;
   let profileCache = null;
+  let agenticRunning = false;
 
   // ── Platform detection ─────────────────────────────────────────────────
 
@@ -70,6 +72,29 @@
     return null;
   }
 
+  /**
+   * Ensure we have a working adapter — creates generic fallback if needed.
+   */
+  function ensureAdapter() {
+    if (!currentAdapter) {
+      currentAdapter = detectAdapter();
+    }
+    if (!currentAdapter) {
+      console.log('[LevelUpX] No specific adapter found, using generic label-scanner');
+      currentAdapter = window.LevelUpXBaseAdapter.create({
+        name: 'Generic',
+        hostPatterns: [],
+        formDetector() {
+          return !!document.querySelector('form') &&
+                 !!(document.querySelector('input:not([type="hidden"]), textarea, select'));
+        },
+        fieldMap() { return {}; },
+        resumeInputSelectors: ['input[type="file"]'],
+      });
+    }
+    return currentAdapter;
+  }
+
   // ── Floating panel ─────────────────────────────────────────────────────
 
   function createPanel() {
@@ -86,6 +111,16 @@
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
         Auto-fill from Resume
       </button>
+      <button class="lux-panel-apply-btn" id="lux-apply-btn">
+        &#9889; Full Apply (Auto-navigate)
+      </button>
+      <div class="lux-panel-progress hidden" id="lux-progress">
+        <span class="lux-panel-progress-text" id="lux-progress-text">Starting...</span>
+        <button class="lux-panel-abort-btn" id="lux-abort-btn" title="Stop">&#9632; Stop</button>
+      </div>
+      <button class="lux-panel-submit-btn hidden" id="lux-submit-btn">
+        &#10003; Confirm Submit
+      </button>
       <div class="lux-panel-status" id="lux-status"></div>
     `;
 
@@ -96,9 +131,24 @@
       panel.style.display = 'none';
     });
 
-    // Fill button
+    // Fill button (single-shot)
     panel.querySelector('#lux-fill-btn').addEventListener('click', () => {
       fillForm();
+    });
+
+    // Full Apply button (agentic)
+    panel.querySelector('#lux-apply-btn').addEventListener('click', () => {
+      runAgenticApply();
+    });
+
+    // Abort button
+    panel.querySelector('#lux-abort-btn').addEventListener('click', () => {
+      abortAgentic();
+    });
+
+    // Confirm Submit button
+    panel.querySelector('#lux-submit-btn').addEventListener('click', () => {
+      handleConfirmSubmit();
     });
 
     // Make draggable
@@ -141,7 +191,45 @@
     setTimeout(() => { statusEl.textContent = ''; statusEl.className = 'lux-panel-status'; }, 5000);
   }
 
-  // ── Fill logic ─────────────────────────────────────────────────────────
+  // ── Panel state helpers ──────────────────────────────────────────────
+
+  function showAgenticUI(show) {
+    const applyBtn = document.getElementById('lux-apply-btn');
+    const fillBtn = document.getElementById('lux-fill-btn');
+    const progress = document.getElementById('lux-progress');
+    const submitBtn = document.getElementById('lux-submit-btn');
+
+    if (show) {
+      if (applyBtn) applyBtn.classList.add('hidden');
+      if (fillBtn) fillBtn.classList.add('hidden');
+      if (progress) progress.classList.remove('hidden');
+      if (submitBtn) submitBtn.classList.add('hidden');
+    } else {
+      if (applyBtn) applyBtn.classList.remove('hidden');
+      if (fillBtn) fillBtn.classList.remove('hidden');
+      if (progress) progress.classList.add('hidden');
+      if (submitBtn) submitBtn.classList.add('hidden');
+    }
+  }
+
+  function updateProgress(text) {
+    const el = document.getElementById('lux-progress-text');
+    if (el) el.textContent = text;
+  }
+
+  function showSubmitConfirmation() {
+    const progress = document.getElementById('lux-progress');
+    const submitBtn = document.getElementById('lux-submit-btn');
+    if (progress) progress.classList.add('hidden');
+    if (submitBtn) submitBtn.classList.remove('hidden');
+  }
+
+  function resetPanelToDefault() {
+    showAgenticUI(false);
+    agenticRunning = false;
+  }
+
+  // ── Single-shot fill logic ───────────────────────────────────────────
 
   async function fillForm(sendResponse) {
     const btn = document.getElementById('lux-fill-btn');
@@ -152,43 +240,8 @@
 
     try {
       // Get profile from background
-      const profile = await new Promise((resolve, reject) => {
-        chrome.runtime.sendMessage({ action: 'getProfile' }, (resp) => {
-          if (chrome.runtime.lastError) {
-            reject(new Error(chrome.runtime.lastError.message));
-            return;
-          }
-          if (resp && resp.error) {
-            reject(new Error(resp.error));
-            return;
-          }
-          resolve(resp);
-        });
-      });
-
-      if (!profile || !profile.basics) {
-        throw new Error('No profile data. Connect the extension first.');
-      }
-      profileCache = profile;
-
-      // Re-detect adapter — DOM may have changed since init (SPA navigation, late-loading forms)
-      if (!currentAdapter) {
-        currentAdapter = detectAdapter();
-      }
-      // Final fallback: create a generic adapter that relies on the label-scanner
-      if (!currentAdapter) {
-        console.log('[LevelUpX] No specific adapter found, using generic label-scanner');
-        currentAdapter = window.LevelUpXBaseAdapter.create({
-          name: 'Generic',
-          hostPatterns: [],
-          formDetector() {
-            return !!document.querySelector('form') &&
-                   !!(document.querySelector('input:not([type="hidden"]), textarea, select'));
-          },
-          fieldMap() { return {}; }, // empty — _scanAndFillByLabels does all the work
-          resumeInputSelectors: ['input[type="file"]'],
-        });
-      }
+      const profile = await getProfile();
+      ensureAdapter();
 
       // Let adapter fill the form
       const container = document.body;
@@ -218,6 +271,153 @@
         btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Auto-fill from Resume';
       }
     }
+  }
+
+  // ── Agentic apply logic ──────────────────────────────────────────────
+
+  async function runAgenticApply(sendResponse) {
+    if (agenticRunning) {
+      if (sendResponse) sendResponse({ success: false, error: 'Agentic apply already running' });
+      return;
+    }
+
+    const Orchestrator = window.LevelUpXOrchestrator;
+    if (!Orchestrator) {
+      const msg = 'Orchestrator not loaded. Please reload the extension.';
+      showStatus(msg, true);
+      if (sendResponse) sendResponse({ success: false, error: msg });
+      return;
+    }
+
+    agenticRunning = true;
+    showAgenticUI(true);
+    updateProgress('Starting...');
+
+    try {
+      const profile = await getProfile();
+      ensureAdapter();
+
+      const result = await Orchestrator.run(currentAdapter, profile, (status) => {
+        // Status callback from orchestrator
+        updateProgress(status.message || 'Working...');
+        // Notify popup if listening
+        try {
+          chrome.runtime.sendMessage({
+            action: 'agenticStatus',
+            status: status,
+          });
+        } catch { /* popup may be closed */ }
+      });
+
+      if (result.awaitingSubmit) {
+        // Show Confirm Submit button — user must explicitly click
+        showSubmitConfirmation();
+        showStatus('Ready to submit! Review and click Confirm.', false);
+        if (sendResponse) sendResponse({
+          success: true,
+          awaitingSubmit: true,
+          stepsCompleted: result.stepsCompleted,
+          totalFilled: result.totalFilled,
+        });
+      } else {
+        // Completed (no submit found, or aborted)
+        resetPanelToDefault();
+        const msg = result.aborted
+          ? 'Stopped by user'
+          : `Done! ${result.stepsCompleted} step${result.stepsCompleted !== 1 ? 's' : ''}, ${result.totalFilled} fields filled`;
+        showStatus(msg, result.aborted);
+        if (sendResponse) sendResponse({
+          success: !result.aborted,
+          stepsCompleted: result.stepsCompleted,
+          totalFilled: result.totalFilled,
+        });
+      }
+    } catch (err) {
+      console.error('[LevelUpX] Agentic apply error:', err);
+      resetPanelToDefault();
+      showStatus(err.message, true);
+      if (sendResponse) sendResponse({ success: false, error: err.message });
+    }
+  }
+
+  async function handleConfirmSubmit(sendResponse) {
+    const Orchestrator = window.LevelUpXOrchestrator;
+    const ButtonFinder = window.LevelUpXButtonFinder;
+    if (!ButtonFinder) {
+      if (sendResponse) sendResponse({ success: false, error: 'ButtonFinder not loaded' });
+      return;
+    }
+
+    updateProgress('Submitting...');
+    const submitBtn = document.getElementById('lux-submit-btn');
+    if (submitBtn) submitBtn.classList.add('hidden');
+
+    try {
+      // Merge platform submit hints with generic defaults
+      const stepConfig = currentAdapter ? currentAdapter.getStepConfig() : null;
+      const submitTexts = [
+        ...(stepConfig && stepConfig.submitButtonText ? stepConfig.submitButtonText : []),
+        'Submit application', 'Submit', 'Send Application', 'Complete Application', 'Confirm & Submit',
+      ];
+      const submitSelectors = (stepConfig && stepConfig.submitButtonSelectors) || [];
+
+      const container = (stepConfig && stepConfig.formContainerSelector)
+        ? (document.querySelector(stepConfig.formContainerSelector) || document.body)
+        : document.body;
+
+      const clicked = ButtonFinder.findAndClick(container, submitTexts, submitSelectors);
+
+      resetPanelToDefault();
+      agenticRunning = false;
+
+      if (clicked) {
+        showStatus('Application submitted!', false);
+        if (sendResponse) sendResponse({ success: true });
+      } else {
+        showStatus('Could not find Submit button. Please submit manually.', true);
+        if (sendResponse) sendResponse({ success: false, error: 'Submit button not found' });
+      }
+    } catch (err) {
+      resetPanelToDefault();
+      showStatus('Submit failed: ' + err.message, true);
+      if (sendResponse) sendResponse({ success: false, error: err.message });
+    }
+  }
+
+  function abortAgentic() {
+    const Orchestrator = window.LevelUpXOrchestrator;
+    if (Orchestrator) {
+      Orchestrator.abort();
+    }
+    resetPanelToDefault();
+    agenticRunning = false;
+    showStatus('Stopped', true);
+  }
+
+  // ── Shared helpers ───────────────────────────────────────────────────
+
+  async function getProfile() {
+    if (profileCache) return profileCache;
+
+    const profile = await new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage({ action: 'getProfile' }, (resp) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (resp && resp.error) {
+          reject(new Error(resp.error));
+          return;
+        }
+        resolve(resp);
+      });
+    });
+
+    if (!profile || !profile.basics) {
+      throw new Error('No profile data. Connect the extension first.');
+    }
+    profileCache = profile;
+    return profile;
   }
 
   async function uploadResume(container) {
@@ -254,8 +454,25 @@
       fillForm(sendResponse);
       return true; // async
     }
+    if (msg.action === 'startAgenticApply') {
+      runAgenticApply(sendResponse);
+      return true; // async
+    }
+    if (msg.action === 'confirmSubmit') {
+      handleConfirmSubmit(sendResponse);
+      return true; // async
+    }
+    if (msg.action === 'abortAgenticApply') {
+      abortAgentic();
+      sendResponse({ success: true });
+      return false;
+    }
     if (msg.action === 'ping') {
-      sendResponse({ ready: true, adapter: currentAdapter ? currentAdapter.name : null });
+      sendResponse({
+        ready: true,
+        adapter: currentAdapter ? currentAdapter.name : null,
+        agenticRunning: agenticRunning,
+      });
       return false;
     }
   });

@@ -115,3 +115,102 @@
 .lux-panel-status.lux-error {
   color: #dc2626;
 }
+
+/* Hidden utility class */
+.hidden {
+  display: none !important;
+}
+
+/* Full Apply (Agentic) Button */
+.lux-panel-apply-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% - 20px);
+  margin: 0 auto 8px;
+  padding: 8px 12px;
+  background: #059669;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+}
+
+.lux-panel-apply-btn:hover {
+  background: #047857;
+}
+
+.lux-panel-apply-btn:disabled {
+  background: #6ee7b7;
+  cursor: not-allowed;
+}
+
+/* Progress Display */
+.lux-panel-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px 8px;
+}
+
+.lux-panel-progress-text {
+  flex: 1;
+  font-size: 11px;
+  color: #475569;
+  font-weight: 500;
+}
+
+/* Abort (Stop) Button */
+.lux-panel-abort-btn {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 3px 8px;
+  transition: all 0.15s;
+  font-family: inherit;
+  flex-shrink: 0;
+}
+
+.lux-panel-abort-btn:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+/* Confirm Submit Button */
+.lux-panel-submit-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: calc(100% - 20px);
+  margin: 6px auto 8px;
+  padding: 10px 12px;
+  background: #dc2626;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+  font-family: inherit;
+  animation: lux-pulse 1.5s ease-in-out infinite;
+}
+
+.lux-panel-submit-btn:hover {
+  background: #b91c1c;
+}
+
+@keyframes lux-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.4); }
+  50% { box-shadow: 0 0 0 6px rgba(220, 38, 38, 0); }
+}

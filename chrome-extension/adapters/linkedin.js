@@ -120,4 +120,22 @@ window.LevelUpXLinkedIn = window.LevelUpXBaseAdapter.create({
     '.artdeco-modal input[type="file"]',
     'input[type="file"]',
   ],
+
+  // ── Agentic step configuration ─────────────────────────────────
+  stepConfig: {
+    openApplication: {
+      buttonText: ['Easy Apply'],
+      buttonSelectors: ['.jobs-apply-button', 'button[aria-label*="Easy Apply"]'],
+      waitForSelector: '.jobs-easy-apply-modal, .artdeco-modal',
+    },
+    formContainerSelector: '.jobs-easy-apply-modal, .artdeco-modal',
+    nextButtonText: ['Next', 'Continue', 'Review'],
+    nextButtonSelectors: [
+      'button[aria-label="Continue to next step"]',
+      'button[aria-label="Review your application"]',
+      'footer button.artdeco-button--primary',
+    ],
+    submitButtonText: ['Submit application'],
+    submitButtonSelectors: ['button[aria-label="Submit application"]'],
+  },
 });

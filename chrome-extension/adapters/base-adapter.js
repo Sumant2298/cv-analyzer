@@ -177,6 +177,18 @@ window.LevelUpXBaseAdapter = {
         const selectors = config.resumeInputSelectors || ['input[type="file"]'];
         return Detector.fileInput(container, selectors);
       },
+
+      /**
+       * Get step configuration for multi-step agentic navigation.
+       * Returns platform-specific button selectors/text, or null for generic defaults.
+       * @returns {Object|null}
+       */
+      getStepConfig() {
+        if (config.stepConfig) {
+          return typeof config.stepConfig === 'function' ? config.stepConfig() : config.stepConfig;
+        }
+        return null;
+      },
     };
   },
 };

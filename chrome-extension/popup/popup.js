@@ -1,13 +1,14 @@
 /**
  * LevelUpX AutoFill — Popup Script
  *
- * Handles connection flow, profile display, and fill trigger.
+ * Handles connection flow, profile display, fill trigger, and agentic apply trigger.
  */
 
 document.addEventListener('DOMContentLoaded', () => {
   // Attach all event listeners (inline onclick is blocked by Manifest V3 CSP)
   document.getElementById('connect-btn').addEventListener('click', connect);
   document.getElementById('fill-btn').addEventListener('click', fillCurrentPage);
+  document.getElementById('apply-btn').addEventListener('click', startAgenticApply);
   document.getElementById('disconnect-btn').addEventListener('click', disconnect);
   document.getElementById('token-input').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') connect();
@@ -31,6 +32,13 @@ async function init() {
       showState('connected');
     } else {
       showState('disconnected');
+    }
+  });
+
+  // Listen for agentic status updates from content script
+  chrome.runtime.onMessage.addListener((msg) => {
+    if (msg.action === 'agenticStatus' && msg.status) {
+      showStatus(msg.status.message || 'Working...');
     }
   });
 }
@@ -117,6 +125,25 @@ function showProfile(profile) {
   document.getElementById('profile-avatar').textContent = initials || '?';
 }
 
+// ── All content script files (shared between fill and agentic) ─────────
+
+const CONTENT_SCRIPTS = [
+  'adapters/base-adapter.js',
+  'adapters/greenhouse.js',
+  'adapters/lever.js',
+  'adapters/workday.js',
+  'adapters/naukri.js',
+  'adapters/linkedin.js',
+  'content/field-detector.js',
+  'content/field-filler.js',
+  'content/dom-waiters.js',
+  'content/button-finder.js',
+  'content/step-orchestrator.js',
+  'content/content.js',
+];
+
+// ── Single-shot fill ───────────────────────────────────────────────────
+
 const FILL_BTN_HTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Auto-fill Current Page';
 
 function resetFillBtn() {
@@ -146,7 +173,7 @@ async function fillCurrentPage() {
         // Content script not loaded yet — inject on-demand and retry
         console.log('[LevelUpX Popup] No content script, injecting on-demand...');
         try {
-          await injectAndFill(tab.id);
+          await injectAndSend(tab.id, 'fillForm');
         } catch (e) {
           console.error('[LevelUpX Popup] Inject failed:', e);
           resetFillBtn();
@@ -168,7 +195,66 @@ async function fillCurrentPage() {
   }
 }
 
-async function injectAndFill(tabId) {
+// ── Agentic apply ──────────────────────────────────────────────────────
+
+const APPLY_BTN_HTML = '&#9889; Full Apply (Auto-navigate)';
+
+function resetApplyBtn() {
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = false;
+  btn.innerHTML = APPLY_BTN_HTML;
+}
+
+async function startAgenticApply() {
+  const btn = document.getElementById('apply-btn');
+  btn.disabled = true;
+  btn.textContent = 'Starting...';
+
+  try {
+    const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      resetApplyBtn();
+      showStatus('No active tab found', true);
+      return;
+    }
+
+    console.log('[LevelUpX Popup] Sending agentic apply to tab', tab.id, tab.url);
+
+    // Try sending to existing content script first
+    chrome.tabs.sendMessage(tab.id, { action: 'startAgenticApply' }, async (resp) => {
+      if (chrome.runtime.lastError) {
+        // Content script not loaded — inject on-demand and retry
+        console.log('[LevelUpX Popup] No content script, injecting on-demand for agentic...');
+        try {
+          await injectAndSend(tab.id, 'startAgenticApply');
+        } catch (e) {
+          console.error('[LevelUpX Popup] Inject failed:', e);
+          resetApplyBtn();
+          showStatus('Could not start agentic apply. Open a job page and try again.', true);
+        }
+        return;
+      }
+      resetApplyBtn();
+      console.log('[LevelUpX Popup] Agentic response:', resp);
+      if (resp && resp.success) {
+        if (resp.awaitingSubmit) {
+          showStatus(`Ready to submit! ${resp.stepsCompleted} steps, ${resp.totalFilled} fields filled`);
+        } else {
+          showStatus(`Done! ${resp.stepsCompleted || 0} steps, ${resp.totalFilled || 0} fields filled`);
+        }
+      } else {
+        showStatus((resp && resp.error) || 'Agentic apply failed', true);
+      }
+    });
+  } catch (err) {
+    resetApplyBtn();
+    showStatus(err.message, true);
+  }
+}
+
+// ── Shared injection helper ────────────────────────────────────────────
+
+async function injectAndSend(tabId, action) {
   // Programmatically inject all content scripts + CSS
   await chrome.scripting.insertCSS({
     target: { tabId },
@@ -176,35 +262,32 @@ async function injectAndFill(tabId) {
   });
   await chrome.scripting.executeScript({
     target: { tabId },
-    files: [
-      'adapters/base-adapter.js',
-      'adapters/greenhouse.js',
-      'adapters/lever.js',
-      'adapters/workday.js',
-      'adapters/naukri.js',
-      'adapters/linkedin.js',
-      'content/field-detector.js',
-      'content/field-filler.js',
-      'content/content.js',
-    ],
+    files: CONTENT_SCRIPTS,
   });
 
   console.log('[LevelUpX Popup] Scripts injected, waiting for init...');
   await new Promise(r => setTimeout(r, 600));
 
-  // Now send the fill command
+  // Now send the command
   return new Promise((resolve, reject) => {
-    chrome.tabs.sendMessage(tabId, { action: 'fillForm' }, (resp) => {
+    chrome.tabs.sendMessage(tabId, { action }, (resp) => {
+      // Reset both buttons
       resetFillBtn();
+      resetApplyBtn();
+
       if (chrome.runtime.lastError) {
-        showStatus('Could not auto-fill this page', true);
+        showStatus('Could not communicate with page', true);
         reject(new Error(chrome.runtime.lastError.message));
         return;
       }
       if (resp && resp.success) {
-        showStatus(`Filled ${resp.filledCount || 0} fields!`);
+        if (resp.awaitingSubmit) {
+          showStatus(`Ready to submit! ${resp.stepsCompleted} steps, ${resp.totalFilled} fields`);
+        } else {
+          showStatus(`Done! Filled ${resp.filledCount || resp.totalFilled || 0} fields`);
+        }
       } else {
-        showStatus((resp && resp.error) || 'No form fields found', true);
+        showStatus((resp && resp.error) || 'Operation failed', true);
       }
       resolve(resp);
     });

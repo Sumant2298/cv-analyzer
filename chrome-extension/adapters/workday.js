@@ -149,4 +149,18 @@ window.LevelUpXWorkday = window.LevelUpXBaseAdapter.create({
     'input[data-automation-id*="file-upload"]',
     'input[type="file"]',
   ],
+
+  // ── Agentic step configuration ─────────────────────────────────
+  stepConfig: {
+    openApplication: {
+      buttonText: ['Apply', 'Apply Now'],
+      buttonSelectors: ['[data-automation-id="applyButton"]'],
+      waitForSelector: '[data-automation-id="legalNameSection_firstName"]',
+    },
+    formContainerSelector: '[data-automation-id="applicationPage"], main',
+    nextButtonText: ['Next', 'Continue', 'Save and Continue'],
+    nextButtonSelectors: ['[data-automation-id="bottom-navigation-next-button"]'],
+    submitButtonText: ['Submit', 'Submit Application'],
+    submitButtonSelectors: ['[data-automation-id="bottom-navigation-submit-button"]'],
+  },
 });

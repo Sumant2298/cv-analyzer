@@ -256,3 +256,18 @@ body {
 .status-bar.error-state p {
   color: #dc2626;
 }
+
+/* Accent (green) Button — Full Apply */
+.btn-accent {
+  background: #059669;
+  color: #fff;
+}
+
+.btn-accent:hover {
+  background: #047857;
+}
+
+.btn-accent:disabled {
+  background: #6ee7b7;
+  cursor: not-allowed;
+}

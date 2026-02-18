@@ -48,6 +48,9 @@
         "adapters/linkedin.js",
         "content/field-detector.js",
         "content/field-filler.js",
+        "content/dom-waiters.js",
+        "content/button-finder.js",
+        "content/step-orchestrator.js",
         "content/content.js"
       ],
       "css": ["styles/content.css"],
