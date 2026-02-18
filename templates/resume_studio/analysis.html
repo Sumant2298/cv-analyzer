@@ -1,17 +1,14 @@
 {% extends "dashboard_base.html" %}
-{% block title %}Resume Analysis Reports — LevelUpX{% endblock %}
-{% block page_title %}Resume Analysis Reports{% endblock %}
+{% block title %}Analysis Reports — LevelUpX{% endblock %}
+{% block page_title %}Analysis Reports{% endblock %}
+{% block page_subtitle %}
+<p class="text-xs text-slate-500 mt-0.5">All your CV and JD analyses in one place</p>
+{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl anim-fade-up">
 
-    <!-- Header -->
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-800">Resume Analysis Reports</h1>
-        <p class="text-sm text-slate-500 mt-1">All your CV and JD analyses in one place</p>
-    </div>
-
-    {% if analyses|length == 0 %}
+    {% if cv_analyses|length == 0 and jd_analyses|length == 0 %}
     <!-- Empty state -->
     <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-12 text-center">
         <div class="w-20 h-20 bg-emerald-50 rounded-2xl flex items-center justify-center mx-auto mb-6">
@@ -26,95 +23,169 @@
     </div>
 
     {% else %}
-    <!-- Analyses table -->
-    <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
-        <div class="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
-            <p class="text-xs text-slate-400">{{ analyses|length }} analysis{{ 'es' if analyses|length > 1 else '' }}</p>
-        </div>
 
-        <!-- Desktop table -->
-        <div class="hidden sm:block overflow-x-auto">
-            <table class="w-full text-sm">
-                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
-                    <tr>
-                        <th class="text-left px-4 py-3.5 font-medium">Type</th>
-                        <th class="text-left px-4 py-3.5 font-medium">Name</th>
-                        <th class="text-center px-4 py-3.5 font-medium">ATS Score</th>
-                        <th class="text-left px-4 py-3.5 font-medium">Date</th>
-                        <th class="text-right px-4 py-3.5 font-medium">Action</th>
-                    </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100">
-                    {% for a in analyses %}
-                    <tr class="hover:bg-slate-50/50 transition">
-                        <td class="px-4 py-3.5">
-                            {% if a.type == 'cv' %}
-                            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 px-2.5 py-1 rounded-full">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                                CV Quality
-                            </span>
-                            {% else %}
-                            <span class="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-2.5 py-1 rounded-full">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
-                                JD Match
-                            </span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3.5">
-                            <p class="text-sm font-semibold text-slate-800 truncate max-w-[250px]" title="{{ a.name }}">{{ a.name }}</p>
-                        </td>
-                        <td class="px-4 py-3.5 text-center">
-                            {% if a.score is not none %}
-                                {% set score = a.score %}
-                                <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
-                                    {% if score >= 70 %}bg-emerald-100 text-emerald-700
-                                    {% elif score >= 40 %}bg-amber-100 text-amber-700
-                                    {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
-                            {% else %}
-                                <span class="text-xs text-slate-400">&mdash;</span>
-                            {% endif %}
-                        </td>
-                        <td class="px-4 py-3.5 text-sm text-slate-500">{{ a.date.strftime('%b %d, %Y') if a.date else '—' }}</td>
-                        <td class="px-4 py-3.5 text-right">
-                            <a href="{{ a.url }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
-                                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
-                                View
-                            </a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-
-        <!-- Mobile cards -->
-        <div class="sm:hidden divide-y divide-slate-100">
-            {% for a in analyses %}
-            <div class="p-4">
-                <div class="flex items-start justify-between gap-3 mb-2">
-                    <div class="min-w-0 flex-1">
-                        <div class="flex items-center gap-2 mb-1">
-                            {% if a.type == 'cv' %}
-                            <span class="text-[10px] font-bold text-brand-600 bg-brand-50 px-2 py-0.5 rounded-full">CV</span>
-                            {% else %}
-                            <span class="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">JD</span>
-                            {% endif %}
-                            <p class="text-sm font-semibold text-slate-800 truncate">{{ a.name }}</p>
-                        </div>
-                        <p class="text-xs text-slate-400">{{ a.date.strftime('%b %d, %Y') if a.date else '' }}</p>
-                    </div>
-                    {% if a.score is not none %}
-                    <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs flex-shrink-0
-                        {% if a.score >= 70 %}bg-emerald-100 text-emerald-700
-                        {% elif a.score >= 40 %}bg-amber-100 text-amber-700
-                        {% else %}bg-red-100 text-red-700{% endif %}">{{ a.score }}</span>
-                    {% endif %}
-                </div>
-                <a href="{{ a.url }}" class="block text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
+    <!-- ═══════ SECTION 1: Resume Analysis ═══════ -->
+    <div class="mb-8">
+        <div class="flex items-center gap-2 mb-4">
+            <div class="w-7 h-7 bg-brand-50 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
             </div>
-            {% endfor %}
+            <h3 class="text-lg font-bold text-slate-800">Resume Analysis</h3>
+            <span class="text-xs text-slate-400 ml-1">({{ cv_analyses|length }})</span>
         </div>
+
+        {% if cv_analyses|length == 0 %}
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 text-center">
+            <p class="text-sm text-slate-500">No resume analyses yet. <a href="/resume-studio/library" class="text-brand-600 hover:text-brand-700 font-semibold">Upload &amp; analyze a resume</a>.</p>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+            <!-- Desktop table -->
+            <div class="hidden sm:block overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
+                        <tr>
+                            <th class="text-left px-4 py-3.5 font-medium">Resume Name</th>
+                            <th class="text-center px-4 py-3.5 font-medium">ATS Score</th>
+                            <th class="text-left px-4 py-3.5 font-medium">Date</th>
+                            <th class="text-right px-4 py-3.5 font-medium">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for a in cv_analyses %}
+                        <tr class="hover:bg-slate-50/50 transition">
+                            <td class="px-4 py-3.5">
+                                <p class="text-sm font-semibold text-slate-800 truncate max-w-[300px]" title="{{ a.name }}">{{ a.name }}</p>
+                            </td>
+                            <td class="px-4 py-3.5 text-center">
+                                {% if a.score is not none %}
+                                    {% set score = a.score %}
+                                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
+                                        {% if score >= 70 %}bg-emerald-100 text-emerald-700
+                                        {% elif score >= 40 %}bg-amber-100 text-amber-700
+                                        {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                                {% else %}
+                                    <span class="text-xs text-slate-400">&mdash;</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3.5 text-sm text-slate-500">{{ a.date.strftime('%b %d, %Y') if a.date else '—' }}</td>
+                            <td class="px-4 py-3.5 text-right">
+                                <a href="{{ a.url }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile cards -->
+            <div class="sm:hidden divide-y divide-slate-100">
+                {% for a in cv_analyses %}
+                <div class="p-4">
+                    <div class="flex items-start justify-between gap-3 mb-2">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-slate-800 truncate">{{ a.name }}</p>
+                            <p class="text-xs text-slate-400">{{ a.date.strftime('%b %d, %Y') if a.date else '' }}</p>
+                        </div>
+                        {% if a.score is not none %}
+                        <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs flex-shrink-0
+                            {% if a.score >= 70 %}bg-emerald-100 text-emerald-700
+                            {% elif a.score >= 40 %}bg-amber-100 text-amber-700
+                            {% else %}bg-red-100 text-red-700{% endif %}">{{ a.score }}</span>
+                        {% endif %}
+                    </div>
+                    <a href="{{ a.url }}" class="block text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
     </div>
+
+    <!-- ═══════ SECTION 2: JD Analysis Reports ═══════ -->
+    <div>
+        <div class="flex items-center gap-2 mb-4">
+            <div class="w-7 h-7 bg-emerald-50 rounded-lg flex items-center justify-center">
+                <svg class="w-4 h-4 text-emerald-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/></svg>
+            </div>
+            <h3 class="text-lg font-bold text-slate-800">JD Analysis Reports</h3>
+            <span class="text-xs text-slate-400 ml-1">({{ jd_analyses|length }})</span>
+        </div>
+
+        {% if jd_analyses|length == 0 %}
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 p-8 text-center">
+            <p class="text-sm text-slate-500">No JD analyses yet. <a href="/resume-studio/jd-match" class="text-brand-600 hover:text-brand-700 font-semibold">Match against a job description</a>.</p>
+        </div>
+        {% else %}
+        <div class="bg-white rounded-2xl shadow-lg border border-slate-100 overflow-hidden">
+            <!-- Desktop table -->
+            <div class="hidden sm:block overflow-x-auto">
+                <table class="w-full text-sm">
+                    <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
+                        <tr>
+                            <th class="text-left px-4 py-3.5 font-medium">Job Description</th>
+                            <th class="text-center px-4 py-3.5 font-medium">Match Score</th>
+                            <th class="text-left px-4 py-3.5 font-medium">Date</th>
+                            <th class="text-right px-4 py-3.5 font-medium">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                        {% for a in jd_analyses %}
+                        <tr class="hover:bg-slate-50/50 transition">
+                            <td class="px-4 py-3.5">
+                                <p class="text-sm font-semibold text-slate-800 truncate max-w-[300px]" title="{{ a.name }}">{{ a.name }}</p>
+                            </td>
+                            <td class="px-4 py-3.5 text-center">
+                                {% if a.score is not none %}
+                                    {% set score = a.score %}
+                                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
+                                        {% if score >= 70 %}bg-emerald-100 text-emerald-700
+                                        {% elif score >= 40 %}bg-amber-100 text-amber-700
+                                        {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                                {% else %}
+                                    <span class="text-xs text-slate-400">&mdash;</span>
+                                {% endif %}
+                            </td>
+                            <td class="px-4 py-3.5 text-sm text-slate-500">{{ a.date.strftime('%b %d, %Y') if a.date else '—' }}</td>
+                            <td class="px-4 py-3.5 text-right">
+                                <a href="{{ a.url }}" class="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                    View
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- Mobile cards -->
+            <div class="sm:hidden divide-y divide-slate-100">
+                {% for a in jd_analyses %}
+                <div class="p-4">
+                    <div class="flex items-start justify-between gap-3 mb-2">
+                        <div class="min-w-0 flex-1">
+                            <p class="text-sm font-semibold text-slate-800 truncate">{{ a.name }}</p>
+                            <p class="text-xs text-slate-400">{{ a.date.strftime('%b %d, %Y') if a.date else '' }}</p>
+                        </div>
+                        {% if a.score is not none %}
+                        <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs flex-shrink-0
+                            {% if a.score >= 70 %}bg-emerald-100 text-emerald-700
+                            {% elif a.score >= 40 %}bg-amber-100 text-amber-700
+                            {% else %}bg-red-100 text-red-700{% endif %}">{{ a.score }}</span>
+                        {% endif %}
+                    </div>
+                    <a href="{{ a.url }}" class="block text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
     {% endif %}
 
 </div>

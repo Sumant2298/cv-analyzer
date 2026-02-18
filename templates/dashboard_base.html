@@ -70,13 +70,13 @@
                         {% if _pg == 'library' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
                         Resume Library
                     </a>
-                    <a href="/resume-studio/analysis" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
-                        {% if _pg == 'analysis' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
-                        Resume Analysis Reports
-                    </a>
                     <a href="/resume-studio/jd-match" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
                         {% if _pg == 'jd_match' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
                         JD Match
+                    </a>
+                    <a href="/resume-studio/analysis" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'analysis' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        Analysis Reports
                     </a>
                     <a href="/resume-studio/rewrite" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
                         {% if _pg == 'rewrite' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
@@ -197,7 +197,8 @@
 
                 <!-- Page title / breadcrumb -->
                 <div class="flex-1 ml-3 lg:ml-0">
-                    <h2 class="text-sm font-semibold text-slate-700">{% block page_title %}Dashboard{% endblock %}</h2>
+                    <h2 class="text-base font-bold text-slate-800">{% block page_title %}Dashboard{% endblock %}</h2>
+                    {% block page_subtitle %}{% endblock %}
                 </div>
 
                 <!-- Right: credits shortcut + avatar (desktop) -->

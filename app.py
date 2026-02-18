@@ -2462,13 +2462,13 @@ def resume_studio_analysis():
         flash('Session expired. Please sign in again.', 'error')
         return redirect(url_for('login_page'))
 
-    analyses = []
+    cv_analyses = []
+    jd_analyses_list = []
 
     # CV analyses
     cv_resumes = UserResume.query.filter_by(user_id=user.id, analysis_status='completed').all()
     for r in cv_resumes:
-        analyses.append({
-            'type': 'cv',
+        cv_analyses.append({
             'name': r.label or r.filename or 'Resume',
             'score': r.ats_score,
             'date': r.last_analyzed_at or r.created_at,
@@ -2476,8 +2476,8 @@ def resume_studio_analysis():
         })
 
     # JD analyses
-    jd_analyses = JDAnalysis.query.filter_by(user_id=user.id, status='completed').all()
-    for jd in jd_analyses:
+    jd_rows = JDAnalysis.query.filter_by(user_id=user.id, status='completed').all()
+    for jd in jd_rows:
         score = None
         if jd.results_json:
             try:
@@ -2492,19 +2492,20 @@ def resume_studio_analysis():
                 if line and len(line) > 3:
                     jd_name = line[:80]
                     break
-        analyses.append({
-            'type': 'jd',
+        jd_analyses_list.append({
             'name': jd_name or 'Job Description',
             'score': score,
             'date': jd.created_at,
             'url': url_for('jd_analysis_results', jd_id=jd.id),
         })
 
-    # Sort by date descending
-    analyses.sort(key=lambda a: a['date'] or datetime.min, reverse=True)
+    # Sort each list by date descending
+    cv_analyses.sort(key=lambda a: a['date'] or datetime.min, reverse=True)
+    jd_analyses_list.sort(key=lambda a: a['date'] or datetime.min, reverse=True)
 
     return render_template('resume_studio/analysis.html',
-                           analyses=analyses,
+                           cv_analyses=cv_analyses,
+                           jd_analyses=jd_analyses_list,
                            active_category='resume_studio', active_page='analysis')
 
 

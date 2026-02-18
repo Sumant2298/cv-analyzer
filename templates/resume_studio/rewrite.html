@@ -1,15 +1,12 @@
 {% extends "dashboard_base.html" %}
 {% block title %}Rewrite CV — LevelUpX{% endblock %}
 {% block page_title %}Rewrite CV{% endblock %}
+{% block page_subtitle %}
+<p class="text-xs text-slate-500 mt-0.5">Select a resume, provide a JD, and our AI will rewrite your CV to match the role</p>
+{% endblock %}
 
 {% block content %}
 <div class="max-w-3xl mx-auto anim-fade-up">
-
-    <!-- Header -->
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-800">Rewrite Your Resume</h1>
-        <p class="text-sm text-slate-500 mt-1">Select a resume, provide a job description, and our AI will rewrite your CV to match the role.</p>
-    </div>
 
     {% if resumes|length == 0 %}
     <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center">

@@ -1,24 +1,22 @@
 {% extends "dashboard_base.html" %}
 {% block title %}Resume Library — LevelUpX{% endblock %}
 {% block page_title %}Resume Library{% endblock %}
+{% block page_subtitle %}
+<p class="text-xs text-slate-500 mt-0.5">Upload, analyze, and track your resumes</p>
+{% endblock %}
 
 {% block content %}
 <div class="max-w-5xl anim-fade-up">
 
-    <!-- Header -->
-    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-        <div>
-            <h1 class="text-2xl font-bold text-slate-800">Resume Library</h1>
-            <p class="text-sm text-slate-500 mt-1">Upload, analyze, and track your resumes. Auto-analyzed on upload.</p>
-        </div>
-        {% if resumes|length < 5 %}
+    {% if resumes|length < 5 %}
+    <div class="flex justify-end mb-4">
         <button onclick="document.getElementById('uploadModal').classList.remove('hidden')"
                 class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm whitespace-nowrap shadow-lg shadow-brand-200">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
             Upload Resume
         </button>
-        {% endif %}
     </div>
+    {% endif %}
 
     <!-- Credit info bar -->
     <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 flex flex-wrap items-center gap-4 text-sm shadow-sm">
@@ -104,8 +102,8 @@
                                     {{ score }}
                                 </span>
                                 <span class="block mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full inline-block
-                                    {% if score >= 90 %}bg-emerald-100 text-emerald-700{% elif score >= 70 %}bg-blue-100 text-blue-700{% elif score >= 50 %}bg-amber-100 text-amber-700{% elif score >= 30 %}bg-orange-100 text-orange-700{% else %}bg-red-100 text-red-700{% endif %}">
-                                    {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Impr.{% else %}Overhaul{% endif %}
+                                    {% if score >= 70 %}bg-emerald-100 text-emerald-700{% elif score >= 40 %}bg-amber-100 text-amber-700{% else %}bg-red-100 text-red-700{% endif %}">
+                                    {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 40 %}Needs Impr.{% else %}Overhaul{% endif %}
                                 </span>
                             {% elif resume.analysis_status == 'analyzing' %}
                                 <span class="inline-flex items-center gap-1.5 text-xs text-brand-600 font-medium">
@@ -183,8 +181,8 @@
                                 {{ score }}
                             </span>
                             <span class="mt-1 text-[9px] font-bold px-1.5 py-0.5 rounded-full
-                                {% if score >= 90 %}bg-emerald-100 text-emerald-700{% elif score >= 70 %}bg-blue-100 text-blue-700{% elif score >= 50 %}bg-amber-100 text-amber-700{% elif score >= 30 %}bg-orange-100 text-orange-700{% else %}bg-red-100 text-red-700{% endif %}">
-                                {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 30 %}Needs Impr.{% else %}Overhaul{% endif %}
+                                {% if score >= 70 %}bg-emerald-100 text-emerald-700{% elif score >= 40 %}bg-amber-100 text-amber-700{% else %}bg-red-100 text-red-700{% endif %}">
+                                {% if score >= 90 %}Excellent{% elif score >= 70 %}Good{% elif score >= 50 %}Satisfactory{% elif score >= 40 %}Needs Impr.{% else %}Overhaul{% endif %}
                             </span>
                         </span>
                     {% elif resume.analysis_status == 'analyzing' %}
