@@ -23,7 +23,7 @@
         <p class="hint">Paste your API token from <a href="https://levelupx.ai/settings" target="_blank">Settings</a></p>
         <div class="token-input-row">
           <input type="text" id="token-input" placeholder="Paste token here..." spellcheck="false" autocomplete="off">
-          <button id="connect-btn" class="btn btn-primary" onclick="connect()">Connect</button>
+          <button id="connect-btn" class="btn btn-primary">Connect</button>
         </div>
         <p id="connect-error" class="error hidden"></p>
       </div>
@@ -34,22 +34,22 @@
       <div class="profile-card">
         <div class="profile-avatar" id="profile-avatar">?</div>
         <div class="profile-info">
-          <p class="profile-name" id="profile-name">—</p>
-          <p class="profile-email" id="profile-email">—</p>
-          <p class="profile-resume" id="profile-resume">—</p>
+          <p class="profile-name" id="profile-name">&mdash;</p>
+          <p class="profile-email" id="profile-email">&mdash;</p>
+          <p class="profile-resume" id="profile-resume">&mdash;</p>
         </div>
       </div>
       <div class="actions">
-        <button class="btn btn-primary btn-full" id="fill-btn" onclick="fillCurrentPage()">
+        <button class="btn btn-primary btn-full" id="fill-btn">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
           Auto-fill Current Page
         </button>
-        <button class="btn btn-secondary btn-full" onclick="disconnect()">Disconnect</button>
+        <button class="btn btn-secondary btn-full" id="disconnect-btn">Disconnect</button>
       </div>
     </div>
 
     <!-- Loading State -->
-    <div id="state-loading" class="state">
+    <div id="state-loading" class="state hidden">
       <div class="loading">
         <div class="spinner"></div>
         <p>Connecting...</p>

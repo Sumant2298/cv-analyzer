@@ -4,7 +4,16 @@
  * Handles connection flow, profile display, and fill trigger.
  */
 
-document.addEventListener('DOMContentLoaded', init);
+document.addEventListener('DOMContentLoaded', () => {
+  // Attach all event listeners (inline onclick is blocked by Manifest V3 CSP)
+  document.getElementById('connect-btn').addEventListener('click', connect);
+  document.getElementById('fill-btn').addEventListener('click', fillCurrentPage);
+  document.getElementById('disconnect-btn').addEventListener('click', disconnect);
+  document.getElementById('token-input').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') connect();
+  });
+  init();
+});
 
 async function init() {
   showState('loading');
@@ -156,9 +165,4 @@ function showStatus(text, isError = false) {
   setTimeout(() => bar.classList.add('hidden'), 4000);
 }
 
-// Allow Enter key to connect
-document.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && !document.getElementById('state-disconnected').classList.contains('hidden')) {
-    connect();
-  }
-});
+// Event listeners are attached in DOMContentLoaded handler above
