@@ -1634,7 +1634,7 @@ def _jobs_search_impl(user):
                     sources_used = multi_results.get('sources', [])
 
         # Sort by posted date descending (most recent first)
-        jobs.sort(key=lambda j: j.get('posted_date_raw', ''), reverse=True)
+        jobs.sort(key=lambda j: j.get('posted_date_raw') or '', reverse=True)
 
         results = {
             'jobs': jobs,
