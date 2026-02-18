@@ -28,10 +28,26 @@
 
   function detectAdapter() {
     const host = location.hostname;
+    // Try platform-specific adapters first
     for (const adapter of ADAPTERS) {
       if (adapter.matchesHost(host)) {
+        console.log('[LevelUpX] Detected platform:', adapter.name);
         return adapter;
       }
+    }
+    // Fallback: try each adapter's form detector even if host doesn't match
+    // (covers embedded Greenhouse forms, custom career domains, etc.)
+    for (const adapter of ADAPTERS) {
+      if (adapter.isApplicationForm()) {
+        console.log('[LevelUpX] Detected form matching adapter:', adapter.name);
+        return adapter;
+      }
+    }
+    // Last resort: generic form with name/email fields
+    if (document.querySelector('input[name*="first_name"], input[name*="name"]') &&
+        document.querySelector('input[type="email"], input[name*="email"]')) {
+      console.log('[LevelUpX] Detected generic application form');
+      return ADAPTERS.find(a => a.name === 'Greenhouse') || ADAPTERS[0];
     }
     return null;
   }
@@ -214,22 +230,21 @@
   // ── Init ───────────────────────────────────────────────────────────────
 
   function init() {
+    console.log('[LevelUpX] Content script init on', location.hostname);
     currentAdapter = detectAdapter();
-    if (!currentAdapter) return;
 
-    // Check if we're on an application form
-    if (!currentAdapter.isApplicationForm()) {
-      // Watch for SPA navigation
-      setupObserver();
-      return;
+    if (currentAdapter) {
+      // Check if user is authenticated, then show panel
+      chrome.runtime.sendMessage({ action: 'checkAuth' }, (resp) => {
+        if (chrome.runtime.lastError) return;
+        if (resp && resp.authenticated) {
+          createPanel();
+        }
+      });
     }
 
-    // Check if user is authenticated
-    chrome.runtime.sendMessage({ action: 'checkAuth' }, (resp) => {
-      if (resp && resp.authenticated) {
-        createPanel();
-      }
-    });
+    // Always set up observer for SPA navigation
+    setupObserver();
   }
 
   function setupObserver() {

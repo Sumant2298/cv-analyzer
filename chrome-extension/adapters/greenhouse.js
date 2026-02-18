@@ -7,10 +7,15 @@
 
 window.LevelUpXGreenhouse = window.LevelUpXBaseAdapter.create({
   name: 'Greenhouse',
-  hostPatterns: ['boards.greenhouse.io'],
+  hostPatterns: ['greenhouse.io'],
 
   formDetector() {
-    return !!document.querySelector('#application_form, form#job_application, [id*="application"]');
+    return !!(
+      document.querySelector('#application_form, form#job_application, [id*="application"]') ||
+      document.querySelector('form[action*="application"], form[action*="apply"]') ||
+      document.querySelector('input[name*="first_name"], input[name*="job_application"]') ||
+      document.querySelector('[class*="application"], [data-controller*="application"]')
+    );
   },
 
   fieldMap(profile) {

@@ -3,14 +3,16 @@
   "name": "LevelUpX AutoFill",
   "description": "Auto-fill job application forms on Workday, Greenhouse, Lever, Naukri & LinkedIn with your LevelUpX resume data.",
   "version": "1.0.0",
-  "permissions": ["storage", "activeTab"],
+  "permissions": ["storage", "activeTab", "scripting"],
   "host_permissions": [
     "https://levelupx.ai/*",
     "https://*.myworkdayjobs.com/*",
-    "https://boards.greenhouse.io/*",
+    "https://*.greenhouse.io/*",
     "https://jobs.lever.co/*",
+    "https://*.lever.co/*",
     "https://*.naukri.com/*",
-    "https://*.linkedin.com/*"
+    "https://*.linkedin.com/*",
+    "https://*/*"
   ],
   "background": {
     "service_worker": "background.js"
@@ -19,8 +21,9 @@
     {
       "matches": [
         "https://*.myworkdayjobs.com/*",
-        "https://boards.greenhouse.io/*",
+        "https://*.greenhouse.io/*",
         "https://jobs.lever.co/*",
+        "https://*.lever.co/*",
         "https://*.naukri.com/*",
         "https://*.linkedin.com/*"
       ],

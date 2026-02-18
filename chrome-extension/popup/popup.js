@@ -117,43 +117,98 @@ function showProfile(profile) {
   document.getElementById('profile-avatar').textContent = initials || '?';
 }
 
+const FILL_BTN_HTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Auto-fill Current Page';
+
+function resetFillBtn() {
+  const btn = document.getElementById('fill-btn');
+  btn.disabled = false;
+  btn.innerHTML = FILL_BTN_HTML;
+}
+
 async function fillCurrentPage() {
   const btn = document.getElementById('fill-btn');
   btn.disabled = true;
   btn.textContent = 'Filling...';
 
   try {
-    // Get the active tab
     const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
     if (!tab) {
+      resetFillBtn();
       showStatus('No active tab found', true);
       return;
     }
 
-    console.log('[LevelUpX Popup] Sending fill command to tab', tab.id);
+    console.log('[LevelUpX Popup] Sending fill command to tab', tab.id, tab.url);
 
-    // Send fill command to content script
-    chrome.tabs.sendMessage(tab.id, { action: 'fillForm' }, (resp) => {
-      btn.disabled = false;
-      btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Auto-fill Current Page';
-
+    // Try sending to existing content script first
+    chrome.tabs.sendMessage(tab.id, { action: 'fillForm' }, async (resp) => {
       if (chrome.runtime.lastError) {
-        console.error('[LevelUpX Popup] Fill error:', chrome.runtime.lastError.message);
-        showStatus('This page is not a supported career site', true);
+        // Content script not loaded yet — inject on-demand and retry
+        console.log('[LevelUpX Popup] No content script, injecting on-demand...');
+        try {
+          await injectAndFill(tab.id);
+        } catch (e) {
+          console.error('[LevelUpX Popup] Inject failed:', e);
+          resetFillBtn();
+          showStatus('Could not auto-fill this page. Open a job application form and try again.', true);
+        }
         return;
       }
+      resetFillBtn();
       console.log('[LevelUpX Popup] Fill response:', resp);
       if (resp && resp.success) {
         showStatus(`Filled ${resp.filledCount || 0} fields!`);
       } else {
-        showStatus((resp && resp.error) || 'Could not find form fields', true);
+        showStatus((resp && resp.error) || 'No form fields found on this page', true);
       }
     });
   } catch (err) {
-    btn.disabled = false;
-    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Auto-fill Current Page';
+    resetFillBtn();
     showStatus(err.message, true);
   }
+}
+
+async function injectAndFill(tabId) {
+  // Programmatically inject all content scripts + CSS
+  await chrome.scripting.insertCSS({
+    target: { tabId },
+    files: ['styles/content.css'],
+  });
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    files: [
+      'adapters/base-adapter.js',
+      'adapters/greenhouse.js',
+      'adapters/lever.js',
+      'adapters/workday.js',
+      'adapters/naukri.js',
+      'adapters/linkedin.js',
+      'content/field-detector.js',
+      'content/field-filler.js',
+      'content/content.js',
+    ],
+  });
+
+  console.log('[LevelUpX Popup] Scripts injected, waiting for init...');
+  await new Promise(r => setTimeout(r, 600));
+
+  // Now send the fill command
+  return new Promise((resolve, reject) => {
+    chrome.tabs.sendMessage(tabId, { action: 'fillForm' }, (resp) => {
+      resetFillBtn();
+      if (chrome.runtime.lastError) {
+        showStatus('Could not auto-fill this page', true);
+        reject(new Error(chrome.runtime.lastError.message));
+        return;
+      }
+      if (resp && resp.success) {
+        showStatus(`Filled ${resp.filledCount || 0} fields!`);
+      } else {
+        showStatus((resp && resp.error) || 'No form fields found', true);
+      }
+      resolve(resp);
+    });
+  });
 }
 
 function showStatus(text, isError = false) {
