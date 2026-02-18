@@ -589,10 +589,14 @@ def _rewritten_cv_to_pdf(text: str, output_path: str):
             if _is_bullet(stripped):
                 bullet_text = regex.sub(r'^[\*\-]\s+', '', stripped)
                 pdf.set_font('Helvetica', '', 10)
-                # Indent bullets
-                indent = 8
+                indent = 10
+                bullet_y = pdf.get_y() + 2.0  # Center dot with first line of text
+                # Draw a small filled circle as bullet marker
+                pdf.set_fill_color(60, 60, 60)
+                pdf.ellipse(pdf.l_margin + 3.5, bullet_y, 1.5, 1.5, 'F')
+                pdf.set_fill_color(0, 0, 0)  # Reset fill
                 pdf.x = pdf.l_margin + indent
-                pdf.multi_cell(usable_w - indent, 5, '  ' + bullet_text)
+                pdf.multi_cell(usable_w - indent, 5, bullet_text)
                 pdf.x = pdf.l_margin
                 continue
 
@@ -1948,6 +1952,7 @@ def jobs_deep_analyze_and_rewrite():
             'missing_skills': missing,
             'credits_remaining': user.credits,
             'rewrite_token': token,
+            'rewritten_cv': rewrite_result.get('rewritten_cv', ''),
         })
     except Exception as e:
         # Refund credits on failure
@@ -2412,11 +2417,11 @@ def update_rewritten_cv():
     if not rewritten_cv:
         return jsonify({'error': 'No CV text provided'}), 400
 
-    # Update session data
-    token = session.get('_data_token', '')
+    # Accept token from request body (inline panel) or fall back to session
+    token = data.get('token') or session.get('_data_token', '')
     session_data = _load_session_data(token)
     session_data['rewritten_cv'] = rewritten_cv
-    # Save back
+    # Save back and update session so download route picks it up
     new_token = _save_session_data(session_data)
     session['_data_token'] = new_token
 

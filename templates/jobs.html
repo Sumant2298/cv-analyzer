@@ -1443,18 +1443,127 @@ async function deepAnalyzeAndRewrite(idx, btn) {
             desktopBadges.forEach(el => el.outerHTML = newBadge);
         }
 
-        // Open rewrite results in a new tab
-        if (data.rewrite_token) {
-            window.open('/jobs/rewrite-result/' + data.rewrite_token, '_blank');
-        }
+        // Show rewrite inline below the job card
+        if (!window._rewriteData) window._rewriteData = {};
+        window._rewriteData[idx] = { cvText: data.rewritten_cv, token: data.rewrite_token };
 
-        // Update button to show "Done — View Rewrite"
-        const token = data.rewrite_token;
+        // Remove existing panel if any, then build new one
+        const existingPanel = document.getElementById('rewrite-panel-' + idx);
+        if (existingPanel) existingPanel.remove();
+
+        const panel = _buildRewritePanel(idx, data.rewritten_cv, data.rewrite_token);
+        card.after(panel);
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        // Update button to "View Rewritten CV"
         btn.className = 'deep-rewrite-btn w-full text-center inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg border border-emerald-200 transition leading-tight';
         btn.innerHTML = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> View Rewritten CV';
         btn.disabled = false;
-        btn.onclick = function() { window.open('/jobs/rewrite-result/' + token, '_blank'); };
+        btn.onclick = function() { _toggleRewritePanel(idx); };
     } catch (err) { console.error('Deep analyze error:', err); alert(err.message || 'Network error. Please try again.'); btn.disabled = false; btn.innerHTML = origHTML; }
+}
+
+function _buildRewritePanel(idx, cvText, token) {
+    const panel = document.createElement('div');
+    panel.id = 'rewrite-panel-' + idx;
+    panel.dataset.token = token;
+    panel.className = 'bg-white rounded-2xl shadow-lg border border-brand-200 p-5 anim-fade-up';
+    // Escape HTML for safe insertion into contenteditable
+    const safeText = cvText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    panel.innerHTML = `
+        <div class="flex items-center justify-between mb-3">
+            <div class="flex items-center gap-2">
+                <div class="w-7 h-7 bg-emerald-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg>
+                </div>
+                <h4 class="font-semibold text-slate-800 text-sm">Rewritten CV</h4>
+                <span class="text-[10px] text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full font-medium">Optimized for this role</span>
+            </div>
+            <button onclick="closeRewritePanel(${idx})" class="text-slate-400 hover:text-slate-600 transition p-1 rounded-lg hover:bg-slate-100" title="Close">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
+            </button>
+        </div>
+        <div id="rewrite-content-${idx}" contenteditable="true"
+             class="prose prose-sm max-w-none text-slate-700 leading-relaxed bg-slate-50 rounded-xl p-4 border-2 border-slate-200 focus:border-brand-400 focus:ring-2 focus:ring-brand-100 max-h-[500px] overflow-y-auto whitespace-pre-wrap outline-none transition-colors text-[13px]"
+             spellcheck="true">${safeText}</div>
+        <p class="text-[10px] text-slate-400 mt-1.5">Click into the text above to edit directly. Your edits will be included in the PDF download.</p>
+        <div class="flex items-center gap-3 mt-3">
+            <button onclick="downloadInlineCV(${idx}, this)" class="inline-flex items-center gap-2 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 text-white font-semibold py-2 px-5 rounded-xl shadow transition text-xs">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                Download PDF
+            </button>
+            <button onclick="copyInlineCV(${idx}, this)" class="inline-flex items-center gap-1.5 text-xs font-medium text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
+                <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
+                Copy Text
+            </button>
+        </div>
+    `;
+    return panel;
+}
+
+function _toggleRewritePanel(idx) {
+    const panel = document.getElementById('rewrite-panel-' + idx);
+    if (panel) {
+        // Panel exists — scroll to it
+        panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        return;
+    }
+    // Panel was closed — re-open from cached data
+    const cached = (window._rewriteData || {})[idx];
+    if (!cached) return;
+    const card = document.getElementById('job-card-' + idx);
+    if (!card) return;
+    const newPanel = _buildRewritePanel(idx, cached.cvText, cached.token);
+    card.after(newPanel);
+    newPanel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function closeRewritePanel(idx) {
+    const panel = document.getElementById('rewrite-panel-' + idx);
+    if (panel) panel.remove();
+}
+
+async function downloadInlineCV(idx, btn) {
+    const panel = document.getElementById('rewrite-panel-' + idx);
+    if (!panel) return;
+    const cvText = document.getElementById('rewrite-content-' + idx).innerText;
+    const token = panel.dataset.token;
+    const origHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.textContent = 'Preparing...';
+    try {
+        const resp = await fetch('/update-rewritten-cv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ rewritten_cv: cvText, token: token })
+        });
+        const data = await resp.json();
+        if (data.success) {
+            const a = document.createElement('a');
+            a.href = '/download-rewritten-cv';
+            a.download = 'rewritten_cv.pdf';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        } else {
+            alert('Error: ' + (data.error || 'Unknown error'));
+        }
+    } catch (err) {
+        console.error('Download error:', err);
+        alert(err.message || 'Download failed. Please try again.');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = origHTML;
+    }
+}
+
+function copyInlineCV(idx, btn) {
+    const text = document.getElementById('rewrite-content-' + idx).innerText;
+    navigator.clipboard.writeText(text).then(() => {
+        const origHTML = btn.innerHTML;
+        btn.innerHTML = '<svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Copied!';
+        setTimeout(() => { btn.innerHTML = origHTML; }, 2000);
+    });
 }
 
 function formatSalary(job) {
