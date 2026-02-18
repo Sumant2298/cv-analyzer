@@ -177,11 +177,11 @@
                         <td class="px-4 py-3.5 text-right whitespace-nowrap">
                             <div class="inline-flex items-center gap-0.5">
                                 {% if jd.status == 'completed' %}
-                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Results">
+                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}?from=jd_match" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Results">
                                     <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
                                 </a>
                                 {% elif jd.status == 'analyzing' %}
-                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Progress">
+                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}?from=jd_match" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Progress">
                                     <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
                                 </a>
                                 {% endif %}
@@ -223,7 +223,7 @@
                 </div>
                 <div class="flex items-center gap-2 mt-2">
                     {% if jd.status == 'completed' %}
-                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
+                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}?from=jd_match" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
                     {% endif %}
                     <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline" onsubmit="return confirm('Delete this analysis?')">
                         <button type="submit" class="text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-lg transition">Delete</button>

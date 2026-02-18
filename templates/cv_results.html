@@ -6,11 +6,13 @@
 {% set score = results.cv_quality_score|default(50) %}
 {% set color = 'emerald' if score >= 70 else ('amber' if score >= 40 else 'red') %}
 
-<!-- Back to Resumes -->
+<!-- Contextual back link -->
+{% set back_from = request.args.get('from', 'analysis') %}
 <div class="max-w-5xl mx-auto px-4 sm:px-6 pt-4 pb-2 no-print">
-    <a href="{{ url_for('resume_studio_library') }}" class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 transition font-medium">
+    <a href="{{ url_for('resume_studio_library') if back_from == 'library' else url_for('resume_studio_analysis') }}"
+       class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 transition font-medium">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-        Back to Resume Library
+        {{ 'Back to Resume Library' if back_from == 'library' else 'Back to Analysis Reports' }}
     </a>
 </div>
 

@@ -3,6 +3,18 @@
 {% block page_title %}Resume vs JD Results{% endblock %}
 {% block content %}
 
+<!-- Contextual back link -->
+{% set back_from = request.args.get('from', 'analysis') %}
+<div class="bg-brand-800 px-4 sm:px-6 py-2 no-print">
+    <div class="max-w-7xl mx-auto">
+        <a href="{% if back_from == 'jd_match' %}{{ url_for('resume_studio_jd_match') }}{% elif back_from == 'library' %}{{ url_for('resume_studio_library') }}{% else %}{{ url_for('resume_studio_analysis') }}{% endif %}"
+           class="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition font-medium">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
+            {% if back_from == 'jd_match' %}Back to JD Match{% elif back_from == 'library' %}Back to Resume Library{% else %}Back to Analysis Reports{% endif %}
+        </a>
+    </div>
+</div>
+
 <!-- Tier Badge -->
 <div class="bg-brand-700 text-center py-1.5">
     <span class="text-xs font-semibold text-white/60">Resume vs Job Description Analysis</span>
