@@ -19,9 +19,12 @@ window.LevelUpXLinkedIn = window.LevelUpXBaseAdapter.create({
 
   fieldMap(profile) {
     const b = profile.basics || {};
-    const fullName = b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim();
+    const loc = b.location || {};
+    const latestWork = (profile.work && profile.work[0]) || {};
+    const latestEdu = (profile.education && profile.education[0]) || {};
     // LinkedIn pre-fills most fields, so we target what's typically left empty
-    return {
+
+    const map = {
       [b.firstName]: [
         { method: 'byLabelText', args: ['first name'] },
         { method: 'byPlaceholder', args: ['first name'] },
@@ -43,7 +46,7 @@ window.LevelUpXLinkedIn = window.LevelUpXBaseAdapter.create({
         { method: 'byLabelText', args: ['mobile phone'] },
         { method: 'byAriaLabel', args: ['phone'] },
       ],
-      [(b.location || {}).city]: [
+      [loc.city]: [
         { method: 'byLabelText', args: ['city'] },
         { method: 'byLabelText', args: ['location'] },
         { method: 'byAriaLabel', args: ['city'] },
@@ -59,6 +62,56 @@ window.LevelUpXLinkedIn = window.LevelUpXBaseAdapter.create({
         { method: 'byPlaceholder', args: ['website'] },
       ],
     };
+
+    // ── Custom question fields (LinkedIn Easy Apply extra questions) ──
+    if (latestWork.company) {
+      map[latestWork.company] = [
+        { method: 'byLabelText', args: ['current company'] },
+        { method: 'byAriaLabel', args: ['current company'] },
+        { method: 'byLabelText', args: ['company name'] },
+      ];
+    }
+    if (latestWork.position || b.title) {
+      map[latestWork.position || b.title] = [
+        { method: 'byLabelText', args: ['current title'] },
+        { method: 'byAriaLabel', args: ['current title'] },
+        { method: 'byLabelText', args: ['job title'] },
+      ];
+    }
+    if (latestEdu.institution) {
+      map[latestEdu.institution] = [
+        { method: 'byLabelText', args: ['school'] },
+        { method: 'byLabelText', args: ['university'] },
+        { method: 'byAriaLabel', args: ['school'] },
+      ];
+    }
+    if (latestEdu.studyType) {
+      map[latestEdu.studyType] = [
+        { method: 'byLabelText', args: ['degree'] },
+        { method: 'byAriaLabel', args: ['degree'] },
+      ];
+    }
+    if (latestEdu.area) {
+      map[latestEdu.area] = [
+        { method: 'byLabelText', args: ['major'] },
+        { method: 'byLabelText', args: ['field of study'] },
+      ];
+    }
+    if (b.github) {
+      map[b.github] = [
+        { method: 'byLabelText', args: ['github'] },
+        { method: 'byPlaceholder', args: ['github'] },
+      ];
+    }
+    if (b.summary) {
+      map[b.summary] = [
+        { method: 'byLabelText', args: ['summary'] },
+        { method: 'byLabelText', args: ['cover letter'] },
+        { method: 'byLabelText', args: ['additional information'] },
+      ];
+    }
+
+    return map;
   },
 
   resumeInputSelectors: [

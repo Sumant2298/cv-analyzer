@@ -20,7 +20,12 @@ window.LevelUpXGreenhouse = window.LevelUpXBaseAdapter.create({
 
   fieldMap(profile) {
     const b = profile.basics || {};
-    return {
+    const loc = b.location || {};
+    const latestWork = (profile.work && profile.work[0]) || {};
+    const latestEdu = (profile.education && profile.education[0]) || {};
+
+    const map = {
+      // ── Standard contact fields ────────────────────────────────
       [b.firstName]: [
         { method: 'byName', args: ['first_name'] },
         { method: 'bySelector', args: ['input[name="job_application[first_name]"]'] },
@@ -48,20 +53,96 @@ window.LevelUpXGreenhouse = window.LevelUpXBaseAdapter.create({
       [b.linkedin]: [
         { method: 'bySelector', args: ['input[name*="linkedin"]'] },
         { method: 'byLabelText', args: ['linkedin'] },
+        { method: 'byLabelText', args: ['linkedin profile'] },
         { method: 'byPlaceholder', args: ['linkedin'] },
       ],
       [b.website || b.github]: [
         { method: 'bySelector', args: ['input[name*="website"]'] },
         { method: 'byLabelText', args: ['website'] },
+        { method: 'byLabelText', args: ['portfolio'] },
         { method: 'byPlaceholder', args: ['website'] },
       ],
-      [(b.location || {}).city]: [
+      [loc.city]: [
         { method: 'bySelector', args: ['input[name*="location"]'] },
         { method: 'byLabelText', args: ['location'] },
+        { method: 'byLabelText', args: ['city'] },
         { method: 'byPlaceholder', args: ['location'] },
         { method: 'byPlaceholder', args: ['city'] },
       ],
     };
+
+    // ── Current work fields ──────────────────────────────────────
+    if (latestWork.company) {
+      map[latestWork.company] = [
+        { method: 'byName', args: ['current_company'] },
+        { method: 'byLabelText', args: ['current company'] },
+        { method: 'byLabelText', args: ['company name'] },
+        { method: 'byLabelText', args: ['current employer'] },
+        { method: 'byPlaceholder', args: ['company'] },
+      ];
+    }
+    if (latestWork.position || b.title) {
+      map[latestWork.position || b.title] = [
+        { method: 'byName', args: ['current_title'] },
+        { method: 'byLabelText', args: ['current title'] },
+        { method: 'byLabelText', args: ['job title'] },
+        { method: 'byLabelText', args: ['current role'] },
+        { method: 'byLabelText', args: ['current position'] },
+        { method: 'byPlaceholder', args: ['title'] },
+      ];
+    }
+
+    // ── Education fields ─────────────────────────────────────────
+    if (latestEdu.institution) {
+      map[latestEdu.institution] = [
+        { method: 'byLabelText', args: ['school'] },
+        { method: 'byLabelText', args: ['university'] },
+        { method: 'byLabelText', args: ['college'] },
+        { method: 'byLabelText', args: ['institution'] },
+        { method: 'byPlaceholder', args: ['school'] },
+        { method: 'byPlaceholder', args: ['university'] },
+      ];
+    }
+    if (latestEdu.studyType) {
+      map[latestEdu.studyType] = [
+        { method: 'byLabelText', args: ['degree'] },
+        { method: 'byLabelText', args: ['highest degree'] },
+        { method: 'byLabelText', args: ['education level'] },
+      ];
+    }
+    if (latestEdu.area) {
+      map[latestEdu.area] = [
+        { method: 'byLabelText', args: ['major'] },
+        { method: 'byLabelText', args: ['field of study'] },
+        { method: 'byLabelText', args: ['area of study'] },
+        { method: 'byLabelText', args: ['specialization'] },
+      ];
+    }
+
+    // ── Address fields ───────────────────────────────────────────
+    if (loc.region) {
+      map[loc.region] = [
+        { method: 'byLabelText', args: ['state'] },
+        { method: 'byLabelText', args: ['province'] },
+        { method: 'byLabelText', args: ['region'] },
+      ];
+    }
+    if (loc.country) {
+      map[loc.country] = [
+        { method: 'byLabelText', args: ['country'] },
+      ];
+    }
+
+    // ── GitHub (separate from website) ───────────────────────────
+    if (b.github) {
+      map[b.github] = [
+        { method: 'bySelector', args: ['input[name*="github"]'] },
+        { method: 'byLabelText', args: ['github'] },
+        { method: 'byPlaceholder', args: ['github'] },
+      ];
+    }
+
+    return map;
   },
 
   resumeInputSelectors: [

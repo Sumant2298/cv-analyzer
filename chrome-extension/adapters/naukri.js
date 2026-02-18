@@ -20,8 +20,12 @@ window.LevelUpXNaukri = window.LevelUpXBaseAdapter.create({
 
   fieldMap(profile) {
     const b = profile.basics || {};
+    const loc = b.location || {};
+    const latestWork = (profile.work && profile.work[0]) || {};
+    const latestEdu = (profile.education && profile.education[0]) || {};
     const fullName = b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim();
-    return {
+
+    const map = {
       [fullName]: [
         { method: 'byName', args: ['name'] },
         { method: 'bySelector', args: ['input[name="name"]'] },
@@ -46,7 +50,7 @@ window.LevelUpXNaukri = window.LevelUpXBaseAdapter.create({
         { method: 'byLabelText', args: ['phone'] },
         { method: 'byPlaceholder', args: ['mobile'] },
       ],
-      [(b.location || {}).city]: [
+      [loc.city]: [
         { method: 'byName', args: ['currentLocation'] },
         { method: 'byName', args: ['location'] },
         { method: 'byLabelText', args: ['current location'] },
@@ -54,13 +58,77 @@ window.LevelUpXNaukri = window.LevelUpXBaseAdapter.create({
         { method: 'byPlaceholder', args: ['location'] },
         { method: 'byPlaceholder', args: ['city'] },
       ],
-      [b.title]: [
+      [b.title || latestWork.position]: [
         { method: 'byName', args: ['designation'] },
         { method: 'byLabelText', args: ['designation'] },
         { method: 'byLabelText', args: ['current designation'] },
         { method: 'byPlaceholder', args: ['designation'] },
+        { method: 'byLabelText', args: ['job title'] },
+        { method: 'byLabelText', args: ['current title'] },
       ],
     };
+
+    // ── Current work ─────────────────────────────────────────────
+    if (latestWork.company) {
+      map[latestWork.company] = [
+        { method: 'byName', args: ['currentCompany'] },
+        { method: 'byName', args: ['company'] },
+        { method: 'byLabelText', args: ['current company'] },
+        { method: 'byLabelText', args: ['company name'] },
+        { method: 'byLabelText', args: ['current employer'] },
+        { method: 'byLabelText', args: ['organization'] },
+        { method: 'byPlaceholder', args: ['company'] },
+      ];
+    }
+
+    // ── Education ────────────────────────────────────────────────
+    if (latestEdu.institution) {
+      map[latestEdu.institution] = [
+        { method: 'byLabelText', args: ['university'] },
+        { method: 'byLabelText', args: ['college'] },
+        { method: 'byLabelText', args: ['school'] },
+        { method: 'byLabelText', args: ['institution'] },
+        { method: 'byPlaceholder', args: ['university'] },
+      ];
+    }
+    if (latestEdu.studyType) {
+      map[latestEdu.studyType] = [
+        { method: 'byLabelText', args: ['degree'] },
+        { method: 'byLabelText', args: ['highest degree'] },
+        { method: 'byLabelText', args: ['qualification'] },
+        { method: 'byLabelText', args: ['education'] },
+      ];
+    }
+    if (latestEdu.area) {
+      map[latestEdu.area] = [
+        { method: 'byLabelText', args: ['specialization'] },
+        { method: 'byLabelText', args: ['major'] },
+        { method: 'byLabelText', args: ['field of study'] },
+        { method: 'byLabelText', args: ['course'] },
+      ];
+    }
+
+    // ── Links ────────────────────────────────────────────────────
+    if (b.linkedin) {
+      map[b.linkedin] = [
+        { method: 'byLabelText', args: ['linkedin'] },
+        { method: 'byPlaceholder', args: ['linkedin'] },
+      ];
+    }
+    if (b.github) {
+      map[b.github] = [
+        { method: 'byLabelText', args: ['github'] },
+        { method: 'byPlaceholder', args: ['github'] },
+      ];
+    }
+    if (b.website) {
+      map[b.website] = [
+        { method: 'byLabelText', args: ['website'] },
+        { method: 'byLabelText', args: ['portfolio'] },
+      ];
+    }
+
+    return map;
   },
 
   resumeInputSelectors: [

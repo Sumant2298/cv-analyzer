@@ -14,8 +14,12 @@ window.LevelUpXLever = window.LevelUpXBaseAdapter.create({
 
   fieldMap(profile) {
     const b = profile.basics || {};
+    const loc = b.location || {};
+    const latestWork = (profile.work && profile.work[0]) || {};
+    const latestEdu = (profile.education && profile.education[0]) || {};
     const fullName = b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim();
-    return {
+
+    const map = {
       [fullName]: [
         { method: 'byName', args: ['name'] },
         { method: 'byLabelText', args: ['full name'] },
@@ -48,12 +52,52 @@ window.LevelUpXLever = window.LevelUpXBaseAdapter.create({
         { method: 'byLabelText', args: ['website'] },
         { method: 'byLabelText', args: ['portfolio'] },
       ],
-      [(b.location || {}).city]: [
+      [loc.city]: [
         { method: 'byLabelText', args: ['location'] },
+        { method: 'byLabelText', args: ['city'] },
         { method: 'byPlaceholder', args: ['location'] },
         { method: 'byPlaceholder', args: ['city'] },
       ],
     };
+
+    // ── Current work ─────────────────────────────────────────────
+    if (latestWork.company) {
+      map[latestWork.company] = [
+        { method: 'byLabelText', args: ['current company'] },
+        { method: 'byLabelText', args: ['company name'] },
+        { method: 'byLabelText', args: ['current employer'] },
+      ];
+    }
+    if (latestWork.position || b.title) {
+      map[latestWork.position || b.title] = [
+        { method: 'byLabelText', args: ['current title'] },
+        { method: 'byLabelText', args: ['job title'] },
+        { method: 'byLabelText', args: ['current role'] },
+      ];
+    }
+
+    // ── Education ────────────────────────────────────────────────
+    if (latestEdu.institution) {
+      map[latestEdu.institution] = [
+        { method: 'byLabelText', args: ['school'] },
+        { method: 'byLabelText', args: ['university'] },
+        { method: 'byLabelText', args: ['college'] },
+      ];
+    }
+    if (latestEdu.studyType) {
+      map[latestEdu.studyType] = [
+        { method: 'byLabelText', args: ['degree'] },
+        { method: 'byLabelText', args: ['education level'] },
+      ];
+    }
+    if (latestEdu.area) {
+      map[latestEdu.area] = [
+        { method: 'byLabelText', args: ['major'] },
+        { method: 'byLabelText', args: ['field of study'] },
+      ];
+    }
+
+    return map;
   },
 
   resumeInputSelectors: [
