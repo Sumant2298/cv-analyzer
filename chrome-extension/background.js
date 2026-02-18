@@ -10,6 +10,8 @@ const API_BASE = 'https://levelupx.ai';
 // ── Message handler ──────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  console.log('[LevelUpX BG] Message received:', msg.action);
+
   const handlers = {
     checkAuth:      () => handleCheckAuth(sendResponse),
     setToken:       () => handleSetToken(msg.token, sendResponse),
@@ -21,7 +23,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   const handler = handlers[msg.action];
   if (handler) {
     handler();
-    return true; // async response
+    return true; // async response — keeps message channel open
   }
   return false;
 });
@@ -37,46 +39,62 @@ async function handleCheckAuth(sendResponse) {
   try {
     const token = await getToken();
     if (!token) {
+      console.log('[LevelUpX BG] checkAuth: no token stored');
       sendResponse({ authenticated: false });
       return;
     }
-    // Validate token by fetching profile
+    console.log('[LevelUpX BG] checkAuth: validating token...');
     const resp = await fetch(`${API_BASE}/api/extension/profile`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
+    console.log('[LevelUpX BG] checkAuth: API status', resp.status);
     if (resp.ok) {
       const profile = await resp.json();
+      console.log('[LevelUpX BG] checkAuth: authenticated as', profile.basics?.fullName);
       sendResponse({ authenticated: true, profile });
     } else {
+      console.log('[LevelUpX BG] checkAuth: token rejected');
       sendResponse({ authenticated: false, error: 'Invalid token' });
     }
   } catch (err) {
+    console.error('[LevelUpX BG] checkAuth error:', err);
     sendResponse({ authenticated: false, error: err.message });
   }
 }
 
 async function handleSetToken(token, sendResponse) {
+  console.log('[LevelUpX BG] setToken: validating token...');
   try {
-    // Validate before storing
     const resp = await fetch(`${API_BASE}/api/extension/profile`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
+    console.log('[LevelUpX BG] setToken: API status', resp.status);
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
-      sendResponse({ success: false, error: data.error || 'Invalid token' });
+      console.log('[LevelUpX BG] setToken: API error:', data);
+      sendResponse({ success: false, error: data.error || `API error (${resp.status})` });
       return;
     }
     const profile = await resp.json();
+    console.log('[LevelUpX BG] setToken: profile received for', profile.basics?.fullName);
     await chrome.storage.sync.set({ levelupx_token: token });
+    console.log('[LevelUpX BG] setToken: token stored successfully');
     sendResponse({ success: true, profile });
   } catch (err) {
-    sendResponse({ success: false, error: err.message });
+    console.error('[LevelUpX BG] setToken error:', err);
+    sendResponse({ success: false, error: 'Network error: ' + err.message });
   }
 }
 
 async function handleLogout(sendResponse) {
-  await chrome.storage.sync.remove('levelupx_token');
-  sendResponse({ success: true });
+  try {
+    await chrome.storage.sync.remove('levelupx_token');
+    console.log('[LevelUpX BG] logout: token removed');
+    sendResponse({ success: true });
+  } catch (err) {
+    console.error('[LevelUpX BG] logout error:', err);
+    sendResponse({ success: false, error: err.message });
+  }
 }
 
 // ── API calls ────────────────────────────────────────────────────────────────
@@ -88,9 +106,11 @@ async function handleGetProfile(sendResponse) {
       sendResponse({ error: 'Not connected' });
       return;
     }
+    console.log('[LevelUpX BG] getProfile: fetching...');
     const resp = await fetch(`${API_BASE}/api/extension/profile`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
+    console.log('[LevelUpX BG] getProfile: API status', resp.status);
     if (!resp.ok) {
       const data = await resp.json().catch(() => ({}));
       sendResponse({ error: data.error || 'Failed to fetch profile' });
@@ -98,6 +118,7 @@ async function handleGetProfile(sendResponse) {
     }
     sendResponse(await resp.json());
   } catch (err) {
+    console.error('[LevelUpX BG] getProfile error:', err);
     sendResponse({ error: err.message });
   }
 }
@@ -109,9 +130,11 @@ async function handleGetResumeFile(sendResponse) {
       sendResponse({ error: 'Not connected' });
       return;
     }
+    console.log('[LevelUpX BG] getResumeFile: fetching...');
     const resp = await fetch(`${API_BASE}/api/extension/resume-file`, {
       headers: { 'Authorization': `Bearer ${token}` },
     });
+    console.log('[LevelUpX BG] getResumeFile: API status', resp.status);
     if (!resp.ok) {
       sendResponse({ error: 'Failed to fetch resume file' });
       return;
@@ -131,6 +154,7 @@ async function handleGetResumeFile(sendResponse) {
     reader.onerror = () => sendResponse({ error: 'Failed to read file' });
     reader.readAsDataURL(blob);
   } catch (err) {
+    console.error('[LevelUpX BG] getResumeFile error:', err);
     sendResponse({ error: err.message });
   }
 }

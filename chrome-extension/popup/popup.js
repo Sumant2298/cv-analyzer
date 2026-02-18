@@ -8,7 +8,15 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   showState('loading');
+  console.log('[LevelUpX Popup] Checking auth...');
+
   chrome.runtime.sendMessage({ action: 'checkAuth' }, (resp) => {
+    if (chrome.runtime.lastError) {
+      console.error('[LevelUpX Popup] checkAuth error:', chrome.runtime.lastError.message);
+      showState('disconnected');
+      return;
+    }
+    console.log('[LevelUpX Popup] checkAuth response:', resp);
     if (resp && resp.authenticated) {
       showProfile(resp.profile);
       showState('connected');
@@ -38,19 +46,41 @@ async function connect() {
   }
 
   btn.disabled = true;
-  btn.textContent = '...';
+  btn.textContent = 'Connecting...';
   errEl.classList.add('hidden');
 
+  console.log('[LevelUpX Popup] Connecting with token:', token.slice(0, 8) + '...');
+
   chrome.runtime.sendMessage({ action: 'setToken', token }, (resp) => {
+    console.log('[LevelUpX Popup] setToken response:', resp, 'lastError:', chrome.runtime.lastError);
+
     btn.disabled = false;
     btn.textContent = 'Connect';
 
-    if (resp && resp.success) {
+    // Check for Chrome runtime errors (service worker disconnected, etc.)
+    if (chrome.runtime.lastError) {
+      console.error('[LevelUpX Popup] Runtime error:', chrome.runtime.lastError.message);
+      errEl.textContent = 'Extension error: ' + chrome.runtime.lastError.message;
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    // Check for undefined response (shouldn't happen if background is running)
+    if (!resp) {
+      console.error('[LevelUpX Popup] No response from background script');
+      errEl.textContent = 'No response from extension. Try reloading the extension.';
+      errEl.classList.remove('hidden');
+      return;
+    }
+
+    if (resp.success) {
+      console.log('[LevelUpX Popup] Connected successfully!');
       showProfile(resp.profile);
       showState('connected');
       showStatus('Connected successfully!');
     } else {
-      errEl.textContent = (resp && resp.error) || 'Invalid token';
+      console.log('[LevelUpX Popup] Connection failed:', resp.error);
+      errEl.textContent = resp.error || 'Connection failed. Check if token is valid.';
       errEl.classList.remove('hidden');
     }
   });
@@ -58,6 +88,9 @@ async function connect() {
 
 function disconnect() {
   chrome.runtime.sendMessage({ action: 'logout' }, () => {
+    if (chrome.runtime.lastError) {
+      console.error('[LevelUpX Popup] logout error:', chrome.runtime.lastError.message);
+    }
     showState('disconnected');
     document.getElementById('token-input').value = '';
   });
@@ -68,7 +101,7 @@ function showProfile(profile) {
   const b = profile.basics;
   const name = b.fullName || `${b.firstName} ${b.lastName}`.trim() || 'User';
   document.getElementById('profile-name').textContent = name;
-  document.getElementById('profile-email').textContent = b.email || '—';
+  document.getElementById('profile-email').textContent = b.email || '\u2014';
   document.getElementById('profile-resume').textContent = profile.resumeLabel || 'Resume';
   // Avatar initials
   const initials = name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -88,15 +121,19 @@ async function fillCurrentPage() {
       return;
     }
 
+    console.log('[LevelUpX Popup] Sending fill command to tab', tab.id);
+
     // Send fill command to content script
     chrome.tabs.sendMessage(tab.id, { action: 'fillForm' }, (resp) => {
       btn.disabled = false;
       btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg> Auto-fill Current Page';
 
       if (chrome.runtime.lastError) {
+        console.error('[LevelUpX Popup] Fill error:', chrome.runtime.lastError.message);
         showStatus('This page is not a supported career site', true);
         return;
       }
+      console.log('[LevelUpX Popup] Fill response:', resp);
       if (resp && resp.success) {
         showStatus(`Filled ${resp.filledCount || 0} fields!`);
       } else {
