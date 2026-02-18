@@ -885,6 +885,66 @@ def rewrite_cv(cv_text: str, jd_text: str, matched: list, missing: list,
 
 
 # ---------------------------------------------------------------------------
+# Inline Field Rewrite (Resume Editor — lightweight, single-field)
+# ---------------------------------------------------------------------------
+
+_FIELD_REWRITE_SYSTEM = """You are an expert professional resume writer specializing in ATS-optimized content. You rewrite resume sections to be more impactful, concise, and keyword-rich.
+
+RULES:
+- Output ONLY a valid JSON object with a single key "rewritten_text".
+- Use strong action verbs (Led, Developed, Implemented, Optimized, etc.).
+- Quantify achievements where possible (%, $, numbers).
+- Keep the tone professional and confident.
+- Preserve the core meaning but improve clarity, impact, and ATS-friendliness.
+- For bullet points (highlights): return them as a newline-separated string.
+- Do NOT add fictional details — only enhance what is provided.
+- Keep roughly the same length or slightly shorter."""
+
+
+def rewrite_resume_field(field_type: str, current_text: str, job_title: str = '') -> str:
+    """Rewrite a single resume field using AI. Returns improved text string.
+
+    field_type: 'summary', 'work_summary', 'work_highlights', 'project_description',
+                'project_highlights', 'award_summary'
+    current_text: The current text content to rewrite
+    job_title: Optional professional title for context (from basics.label)
+    """
+    if not LLM_ENABLED:
+        raise RuntimeError('LLM is not configured (set GEMINI_API_KEY)')
+
+    if not current_text or not current_text.strip():
+        raise ValueError('No text provided to rewrite')
+
+    field_labels = {
+        'summary': 'Professional Summary',
+        'work_summary': 'Work Experience Description',
+        'work_highlights': 'Work Achievement Bullet Points',
+        'project_description': 'Project Description',
+        'project_highlights': 'Project Highlight Bullet Points',
+        'award_summary': 'Award Description',
+    }
+    label = field_labels.get(field_type, 'Resume Section')
+
+    prompt = f"""Field Type: {label}
+{f'Professional Title: {job_title}' if job_title else ''}
+
+Current text:
+{current_text[:3000]}
+
+Rewrite this {label.lower()} to be more professional, impactful, quantified where possible, and optimized for ATS systems. Return the improved version."""
+
+    logger.info('LLM call: field rewrite (%s, %d chars)', field_type, len(current_text))
+    data = _call_llm(_FIELD_REWRITE_SYSTEM, prompt, max_tokens=2000, timeout=30.0)
+
+    rewritten = str(data.get('rewritten_text', ''))
+    if not rewritten:
+        raise RuntimeError('LLM returned empty rewritten text')
+
+    logger.info('Field rewrite complete: %s → %d chars', field_type, len(rewritten))
+    return rewritten
+
+
+# ---------------------------------------------------------------------------
 # Call 0: CV-Only Review (Tier 1 — NLP-heavy, small LLM call)
 # ---------------------------------------------------------------------------
 

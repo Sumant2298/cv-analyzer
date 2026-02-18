@@ -445,7 +445,14 @@ function field(name, label, value, type, placeholder, extraClass) {
 function textarea(name, label, value, placeholder, rows) {
     return `
         <div>
-            <label class="block text-xs font-medium text-slate-500 mb-1">${label}</label>
+            <div class="flex items-center justify-between mb-1">
+                <label class="text-xs font-medium text-slate-500">${label}</label>
+                <button type="button" onclick="aiRewrite('${name}')" data-ai-btn="${name}"
+                    class="inline-flex items-center gap-1 text-[10px] text-brand-600 hover:text-brand-700 font-semibold transition">
+                    <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1l2.39 5.13L18 7.24l-4 3.89.94 5.51L10 13.77l-4.94 2.87L6 11.13l-4-3.89 5.61-1.11z"/></svg>
+                    Write with AI
+                </button>
+            </div>
             <textarea name="${name}" rows="${rows || 3}"
                 placeholder="${placeholder || ''}"
                 class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none transition bg-white resize-y">${escHtml(value || '')}</textarea>
@@ -644,6 +651,72 @@ function exportPDF() {
         if (iframe) {
             iframe.contentWindow.focus();
             iframe.contentWindow.print();
+        }
+    }
+}
+
+/* ═══════════════════════════════════════════════════════
+   WRITE WITH AI
+   ═══════════════════════════════════════════════════════ */
+
+async function aiRewrite(fieldName) {
+    collectFormData();
+    const el = document.querySelector(`[name="${fieldName}"]`);
+    if (!el) return;
+
+    const currentText = el.value.trim();
+    if (!currentText) {
+        showToast('Please enter some text first, then click Write with AI.', 'error');
+        return;
+    }
+
+    // Determine field type from name
+    let fieldType = 'summary';
+    if (fieldName === 'basics.summary') fieldType = 'summary';
+    else if (fieldName.match(/^work\.\d+\.summary$/)) fieldType = 'work_summary';
+    else if (fieldName.match(/^work\.\d+\.highlights$/)) fieldType = 'work_highlights';
+    else if (fieldName.match(/^projects\.\d+\.description$/)) fieldType = 'project_description';
+    else if (fieldName.match(/^projects\.\d+\.highlights$/)) fieldType = 'project_highlights';
+    else if (fieldName.match(/^awards\.\d+\.summary$/)) fieldType = 'award_summary';
+
+    // Show loading state
+    const btn = document.querySelector(`[data-ai-btn="${fieldName}"]`);
+    const originalHtml = btn ? btn.innerHTML : '';
+    if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Rewriting...';
+    }
+
+    try {
+        const res = await fetch('/resume-studio/editor/ai-rewrite', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                field_type: fieldType,
+                current_text: currentText,
+                job_title: editorState.data.basics.label || ''
+            })
+        });
+        const result = await res.json();
+
+        if (result.success) {
+            el.value = result.rewritten_text;
+            // Trigger input event to update state + preview
+            el.dispatchEvent(new Event('input', { bubbles: true }));
+            editorState.dirty = true;
+            collectFormData();
+            debouncedPreview();
+            showToast('AI rewrite applied! 1 credit used.', 'success');
+        } else {
+            showToast(result.error || 'AI rewrite failed', 'error');
+        }
+    } catch (e) {
+        console.error('AI rewrite error:', e);
+        showToast('Network error — please try again', 'error');
+    } finally {
+        if (btn) {
+            btn.disabled = false;
+            btn.innerHTML = originalHtml;
         }
     }
 }

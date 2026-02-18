@@ -2548,6 +2548,48 @@ def resume_editor_print(resume_id):
                            label=resume.label)
 
 
+@app.route('/resume-studio/editor/ai-rewrite', methods=['POST'])
+def resume_editor_ai_rewrite():
+    """AI-rewrite a single resume field (summary, highlights, etc.). Costs 1 credit."""
+    if not session.get('user_id'):
+        return jsonify({'success': False, 'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'success': False, 'error': 'User not found'}), 404
+
+    if user.credits < 1:
+        return jsonify({'success': False, 'error': 'Not enough credits. You need 1 credit per AI rewrite.'}), 400
+
+    data = request.get_json()
+    if not data:
+        return jsonify({'success': False, 'error': 'Missing request data'}), 400
+
+    field_type = data.get('field_type', 'summary')
+    current_text = data.get('current_text', '').strip()
+    job_title = data.get('job_title', '')
+
+    if not current_text:
+        return jsonify({'success': False, 'error': 'Please enter some text first, then click Write with AI.'}), 400
+
+    try:
+        from llm_service import rewrite_resume_field
+        rewritten = rewrite_resume_field(field_type, current_text, job_title)
+
+        # Deduct 1 credit
+        from payments import deduct_credits
+        deduct_credits(user.id, 1)
+        # Update session credits
+        user = User.query.get(session['user_id'])
+        session['user_credits'] = user.credits
+
+        return jsonify({'success': True, 'rewritten_text': rewritten, 'credits_remaining': user.credits})
+
+    except Exception as e:
+        logger.error('AI field rewrite error: %s', e)
+        return jsonify({'success': False, 'error': 'AI rewrite failed. Please try again.'}), 500
+
+
 @app.route('/resume-studio/library')
 def resume_studio_library():
     """CV Library — upload, manage, and analyze resumes."""
