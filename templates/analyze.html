@@ -8,15 +8,6 @@
 <div class="mb-6 anim-fade-up">
     <h1 class="text-2xl font-bold text-slate-800">Analyze Your Resume</h1>
     <p class="text-sm text-slate-500 mt-1">Upload your resume for an instant AI-powered quality analysis, ATS score, and actionable improvement suggestions.</p>
-    {% if user_data %}
-        {% if user_data.first_free %}
-        <p class="mt-2 text-sm text-emerald-600 font-semibold">Your first analysis is FREE</p>
-        {% elif user_data.credits >= user_data.credits_per_cv %}
-        <p class="mt-2 text-sm text-slate-400">{{ user_data.credits_per_cv }} credits/analysis &middot; {{ user_data.credits }} credits available</p>
-        {% else %}
-        <p class="mt-2 text-sm text-amber-600 font-semibold">{{ user_data.credits_per_cv }} credits needed &mdash; <a href="{{ url_for('buy_credits') }}" class="underline hover:text-amber-700">buy credits</a></p>
-        {% endif %}
-    {% endif %}
 </div>
 
 <!-- Form — CV Only -->

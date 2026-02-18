@@ -19,30 +19,9 @@
         </button>
         <div class="flex items-center justify-center gap-3 mt-3 text-xs text-white/60">
             <span>PDF, DOC, DOCX</span>
-            <span>&middot;</span>
-            <span>{{ user_data.credits_per_cv if user_data else 2 }} credits per analysis</span>
-            {% if user_data and user_data.first_free %}
-            <span>&middot;</span>
-            <span class="text-emerald-200 font-semibold">First analysis FREE!</span>
-            {% endif %}
         </div>
     </div>
 
-    <!-- Credit & storage info bar -->
-    <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 flex flex-wrap items-center gap-4 text-sm shadow-sm">
-        <div class="flex items-center gap-2">
-            <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
-                <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029c-.472.786-.96.979-1.264.979-.304 0-.792-.193-1.264-.979a5.389 5.389 0 01-.421-.821h2.382a1 1 0 000-2H7.653a7.357 7.357 0 010-1h3.044a1 1 0 000-2H8.315c.134-.29.268-.545.421-.821z"/></svg>
-            </div>
-            <span class="text-slate-600"><strong class="text-slate-800">{{ session.get('user_credits', 0) }}</strong> credits</span>
-        </div>
-        <span class="text-slate-300">|</span>
-        <span class="text-slate-500">{{ resumes|length }}/5 resumes stored</span>
-        {% if resumes|length >= 5 %}
-        <span class="text-xs text-amber-600 font-medium">&mdash; Delete a resume to store another. Analysis still works.</span>
-        {% endif %}
-        <a href="/buy-credits" class="ml-auto text-brand-600 hover:text-brand-700 font-semibold text-xs">Buy Credits &rarr;</a>
-    </div>
 
     {% if resumes|length == 0 %}
     <!-- Empty state -->

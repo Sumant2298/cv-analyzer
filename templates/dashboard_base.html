@@ -201,18 +201,6 @@
                     {% block page_subtitle %}{% endblock %}
                 </div>
 
-                <!-- Right: credits shortcut + avatar (desktop) -->
-                <div class="flex items-center gap-3">
-                    <a href="/buy-credits" class="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 transition">
-                        <svg class="w-4 h-4 text-amber-500" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029c-.472.786-.96.979-1.264.979-.304 0-.792-.193-1.264-.979a5.389 5.389 0 01-.421-.821h2.382a1 1 0 000-2H7.653a7.357 7.357 0 010-1h3.044a1 1 0 000-2H8.315c.134-.29.268-.545.421-.821z"/></svg>
-                        <span class="font-bold text-slate-700">{{ session.get('user_credits', 0) }}</span>
-                    </a>
-                    {% if session.get('user_picture') %}
-                    <a href="/account" class="hidden sm:block" title="My Profile">
-                        <img src="{{ session.get('user_picture') }}" alt="" class="w-7 h-7 rounded-full hover:ring-2 hover:ring-brand-300 transition">
-                    </a>
-                    {% endif %}
-                </div>
             </header>
 
             <!-- Flash messages -->
