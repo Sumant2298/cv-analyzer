@@ -76,6 +76,9 @@ def build_jsearch_params(prefs: dict) -> dict:
     func_ids = prefs.get('industries', [])      # stores function_id
     rf_ids = prefs.get('functional_areas', [])   # stores role_family_id
     level_id = prefs.get('level', '')
+    # Migrate old level IDs to new simplified ones
+    from skills_data import _LEVEL_MIGRATION
+    level_id = _LEVEL_MIGRATION.get(level_id, level_id)
 
     if not titles and rf_ids and func_ids:
         try:
@@ -135,6 +138,7 @@ def build_jsearch_params(prefs: dict) -> dict:
         '0_3_years': 'under_3_years_experience',
         'under_3_years_experience': 'under_3_years_experience',
         '3_8_years': 'more_than_3_years_experience',
+        '8_plus_years': 'more_than_3_years_experience',
         '8_15_years': 'more_than_3_years_experience',
         '15_plus_years': 'more_than_3_years_experience',
         'more_than_3_years_experience': 'more_than_3_years_experience',

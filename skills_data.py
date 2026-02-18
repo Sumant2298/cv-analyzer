@@ -113,19 +113,24 @@ SKILL_ALIASES = {
 # Global seniority levels — same for every function
 # ---------------------------------------------------------------------------
 GLOBAL_LEVELS = [
-    {'id': 'intern',         'label': 'Intern'},
-    {'id': 'entry',          'label': 'Entry'},
-    {'id': 'mid',            'label': 'Mid'},
-    {'id': 'senior',         'label': 'Senior'},
-    {'id': 'lead',           'label': 'Lead'},
-    {'id': 'manager',        'label': 'Manager'},
-    {'id': 'senior_manager', 'label': 'Senior Manager'},
-    {'id': 'director',       'label': 'Director'},
-    {'id': 'vp',             'label': 'VP'},
-    {'id': 'c_level',        'label': 'C-Level'},
+    {'id': 'entry',      'label': 'Entry / Junior'},
+    {'id': 'mid',        'label': 'Mid-Level'},
+    {'id': 'senior',     'label': 'Senior'},
+    {'id': 'lead',       'label': 'Lead / Management'},
+    {'id': 'executive',  'label': 'Executive (Director+)'},
 ]
 
 LEVEL_LABELS = {lv['id']: lv['label'] for lv in GLOBAL_LEVELS}
+
+# Backward compat: old level IDs → new IDs (for saved preferences)
+_LEVEL_MIGRATION = {
+    'intern': 'entry',
+    'manager': 'lead',
+    'senior_manager': 'lead',
+    'director': 'executive',
+    'vp': 'executive',
+    'c_level': 'executive',
+}
 
 
 # ---------------------------------------------------------------------------

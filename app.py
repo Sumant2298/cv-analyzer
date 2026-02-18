@@ -1623,6 +1623,9 @@ def jobs_search():
                     source = 'api'
                     sources_used = multi_results.get('sources', [])
 
+        # Sort by posted date descending (most recent first)
+        jobs.sort(key=lambda j: j.get('posted_date_raw', ''), reverse=True)
+
         results = {
             'jobs': jobs,
             'total_count': len(jobs),
@@ -1828,6 +1831,148 @@ def jobs_deep_analyze():
         session['user_credits'] = user.credits
         logger.error('Deep ATS analysis error: %s', e, exc_info=True)
         return jsonify({'error': str(e)}), 500
+
+
+@app.route('/jobs/deep-analyze-and-rewrite', methods=['POST'])
+def jobs_deep_analyze_and_rewrite():
+    """Combined deep ATS analysis + CV rewrite for a specific job. Costs 3 credits total."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    data = request.get_json(silent=True) or {}
+    job_id = data.get('job_id', '')
+    jd_text = data.get('description', '')
+    job_title = data.get('title', '')
+    job_company = data.get('company', '')
+
+    if not jd_text or len(jd_text.strip()) < 30:
+        return jsonify({'error': 'Job description too short for analysis'}), 400
+
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if not primary or not primary.extracted_text or len(primary.extracted_text.strip()) < 50:
+        return jsonify({'error': 'No primary resume found or resume text is too short'}), 400
+
+    TOTAL_CREDITS = 3
+    if user.credits < TOTAL_CREDITS:
+        return jsonify({'error': f'Need {TOTAL_CREDITS} credits, you have {user.credits}'}), 402
+
+    from payments import deduct_credits
+    from models import JobATSScore
+
+    # Check for cached deep analysis
+    cached = None
+    if job_id:
+        cached = JobATSScore.query.filter_by(
+            user_id=user.id, job_id=job_id, resume_id=primary.id
+        ).first()
+
+    try:
+        if cached:
+            ats_score = cached.ats_score
+            matched = json.loads(cached.matched_skills or '[]')
+            missing = json.loads(cached.missing_skills or '[]')
+        else:
+            results = analyze_cv_against_jd(primary.extracted_text, jd_text)
+            ats_score = results.get('ats_score', 0)
+            matched = results.get('skill_match', {}).get('matched', [])[:10]
+            missing = results.get('skill_match', {}).get('missing', [])[:10]
+            # Cache the deep score
+            if job_id:
+                try:
+                    score_record = JobATSScore(
+                        user_id=user.id, job_id=job_id, resume_id=primary.id,
+                        ats_score=ats_score,
+                        matched_skills=json.dumps(matched),
+                        missing_skills=json.dumps(missing),
+                    )
+                    db.session.add(score_record)
+                    db.session.commit()
+                except Exception:
+                    db.session.rollback()
+
+        # Perform CV rewrite
+        from llm_service import rewrite_cv
+        rewrite_result = rewrite_cv(
+            cv_text=primary.extracted_text,
+            jd_text=jd_text,
+            matched=matched,
+            missing=missing,
+            missing_verbs=[],
+            ats_score=ats_score,
+        )
+        _log_llm_usage(session['user_id'], 'job_deep_rewrite')
+
+        # Deduct credits
+        if not deduct_credits(user.id, TOTAL_CREDITS, action='job_deep_analyze_rewrite'):
+            return jsonify({'error': 'Insufficient credits'}), 402
+
+        # Refresh session credits
+        user = User.query.get(user.id)
+        session['user_credits'] = user.credits
+
+        # Store rewrite result for new-tab view
+        token = _save_session_data({
+            'rewritten_cv': rewrite_result.get('rewritten_cv', ''),
+            'changes_summary': rewrite_result.get('changes_summary', []),
+            'expected_ats_improvement': rewrite_result.get('expected_ats_improvement', 0),
+            'original_ats': ats_score,
+            'job_title': job_title,
+            'company': job_company,
+            'original_cv': primary.extracted_text,
+        })
+
+        return jsonify({
+            'ats_score': ats_score,
+            'matched_skills': matched,
+            'missing_skills': missing,
+            'credits_remaining': user.credits,
+            'rewrite_token': token,
+        })
+    except Exception as e:
+        # Refund credits on failure
+        logger.error('Deep analyze+rewrite error: %s', e, exc_info=True)
+        _refund_analysis_credits(user.id, TOTAL_CREDITS, action='refund_job_deep_rewrite')
+        user = User.query.get(user.id)
+        session['user_credits'] = user.credits
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/jobs/rewrite-result/<token>')
+def jobs_rewrite_result(token):
+    """View rewrite results from a job deep-analyze-and-rewrite in a new tab."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    data = _load_session_data(token)
+    if not data or not data.get('rewritten_cv'):
+        flash('Rewrite results expired or not found.', 'warning')
+        return redirect(url_for('job_copilot_search'))
+
+    # Build diff for side-by-side comparison
+    cv_diff = _compute_cv_diff(data.get('original_cv', ''), data['rewritten_cv'])
+
+    # Set _data_token so existing /download-rewritten-cv works
+    session['_data_token'] = _update_session_data(token, {
+        'rewritten_cv': data['rewritten_cv'],
+    })
+
+    return render_template('rewrite_results.html',
+                           rewrite={
+                               'rewritten_cv': data['rewritten_cv'],
+                               'changes_summary': data.get('changes_summary', []),
+                               'expected_ats_improvement': data.get('expected_ats_improvement', 0),
+                           },
+                           original_ats=data.get('original_ats', 0),
+                           credits_remaining=session.get('user_credits', 0),
+                           cv_diff=cv_diff,
+                           original_cv=data.get('original_cv', ''),
+                           job_title=data.get('job_title', ''),
+                           company=data.get('company', ''),
+                           active_category='job_copilot', active_page='search')
 
 
 @app.route('/jobs/analyze', methods=['POST'])

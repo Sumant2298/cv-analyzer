@@ -1,14 +1,14 @@
 {% extends "dashboard_base.html" %}
-{% block title %}Jobs — LevelUpX{% endblock %}
-{% block page_title %}Jobs{% endblock %}
+{% block title %}AI Job Search — LevelUpX{% endblock %}
+{% block page_title %}AI Job Search{% endblock %}
 {% block content %}
 
 <div class="max-w-5xl mx-auto anim-fade-up">
 
     <!-- Header -->
     <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-800">Jobs</h1>
-        <p class="text-sm text-slate-500 mt-1">Search public job listings and see how your resume matches</p>
+        <h1 class="text-2xl font-bold text-slate-800">AI Job Search</h1>
+        <p class="text-sm text-slate-500 mt-1">Discover jobs matched to your resume with AI-powered ATS scoring. We analyse every listing against your CV so you can apply with confidence.</p>
     </div>
 
     <!-- Primary Resume Indicator -->
@@ -113,11 +113,9 @@
                                 <label class="block text-xs font-medium text-slate-600 mb-1.5">Experience Level</label>
                                 <select id="wiz-experience" class="w-full border border-slate-200 rounded-xl px-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none bg-white">
                                     <option value="any">Any Level</option>
-                                    <option value="fresher">Fresher</option>
                                     <option value="0_3_years">0-3 Years</option>
                                     <option value="3_8_years">3-8 Years</option>
-                                    <option value="8_15_years">8-15 Years</option>
-                                    <option value="15_plus_years">15+ Years</option>
+                                    <option value="8_plus_years">8+ Years</option>
                                 </select>
                             </div>
                             <div>
@@ -164,22 +162,18 @@
                                 <button type="button" onclick="setSalaryPreset(5000000,null)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">50+ LPA</button>
                             </div>
                         </div>
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                            <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1.5">Minimum Salary (INR)</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">&#8377;</span>
-                                    <input type="number" id="wiz-salary-min" placeholder="e.g. 600000"
-                                        class="w-full border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
-                                </div>
+                        <div>
+                            <div class="flex justify-between mb-2">
+                                <span id="wiz-salary-min-label" class="text-xs font-semibold text-brand-600">&#8377;0</span>
+                                <span id="wiz-salary-max-label" class="text-xs font-semibold text-brand-600">&#8377;1 Cr</span>
                             </div>
-                            <div>
-                                <label class="block text-xs font-medium text-slate-600 mb-1.5">Maximum Salary (INR)</label>
-                                <div class="relative">
-                                    <span class="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-slate-400">&#8377;</span>
-                                    <input type="number" id="wiz-salary-max" placeholder="e.g. 2500000"
-                                        class="w-full border border-slate-200 rounded-xl pl-8 pr-4 py-2.5 text-sm focus:ring-2 focus:ring-brand-500 outline-none">
-                                </div>
+                            <div class="salary-slider-wrap">
+                                <div class="slider-track-bg"></div>
+                                <div id="wiz-salary-track" class="slider-track-fill"></div>
+                                <input type="range" id="wiz-salary-min" min="0" max="10000000" step="100000" value="0"
+                                    class="salary-range-thumb" oninput="updateSalarySlider('wiz')">
+                                <input type="range" id="wiz-salary-max" min="0" max="10000000" step="100000" value="10000000"
+                                    class="salary-range-thumb" oninput="updateSalarySlider('wiz')">
                             </div>
                         </div>
                         <div>
@@ -270,11 +264,9 @@
                             <label class="block text-xs font-medium text-slate-600 mb-1">Experience</label>
                             <select id="fp-experience" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none bg-white">
                                 <option value="any">Any Level</option>
-                                <option value="fresher">Fresher</option>
                                 <option value="0_3_years">0-3 Years</option>
                                 <option value="3_8_years">3-8 Years</option>
-                                <option value="8_15_years">8-15 Years</option>
-                                <option value="15_plus_years">15+ Years</option>
+                                <option value="8_plus_years">8+ Years</option>
                             </select>
                         </div>
                         <div>
@@ -310,14 +302,18 @@
                     <svg class="w-4 h-4 text-slate-400 accordion-chevron transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </button>
                 <div id="fp-sec-3" class="hidden p-3 pt-0 space-y-3">
-                    <div class="grid grid-cols-2 gap-3">
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Min Salary (INR)</label>
-                            <input type="number" id="fp-salary-min" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 600000">
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span id="fp-salary-min-label" class="text-[10px] font-semibold text-brand-600">&#8377;0</span>
+                            <span id="fp-salary-max-label" class="text-[10px] font-semibold text-brand-600">&#8377;1 Cr</span>
                         </div>
-                        <div>
-                            <label class="block text-xs font-medium text-slate-600 mb-1">Max Salary (INR)</label>
-                            <input type="number" id="fp-salary-max" class="w-full border border-slate-200 rounded-lg px-3 py-2 text-xs focus:ring-2 focus:ring-brand-500 outline-none" placeholder="e.g. 2500000">
+                        <div class="salary-slider-wrap">
+                            <div class="slider-track-bg"></div>
+                            <div id="fp-salary-track" class="slider-track-fill"></div>
+                            <input type="range" id="fp-salary-min" min="0" max="10000000" step="100000" value="0"
+                                class="salary-range-thumb" oninput="updateSalarySlider('fp')">
+                            <input type="range" id="fp-salary-max" min="0" max="10000000" step="100000" value="10000000"
+                                class="salary-range-thumb" oninput="updateSalarySlider('fp')">
                         </div>
                     </div>
                     <div>
@@ -417,6 +413,25 @@
 .tag-autocomplete div { padding: 8px 12px; font-size: 13px; cursor: pointer; color: #334155; }
 .tag-autocomplete div:hover { background: #f1f5f9; }
 .accordion-chevron.open { transform: rotate(180deg); }
+/* Dual range salary slider */
+.salary-slider-wrap { position: relative; height: 8px; margin: 12px 0 8px; }
+.slider-track-bg { position: absolute; inset: 0; background: #e2e8f0; border-radius: 9999px; }
+.slider-track-fill { position: absolute; height: 100%; background: #818cf8; border-radius: 9999px; }
+.salary-range-thumb {
+    position: absolute; top: -6px; left: 0; width: 100%;
+    -webkit-appearance: none; appearance: none;
+    background: transparent; pointer-events: none; z-index: 3; height: 20px; margin: 0;
+}
+.salary-range-thumb::-webkit-slider-thumb {
+    pointer-events: all; cursor: pointer;
+    -webkit-appearance: none; width: 20px; height: 20px; border-radius: 50%;
+    background: #6366f1; border: 2.5px solid white; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+.salary-range-thumb::-moz-range-thumb {
+    pointer-events: all; cursor: pointer;
+    width: 20px; height: 20px; border-radius: 50%; border: 2.5px solid white;
+    background: #6366f1; box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
 </style>
 
 <!-- ===== JAVASCRIPT ===== -->
@@ -795,11 +810,50 @@ function toggleAccordion(id) {
 }
 
 // ===================== SALARY PRESETS =====================
+// Convert slider value to preference value: extremes → null (no filter)
+function _sliderVal(prefix, suffix, extremeVal) {
+    const el = document.getElementById(prefix + '-' + suffix);
+    if (!el) return null;
+    const v = parseInt(el.value);
+    if (isNaN(v) || v === extremeVal) return null;
+    return v;
+}
+
 function setSalaryPreset(min, max) {
     const minEl = document.getElementById('wiz-salary-min') || document.getElementById('fp-salary-min');
     const maxEl = document.getElementById('wiz-salary-max') || document.getElementById('fp-salary-max');
-    if (minEl) minEl.value = min || '';
-    if (maxEl) maxEl.value = max || '';
+    if (minEl) minEl.value = min || 0;
+    if (maxEl) maxEl.value = max || 10000000;
+    // Determine prefix and update slider visual
+    const prefix = (minEl && minEl.id.startsWith('wiz')) ? 'wiz' : 'fp';
+    updateSalarySlider(prefix);
+}
+
+function updateSalarySlider(prefix) {
+    const minEl = document.getElementById(prefix + '-salary-min');
+    const maxEl = document.getElementById(prefix + '-salary-max');
+    if (!minEl || !maxEl) return;
+    let minVal = parseInt(minEl.value) || 0;
+    let maxVal = parseInt(maxEl.value) || 10000000;
+    if (minVal > maxVal) { const t = minVal; minVal = maxVal; maxVal = t; minEl.value = minVal; maxEl.value = maxVal; }
+    const track = document.getElementById(prefix + '-salary-track');
+    if (track) {
+        const pctMin = (minVal / 10000000) * 100;
+        const pctMax = (maxVal / 10000000) * 100;
+        track.style.left = pctMin + '%';
+        track.style.width = (pctMax - pctMin) + '%';
+    }
+    const minLabel = document.getElementById(prefix + '-salary-min-label');
+    const maxLabel = document.getElementById(prefix + '-salary-max-label');
+    if (minLabel) minLabel.textContent = formatLPA(minVal);
+    if (maxLabel) maxLabel.textContent = formatLPA(maxVal);
+}
+
+function formatLPA(val) {
+    if (val >= 10000000) return '\u20B91 Cr';
+    if (val >= 100000) return '\u20B9' + (val / 100000).toFixed(1).replace(/\.0$/, '') + ' L';
+    if (val === 0) return '\u20B90';
+    return '\u20B9' + (val / 1000) + 'K';
 }
 
 // ===================== WIZARD NAVIGATION =====================
@@ -866,8 +920,8 @@ function collectPreferences(prefix) {
         employment_types: getActiveMultiPills(prefix + '-emp-types'),
         work_mode: getActivePill(prefix + '-work-mode'),
         locations: locations,
-        salary_min: (document.getElementById(prefix + '-salary-min') || {}).value || null,
-        salary_max: (document.getElementById(prefix + '-salary-max') || {}).value || null,
+        salary_min: _sliderVal(prefix, 'salary-min', 0),
+        salary_max: _sliderVal(prefix, 'salary-max', 10000000),
         salary_period: getActivePill(prefix + '-salary-period') || 'annual',
         industries: industries,
         functional_areas: functionalAreas,
@@ -1174,9 +1228,10 @@ function openEditPrefs() {
         renderCityGrid('fp');
 
         // Restore salary
-        document.getElementById('fp-salary-min').value = savedPrefs.salary_min || '';
-        document.getElementById('fp-salary-max').value = savedPrefs.salary_max || '';
+        document.getElementById('fp-salary-min').value = savedPrefs.salary_min || 0;
+        document.getElementById('fp-salary-max').value = savedPrefs.salary_max || 10000000;
         setActivePill('fp-salary-period', savedPrefs.salary_period || 'annual');
+        updateSalarySlider('fp');
 
     } else {
         // No saved prefs
@@ -1190,6 +1245,20 @@ function closeFilterPanel() {
 }
 
 // ===================== RENDER JOBS =====================
+function _daysAgoText(dateStr) {
+    if (!dateStr) return '';
+    try {
+        const posted = new Date(dateStr);
+        if (isNaN(posted.getTime())) return dateStr;
+        const diffDays = Math.floor((new Date() - posted) / 86400000);
+        if (diffDays === 0) return 'Posted today';
+        if (diffDays === 1) return '1 day ago';
+        if (diffDays < 30) return diffDays + ' days ago';
+        if (diffDays < 60) return '1 mo ago';
+        return Math.floor(diffDays / 30) + ' mo ago';
+    } catch(e) { return dateStr; }
+}
+
 function _buildJobCard(job, idx) {
     const card = document.createElement('div');
     card.className = 'bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition';
@@ -1199,7 +1268,7 @@ function _buildJobCard(job, idx) {
     {
         const useDeep = job.has_deep_score && job.deep_ats_score !== undefined;
         const s = useDeep ? job.deep_ats_score : job.ats_score;
-        const scoreLabel = useDeep ? 'AI Score' : 'Quick';
+        const scoreLabel = useDeep ? 'AI Score' : 'Estimated';
         if (s !== null && s !== undefined) {
             let sc, sl;
             if (s >= 85) { sc = 'bg-emerald-100 text-emerald-700'; sl = 'Great Match'; }
@@ -1219,7 +1288,12 @@ function _buildJobCard(job, idx) {
     if (job.employment_type) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-100 text-slate-600">${job.employment_type}</span>`;
     if (job.is_remote) tags += '<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600">Remote</span>';
     if (job.salary_min) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">${formatSalary(job)}</span>`;
-    if (job.posted_date) tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full bg-slate-50 text-slate-500">${job.posted_date}</span>`;
+    if (job.posted_date || job.posted_date_raw) {
+        const daysText = _daysAgoText(job.posted_date_raw || job.posted_date);
+        const isRecent = daysText.includes('today') || daysText.includes('1 day') || daysText.includes('2 day') || daysText.includes('3 day');
+        const dateClasses = isRecent ? 'bg-emerald-50 text-emerald-700 font-semibold' : 'bg-slate-50 text-slate-500';
+        tags += `<span class="text-[10px] font-medium px-2 py-0.5 rounded-full ${dateClasses}">${daysText}</span>`;
+    }
     // Source badge (show for non-JSearch providers)
     if (job.source && job.source !== 'jsearch') {
         const _srcColors = { adzuna: 'bg-purple-50 text-purple-600', jooble: 'bg-cyan-50 text-cyan-600', remoteok: 'bg-green-50 text-green-600', remotive: 'bg-indigo-50 text-indigo-600' };
@@ -1231,26 +1305,49 @@ function _buildJobCard(job, idx) {
         ? `<img src="${escHtml(job.company_logo)}" class="w-full h-full object-contain rounded-lg" onerror="this.parentElement.innerHTML='<span class=\\'text-lg font-bold text-slate-400\\'>${escHtml((job.company || '?')[0])}</span>'">`
         : `<span class="text-lg font-bold text-slate-400">${escHtml((job.company || '?')[0])}</span>`;
 
+    const applyBtn = job.apply_url
+        ? `<a href="${escHtml(job.apply_url)}" target="_blank" rel="noopener"
+            class="w-full text-center inline-flex items-center justify-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-2 rounded-lg transition">
+            Apply <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>`
+        : '';
+
+    const deepBtn = `<button onclick="deepAnalyzeAndRewrite(${idx}, this)" data-job-idx="${idx}"
+        class="deep-rewrite-btn w-full text-center inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-2 rounded-lg border border-brand-200 transition leading-tight">
+        <svg class="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"/></svg>
+        Deep Analyse &amp; Rewrite CV
+    </button>`;
+
     card.innerHTML = `
-        <div class="flex items-start gap-4">
-            <div class="w-12 h-12 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">${logo}</div>
+        <div class="flex gap-4">
+            <!-- LEFT: Job metadata -->
             <div class="flex-1 min-w-0">
-                <h3 class="text-sm font-bold text-slate-800 leading-snug">${escHtml(job.title)}</h3>
-                <p class="text-xs text-slate-500 mt-0.5">${escHtml(job.company)}${job.location ? ' &middot; ' + escHtml(job.location) : ''}</p>
-                <div class="flex flex-wrap gap-1.5 mt-2">${tags}</div>
-                <p class="text-xs text-slate-400 mt-2 line-clamp-2">${escHtml(job.description_snippet || '')}</p>
-                <div class="flex items-center gap-2 mt-3">
-                    ${job.apply_url ? `<a href="${escHtml(job.apply_url)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-xs font-semibold text-white bg-brand-600 hover:bg-brand-700 px-4 py-1.5 rounded-lg transition">Apply <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"/></svg></a>` : ''}
-                    <button onclick="deepAnalyze(${idx}, this)" data-job-idx="${idx}"
-                        class="deep-analyze-btn inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 px-3 py-1.5 rounded-lg transition">
-                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/></svg>
-                        Deep Analyze (3 credits)
-                    </button>
+                <div class="flex items-start gap-3">
+                    <div class="w-10 h-10 bg-slate-100 rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">${logo}</div>
+                    <div class="min-w-0">
+                        <h3 class="text-sm font-bold text-slate-800 leading-snug">${escHtml(job.title)}</h3>
+                        <p class="text-xs text-slate-500 mt-0.5">${escHtml(job.company)}${job.location ? ' &middot; ' + escHtml(job.location) : ''}</p>
+                    </div>
                 </div>
+                <div class="flex flex-wrap gap-1.5 mt-2.5">${tags}</div>
+                <p class="text-xs text-slate-400 mt-2 line-clamp-2">${escHtml(job.description_snippet || '')}</p>
             </div>
-            <div class="hidden sm:block">${scoreBadge}</div>
+            <!-- RIGHT: Score + Actions (desktop) -->
+            <div class="hidden sm:flex flex-col items-center gap-2.5 flex-shrink-0 w-44 pt-1">
+                ${scoreBadge}
+                ${applyBtn}
+                ${deepBtn}
+            </div>
         </div>
-        ${scoreBadge ? `<div class="sm:hidden flex justify-end mt-3 pt-3 border-t border-slate-100">${scoreBadge}</div>` : ''}
+        <!-- Mobile: actions row -->
+        <div class="sm:hidden mt-3 pt-3 border-t border-slate-100">
+            <div class="flex items-center gap-2 mb-2">
+                ${scoreBadge}
+            </div>
+            <div class="flex items-center gap-2">
+                ${applyBtn ? applyBtn.replace('w-full', '') : ''}
+                ${deepBtn.replace('w-full', '')}
+            </div>
+        </div>
     `;
     return card;
 }
@@ -1259,6 +1356,16 @@ function renderJobs(jobs) {
     const grid = document.getElementById('jobs-grid');
     grid.innerHTML = '';
     window._jobResults = [];
+
+    // Sort by posted date descending (most recent first)
+    jobs.sort((a, b) => {
+        const da = a.posted_date_raw || a.posted_date || '';
+        const db = b.posted_date_raw || b.posted_date || '';
+        if (!da && !db) return 0;
+        if (!da) return 1;
+        if (!db) return -1;
+        return db.localeCompare(da);
+    });
 
     jobs.forEach((job, i) => {
         window._jobResults.push(job);
@@ -1283,27 +1390,34 @@ function appendJobs(newJobs) {
     });
 }
 
-// ===================== DEEP ANALYZE (unchanged) =====================
-async function deepAnalyze(idx, btn) {
+// ===================== DEEP ANALYSE & REWRITE =====================
+async function deepAnalyzeAndRewrite(idx, btn) {
     const job = window._jobResults[idx];
     if (!job) return;
-    if (currentCredits < 3) { alert('You need 3 credits. You have ' + currentCredits + '. Buy more first.'); return; }
-    if (!confirm('Deep ATS analysis costs 3 credits. You have ' + currentCredits + '. Proceed?')) return;
+    const cost = 3;
+    if (currentCredits < cost) { alert('You need ' + cost + ' credits. You have ' + currentCredits + '. Buy more first.'); return; }
+    if (!confirm('Deep Analyse & Rewrite costs ' + cost + ' credits. You have ' + currentCredits + '. Proceed?')) return;
 
     const origHTML = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = '<svg class="w-3 h-3 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Analyzing...';
+    btn.innerHTML = '<svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Analysing & Rewriting...';
 
     try {
-        const resp = await fetch('/jobs/deep-analyze', {
+        const resp = await fetch('/jobs/deep-analyze-and-rewrite', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ job_id: job.job_id, description: job.description }),
+            body: JSON.stringify({
+                job_id: job.job_id,
+                description: job.description,
+                title: job.title,
+                company: job.company,
+            }),
         });
         const data = await resp.json();
         if (data.error) { alert(data.error); btn.disabled = false; btn.innerHTML = origHTML; return; }
         if (data.credits_remaining !== undefined) currentCredits = data.credits_remaining;
 
+        // Update score badge on card
         const card = document.getElementById('job-card-' + idx);
         if (card && data.ats_score !== undefined) {
             const s = data.ats_score;
@@ -1314,12 +1428,22 @@ async function deepAnalyze(idx, btn) {
             else if (s >= 30) { sc = 'bg-orange-100 text-orange-700'; sl = 'Low Match'; }
             else { sc = 'bg-red-100 text-red-700'; sl = 'Weak Match'; }
             const newBadge = `<div class="text-center flex-shrink-0"><span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm ${sc}">${s}</span><span class="block mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded-full ${sc}">${sl}</span><span class="block mt-0.5 text-[8px] text-slate-400">AI Score</span></div>`;
-            const ds = card.querySelector('.hidden.sm\\:block'); if (ds) ds.innerHTML = newBadge;
-            const ms = card.querySelector('.sm\\:hidden.flex.justify-end'); if (ms) ms.innerHTML = newBadge;
+            // Update desktop score badge
+            const desktopBadges = card.querySelectorAll('.text-center.flex-shrink-0');
+            desktopBadges.forEach(el => el.outerHTML = newBadge);
         }
-        btn.className = 'inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-lg';
-        btn.innerHTML = '<svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> Deep Score: ' + data.ats_score;
-        btn.disabled = true;
+
+        // Open rewrite results in a new tab
+        if (data.rewrite_token) {
+            window.open('/jobs/rewrite-result/' + data.rewrite_token, '_blank');
+        }
+
+        // Update button to show "Done — View Rewrite"
+        const token = data.rewrite_token;
+        btn.className = 'deep-rewrite-btn w-full text-center inline-flex items-center justify-center gap-1.5 text-[11px] font-semibold text-emerald-600 bg-emerald-50 hover:bg-emerald-100 px-3 py-2 rounded-lg border border-emerald-200 transition leading-tight';
+        btn.innerHTML = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> View Rewritten CV';
+        btn.disabled = false;
+        btn.onclick = function() { window.open('/jobs/rewrite-result/' + token, '_blank'); };
     } catch (err) { alert('Network error. Please try again.'); btn.disabled = false; btn.innerHTML = origHTML; }
 }
 
@@ -1346,6 +1470,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initCascadeDropdowns('wiz');
         selectedLocations['wiz'] = new Set();
         renderCityGrid('wiz');
+        updateSalarySlider('wiz');
         {% else %}
         // Return visit: load snapshot
         if (savedPrefs && savedPrefs.setup_completed) {
