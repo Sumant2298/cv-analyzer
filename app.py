@@ -1267,7 +1267,7 @@ def analyze_cv():
 
     return render_template('cv_results.html', results=results,
                            credits_remaining=user.credits if user else 0,
-                           active_category='resume_studio', active_page='library')
+                           active_category='resume_studio', active_page='analysis')
 
 
 @app.route('/analyze-jd', methods=['POST'])
@@ -1346,7 +1346,7 @@ def analyze_jd():
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_category='resume_studio', active_page='library')
+    return render_template('results.html', results=results, active_category='resume_studio', active_page='jd_match')
 
 
 # ---------------------------------------------------------------------------
@@ -1939,7 +1939,7 @@ def jobs_waiting():
         flash('No analysis in progress.', 'warning')
         return redirect(url_for('resume_studio_library'))
 
-    return render_template('jobs_waiting.html', active_category='resume_studio', active_page='library')
+    return render_template('jobs_waiting.html', active_category='resume_studio', active_page='jd_match')
 
 
 @app.route('/jobs/results')
@@ -1977,7 +1977,7 @@ def jobs_results():
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_category='resume_studio', active_page='library')
+    return render_template('results.html', results=results, active_category='resume_studio', active_page='jd_match')
 
 
 @app.route('/jobs/<int:jd_id>/results')
@@ -2018,7 +2018,7 @@ def jd_analysis_results(jd_id):
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_category='resume_studio', active_page='library')
+    return render_template('results.html', results=results, active_category='resume_studio', active_page='jd_match')
 
 
 @app.route('/jobs/<int:jd_id>/delete', methods=['POST'])
@@ -2094,7 +2094,7 @@ def rewrite_cv_page():
                            ats_score=analysis.get('ats_score', 0),
                            matched_count=len(analysis.get('matched', [])),
                            missing_count=len(analysis.get('missing', [])),
-                           active_category='resume_studio', active_page='library')
+                           active_category='resume_studio', active_page='rewrite')
 
 
 @app.route('/rewrite-cv', methods=['POST'])
@@ -2161,7 +2161,7 @@ def rewrite_cv_action():
                            credits_remaining=user.credits if user else 0,
                            cv_diff=cv_diff,
                            original_cv=data['cv_text'],
-                           active_category='resume_studio', active_page='library')
+                           active_category='resume_studio', active_page='rewrite')
 
 
 @app.route('/download-rewritten-cv')
@@ -2874,7 +2874,7 @@ def resume_results(resume_id):
     return render_template('cv_results.html', results=results,
                            credits_remaining=session.get('user_credits', 0),
                            resume_id=resume_id,
-                           active_category='resume_studio', active_page='library')
+                           active_category='resume_studio', active_page='analysis')
 
 
 @app.route('/my-resumes/<int:resume_id>/analyze', methods=['POST'])
