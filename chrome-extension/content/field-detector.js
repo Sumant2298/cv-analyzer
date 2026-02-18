@@ -33,33 +33,107 @@ window.LevelUpXDetector = {
   },
 
   /**
+   * Robust label-to-input resolver. Given a label-like element, finds
+   * the associated input/textarea/select using 8 progressive strategies.
+   * Works on React, Angular, Vue forms with arbitrary DOM structures.
+   *
+   * @param {Element} container - The form container to search within
+   * @param {Element} label - The label (or label-like) element
+   * @returns {Element|null} The associated input element, or null
+   */
+  findInputNearLabel(container, label) {
+    const INPUT_TAGS = ['INPUT', 'TEXTAREA', 'SELECT'];
+
+    // Strategy 1: label[for] → #id (standard HTML association)
+    const forId = label.getAttribute('for');
+    if (forId) {
+      try {
+        const el = container.querySelector(`#${CSS.escape(forId)}`);
+        if (el) return el;
+      } catch { /* invalid selector */ }
+    }
+
+    // Strategy 2: Nested input inside label
+    const nested = label.querySelector('input, textarea, select');
+    if (nested) return nested;
+
+    // Strategy 3: Direct next sibling IS the input
+    const next = label.nextElementSibling;
+    if (next && INPUT_TAGS.includes(next.tagName)) return next;
+
+    // Strategy 4: Next sibling is a wrapper div containing the input
+    if (next) {
+      const inside = next.querySelector('input, textarea, select');
+      if (inside) return inside;
+    }
+
+    // Strategy 5: aria-labelledby back-reference
+    // (input has aria-labelledby pointing to this label's id)
+    const labelId = label.id || label.getAttribute('id');
+    if (labelId) {
+      try {
+        const ariaRef = container.querySelector(`[aria-labelledby="${CSS.escape(labelId)}"]`);
+        if (ariaRef) {
+          if (INPUT_TAGS.includes(ariaRef.tagName)) return ariaRef;
+          const insideAria = ariaRef.querySelector('input, textarea, select');
+          if (insideAria) return insideAria;
+        }
+      } catch { /* invalid selector */ }
+    }
+
+    // Strategy 6: Walk up parent chain (up to 5 levels)
+    // Look for the nearest ancestor that contains exactly 1 input
+    let ancestor = label.parentElement;
+    for (let i = 0; i < 5 && ancestor && ancestor !== container; i++) {
+      const inputs = ancestor.querySelectorAll('input:not([type="hidden"]), textarea, select');
+      if (inputs.length === 1) return inputs[0];
+      // If 2-4 inputs, return the first that isn't inside a different label group
+      if (inputs.length > 1 && inputs.length <= 4) {
+        for (const inp of inputs) {
+          const inpLabel = inp.closest('label');
+          if (!inpLabel || inpLabel === label) return inp;
+        }
+      }
+      ancestor = ancestor.parentElement;
+    }
+
+    // Strategy 7: Closest common container with known class patterns
+    const parent = label.closest(
+      '.field, .form-group, .form-field, .form-row, .form-item, .form__field, ' +
+      '[class*="field"], [class*="input"], [class*="question"], [class*="form-row"], ' +
+      '[class*="FormField"], [class*="formField"], [class*="form_field"], ' +
+      '[data-field], [data-qa], [data-testid]'
+    );
+    if (parent) {
+      const input = parent.querySelector('input:not([type="hidden"]), textarea, select');
+      if (input) return input;
+    }
+
+    // Strategy 8: Scan ALL following siblings (up to 5)
+    let sibling = label.nextElementSibling;
+    let sibCount = 0;
+    while (sibling && sibCount < 5) {
+      if (INPUT_TAGS.includes(sibling.tagName)) return sibling;
+      const inside = sibling.querySelector('input, textarea, select');
+      if (inside) return inside;
+      sibling = sibling.nextElementSibling;
+      sibCount++;
+    }
+
+    return null;
+  },
+
+  /**
    * Find field by associated label text (case-insensitive partial match).
+   * Uses findInputNearLabel() for robust label-to-input resolution.
    */
   byLabelText(container, text) {
     const textLower = text.toLowerCase();
     const labels = container.querySelectorAll('label');
     for (const label of labels) {
       if (label.textContent.toLowerCase().includes(textLower)) {
-        // Check for "for" attribute
-        const forId = label.getAttribute('for');
-        if (forId) {
-          const target = container.querySelector(`#${CSS.escape(forId)}`);
-          if (target) return target;
-        }
-        // Check for nested input
-        const nested = label.querySelector('input, textarea, select');
-        if (nested) return nested;
-        // Check next sibling
-        const next = label.nextElementSibling;
-        if (next && (next.tagName === 'INPUT' || next.tagName === 'TEXTAREA' || next.tagName === 'SELECT')) {
-          return next;
-        }
-        // Check parent's next input
-        const parent = label.closest('.field, .form-group, .form-field, [class*="field"], [class*="input"]');
-        if (parent) {
-          const input = parent.querySelector('input, textarea, select');
-          if (input) return input;
-        }
+        const el = this.findInputNearLabel(container, label);
+        if (el) return el;
       }
     }
     return null;

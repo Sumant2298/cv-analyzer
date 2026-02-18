@@ -86,6 +86,7 @@ window.LevelUpXBaseAdapter = {
        * Returns count of additionally filled fields.
        */
       _scanAndFillByLabels(container, profile, Filler, filledElements) {
+        const Detector = window.LevelUpXDetector;
         const b = profile.basics || {};
         const loc = b.location || {};
         const latestWork = (profile.work && profile.work[0]) || {};
@@ -97,10 +98,10 @@ window.LevelUpXBaseAdapter = {
         const labelPatterns = [
           [['preferred name', 'nickname', 'goes by'], b.firstName],
           [['full name'], b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim()],
-          [['first name', 'given name'], b.firstName],
-          [['last name', 'family name', 'surname'], b.lastName],
-          [['email'], b.email],
-          [['phone', 'mobile', 'telephone', 'contact number'], b.phone],
+          [['first name', 'given name', 'fname'], b.firstName],
+          [['last name', 'family name', 'surname', 'lname'], b.lastName],
+          [['email', 'e-mail'], b.email],
+          [['phone', 'mobile', 'telephone', 'contact number', 'cell'], b.phone],
           [['current company', 'current employer', 'company name', 'employer name', 'organization'], latestWork.company],
           [['current title', 'job title', 'current role', 'current position', 'designation'], latestWork.position || b.title],
           [['university', 'school', 'college', 'institution', 'alma mater'], latestEdu.institution],
@@ -111,6 +112,7 @@ window.LevelUpXBaseAdapter = {
           [['state', 'province', 'region'], loc.region],
           [['country'], loc.country],
           [['zip', 'postal', 'pincode', 'pin code'], loc.postalCode],
+          [['address', 'street address', 'street'], loc.address],
           [['linkedin'], b.linkedin],
           [['github'], b.github],
           [['portfolio', 'personal site', 'personal website'], b.website],
@@ -118,35 +120,21 @@ window.LevelUpXBaseAdapter = {
           [['summary', 'about yourself', 'cover letter', 'tell us about', 'introduce yourself', 'brief description'], b.summary],
         ];
 
+        // ── Pass A: Scan <label> elements ────────────────────────────
         const labels = container.querySelectorAll('label');
         for (const label of labels) {
           const labelText = label.textContent.toLowerCase().trim();
-          if (!labelText) continue;
+          if (!labelText || labelText.length > 100) continue;
 
-          // Find the associated input/select/textarea for this label
-          let el = null;
-          const forId = label.getAttribute('for');
-          if (forId) {
-            try { el = container.querySelector(`#${CSS.escape(forId)}`); } catch {}
-          }
-          if (!el) el = label.querySelector('input, textarea, select');
-          if (!el) {
-            const next = label.nextElementSibling;
-            if (next && (next.tagName === 'INPUT' || next.tagName === 'TEXTAREA' || next.tagName === 'SELECT')) {
-              el = next;
-            }
-          }
-          if (!el) {
-            const parent = label.closest('.field, .form-group, .form-field, [class*="field"], [class*="input"], [class*="question"]');
-            if (parent) el = parent.querySelector('input, textarea, select');
-          }
+          // Use robust 8-strategy label-to-input resolver
+          let el = Detector ? Detector.findInputNearLabel(container, label) : null;
 
           if (!el || filledElements.has(el)) continue;
           // Skip if already has a value
           if (el.tagName === 'SELECT') {
-            if (el.selectedIndex > 0) continue; // already selected something beyond placeholder
+            if (el.selectedIndex > 0) continue;
           } else if (el.value && el.value.trim()) {
-            continue; // already has text
+            continue;
           }
 
           // Try matching label text against known patterns
@@ -158,9 +146,74 @@ window.LevelUpXBaseAdapter = {
               if (success) {
                 extraFilled++;
                 filledElements.add(el);
-                console.log(`[LevelUpX] Auto-filled custom field: "${labelText}" → "${String(value).slice(0, 30)}"`);
+                console.log(`[LevelUpX] Auto-filled: "${labelText}" → "${String(value).slice(0, 30)}"`);
               }
-              break; // don't try more patterns for this label
+              break;
+            }
+          }
+        }
+
+        // ── Pass B: Scan pseudo-label elements ───────────────────────
+        // Modern React forms often use <div>, <span>, <legend> as labels
+        // instead of <label>. Scan these too.
+        const pseudoLabels = container.querySelectorAll(
+          'legend, [class*="label"], [class*="Label"], [class*="LABEL"], [data-testid*="label"]'
+        );
+        for (const pseudoLabel of pseudoLabels) {
+          if (pseudoLabel.tagName === 'LABEL') continue; // already handled
+          const text = pseudoLabel.textContent.toLowerCase().trim();
+          if (!text || text.length > 80) continue;
+
+          let el = Detector ? Detector.findInputNearLabel(container, pseudoLabel) : null;
+          if (!el || filledElements.has(el)) continue;
+
+          if (el.tagName === 'SELECT') {
+            if (el.selectedIndex > 0) continue;
+          } else if (el.value && el.value.trim()) {
+            continue;
+          }
+
+          for (const [patterns, value] of labelPatterns) {
+            if (!value) continue;
+            if (patterns.some(p => text.includes(p))) {
+              if (Filler.fill(el, value)) {
+                extraFilled++;
+                filledElements.add(el);
+                console.log(`[LevelUpX] Auto-filled (pseudo-label): "${text}" → "${String(value).slice(0, 30)}"`);
+              }
+              break;
+            }
+          }
+        }
+
+        // ── Pass C: Fallback — scan inputs by placeholder/name ───────
+        // For inputs that have no label at all (some minimal ATS forms)
+        const allInputs = container.querySelectorAll('input:not([type="hidden"]):not([type="file"]), textarea, select');
+        for (const el of allInputs) {
+          if (filledElements.has(el)) continue;
+          if (el.tagName === 'SELECT') {
+            if (el.selectedIndex > 0) continue;
+          } else if (el.value && el.value.trim()) {
+            continue;
+          }
+
+          // Try matching by placeholder text or name attribute
+          const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
+          const name = (el.getAttribute('name') || '').toLowerCase();
+          const ariaLabel = (el.getAttribute('aria-label') || '').toLowerCase();
+          const matchText = `${placeholder} ${name} ${ariaLabel}`;
+
+          if (!matchText.trim()) continue;
+
+          for (const [patterns, value] of labelPatterns) {
+            if (!value) continue;
+            if (patterns.some(p => matchText.includes(p))) {
+              if (Filler.fill(el, value)) {
+                extraFilled++;
+                filledElements.add(el);
+                console.log(`[LevelUpX] Auto-filled (attr match): "${matchText.trim()}" → "${String(value).slice(0, 30)}"`);
+              }
+              break;
             }
           }
         }
