@@ -35,7 +35,10 @@ window.LevelUpXBaseAdapter = {
        * Get the field mapping for this platform.
        * Returns {fieldName: [strategies]} where each strategy is {method, args}.
        */
-      getFieldMap() {
+      getFieldMap(profile) {
+        if (typeof config.fieldMap === 'function') {
+          return config.fieldMap(profile);
+        }
         return config.fieldMap || {};
       },
 
