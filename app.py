@@ -24,8 +24,10 @@ from werkzeug.utils import secure_filename
 
 from sqlalchemy.orm import defer
 from analyzer import analyze_cv_against_jd
+from flask_cors import CORS
 from models import (db, User, Transaction, CreditUsage, LLMUsage, StoredCV,
-                    UserResume, JDAnalysis, JobPreferences, JobPool, ApiUsage)
+                    UserResume, JDAnalysis, JobPreferences, JobPool, ApiUsage,
+                    ExtensionToken)
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -43,6 +45,10 @@ app.secret_key = _secret
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
+
+# CORS — only for Chrome Extension API endpoints
+CORS(app, resources={r"/api/extension/*": {"origins": "*"}},
+     allow_headers=["Authorization", "Content-Type"])
 
 # ---------------------------------------------------------------------------
 # Server-side session data (large data that won't fit in cookie sessions)
@@ -296,6 +302,324 @@ _oauth_enabled = bool(os.environ.get('GOOGLE_CLIENT_ID'))
 if _oauth_enabled:
     from auth import init_oauth, get_or_create_user, track_analysis, current_user, oauth
     init_oauth(app)
+
+# ---------------------------------------------------------------------------
+# Chrome Extension API — token auth, profile, resume file, token CRUD
+# ---------------------------------------------------------------------------
+import hashlib
+import secrets
+from functools import wraps
+
+
+def require_extension_token(f):
+    """Decorator: validate Bearer token from Chrome Extension requests."""
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        auth_header = request.headers.get('Authorization', '')
+        if not auth_header.startswith('Bearer '):
+            return jsonify({'error': 'Missing or invalid Authorization header'}), 401
+        raw_token = auth_header[7:].strip()
+        if not raw_token:
+            return jsonify({'error': 'Empty token'}), 401
+        token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+        ext_token = ExtensionToken.query.filter_by(
+            token_hash=token_hash, is_active=True
+        ).first()
+        if not ext_token:
+            return jsonify({'error': 'Invalid or revoked token'}), 401
+        # Update last_used_at
+        ext_token.last_used_at = datetime.utcnow()
+        db.session.commit()
+        # Attach user to request
+        request._extension_user = User.query.get(ext_token.user_id)
+        if not request._extension_user:
+            return jsonify({'error': 'User not found'}), 404
+        return f(*args, **kwargs)
+    return decorated
+
+
+def _build_extension_profile(resume):
+    """Build structured profile dict from a UserResume for the Chrome Extension.
+
+    Handles both editor resumes (resume_json) and uploaded resumes (extracted_text).
+    """
+    profile = {
+        'basics': {
+            'firstName': '', 'lastName': '', 'fullName': '',
+            'email': '', 'phone': '',
+            'location': {'city': '', 'region': '', 'country': ''},
+            'summary': '', 'title': '',
+            'linkedin': '', 'github': '', 'website': '',
+        },
+        'work': [],
+        'education': [],
+        'skills': [],
+        'projects': [],
+        'certificates': [],
+        'resumeId': resume.id,
+        'resumeLabel': resume.label or 'My Resume',
+    }
+
+    # --- Editor resumes: parse JSON Resume schema ---
+    if resume.resume_json:
+        try:
+            data = json.loads(resume.resume_json)
+        except (json.JSONDecodeError, TypeError):
+            data = {}
+
+        basics = data.get('basics', {})
+        full_name = basics.get('name', '')
+        name_parts = full_name.split(None, 1)
+        profile['basics']['firstName'] = name_parts[0] if name_parts else ''
+        profile['basics']['lastName'] = name_parts[1] if len(name_parts) > 1 else ''
+        profile['basics']['fullName'] = full_name
+        profile['basics']['email'] = basics.get('email', '')
+        profile['basics']['phone'] = basics.get('phone', '')
+        profile['basics']['summary'] = basics.get('summary', '')
+        profile['basics']['title'] = basics.get('label', '')
+
+        loc = basics.get('location', {})
+        if isinstance(loc, dict):
+            profile['basics']['location'] = {
+                'city': loc.get('city', ''),
+                'region': loc.get('region', ''),
+                'country': loc.get('countryCode', loc.get('country', '')),
+            }
+
+        # Parse profiles (linkedin, github, website)
+        for p in basics.get('profiles', []):
+            network = (p.get('network', '') or '').lower()
+            url = p.get('url', '')
+            if 'linkedin' in network:
+                profile['basics']['linkedin'] = url
+            elif 'github' in network:
+                profile['basics']['github'] = url
+        profile['basics']['website'] = basics.get('url', '')
+
+        # Work experience
+        for w in data.get('work', []):
+            profile['work'].append({
+                'company': w.get('name', w.get('company', '')),
+                'position': w.get('position', ''),
+                'startDate': w.get('startDate', ''),
+                'endDate': w.get('endDate', ''),
+                'summary': w.get('summary', ''),
+                'highlights': w.get('highlights', []),
+                'current': not bool(w.get('endDate')),
+            })
+
+        # Education
+        for e in data.get('education', []):
+            profile['education'].append({
+                'institution': e.get('institution', ''),
+                'studyType': e.get('studyType', ''),
+                'area': e.get('area', ''),
+                'startDate': e.get('startDate', ''),
+                'endDate': e.get('endDate', ''),
+                'score': e.get('score', e.get('gpa', '')),
+            })
+
+        # Skills
+        for s in data.get('skills', []):
+            if isinstance(s, dict):
+                profile['skills'].append(s.get('name', ''))
+            elif isinstance(s, str):
+                profile['skills'].append(s)
+
+        # Projects
+        for p in data.get('projects', []):
+            profile['projects'].append({
+                'name': p.get('name', ''),
+                'description': p.get('description', ''),
+                'url': p.get('url', ''),
+                'keywords': p.get('keywords', []),
+            })
+
+        # Certificates
+        for c in data.get('certificates', []):
+            profile['certificates'].append({
+                'name': c.get('name', ''),
+                'issuer': c.get('issuer', ''),
+                'date': c.get('date', ''),
+                'url': c.get('url', ''),
+            })
+
+    # --- Uploaded resumes: extract from text ---
+    elif resume.extracted_text:
+        text = resume.extracted_text
+        from nlp_service import (extract_candidate_name, extract_skills_from_cv,
+                                 _EMAIL_RE, _PHONE_RE, _LINKEDIN_RE, _GITHUB_RE)
+
+        # Name
+        full_name = extract_candidate_name(text)
+        name_parts = full_name.split(None, 1) if full_name else []
+        profile['basics']['firstName'] = name_parts[0] if name_parts else ''
+        profile['basics']['lastName'] = name_parts[1] if len(name_parts) > 1 else ''
+        profile['basics']['fullName'] = full_name
+
+        # Contact info via regex
+        email_match = _EMAIL_RE.search(text)
+        if email_match:
+            profile['basics']['email'] = email_match.group(0)
+
+        phone_match = _PHONE_RE.search(text)
+        if phone_match:
+            profile['basics']['phone'] = phone_match.group(0).strip()
+
+        linkedin_match = _LINKEDIN_RE.search(text)
+        if linkedin_match:
+            profile['basics']['linkedin'] = 'https://' + linkedin_match.group(0)
+
+        github_match = _GITHUB_RE.search(text)
+        if github_match:
+            profile['basics']['github'] = 'https://' + github_match.group(0)
+
+        # Skills
+        try:
+            skills_result = extract_skills_from_cv(text)
+            profile['skills'] = skills_result.get('skills_found', [])[:30]
+        except Exception:
+            pass
+
+    # Fall back: use user email/name if resume didn't have it
+    return profile
+
+
+@app.route('/api/extension/profile', methods=['GET'])
+@require_extension_token
+def api_extension_profile():
+    """Return structured profile data for the Chrome Extension."""
+    user = request._extension_user
+    # Find primary resume, or most recent
+    resume = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if not resume:
+        resume = UserResume.query.filter_by(user_id=user.id).order_by(
+            UserResume.updated_at.desc()).first()
+    if not resume:
+        return jsonify({'error': 'No resume found. Please upload a resume on LevelUpX first.'}), 404
+
+    profile = _build_extension_profile(resume)
+    # Fill in user-level data if missing from resume
+    if not profile['basics']['email']:
+        profile['basics']['email'] = user.email or ''
+    if not profile['basics']['fullName']:
+        profile['basics']['fullName'] = user.name or ''
+        parts = (user.name or '').split(None, 1)
+        profile['basics']['firstName'] = parts[0] if parts else ''
+        profile['basics']['lastName'] = parts[1] if len(parts) > 1 else ''
+
+    return jsonify(profile)
+
+
+@app.route('/api/extension/resume-file', methods=['GET'])
+@require_extension_token
+def api_extension_resume_file():
+    """Return the actual resume PDF/DOCX file for form upload."""
+    user = request._extension_user
+    resume = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if not resume:
+        resume = UserResume.query.filter_by(user_id=user.id).order_by(
+            UserResume.updated_at.desc()).first()
+    if not resume or not resume.file_data:
+        return jsonify({'error': 'No resume file found'}), 404
+
+    mimetype = 'application/pdf'
+    if resume.filename and resume.filename.lower().endswith('.docx'):
+        mimetype = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+
+    return send_file(
+        io.BytesIO(resume.file_data),
+        mimetype=mimetype,
+        as_attachment=True,
+        download_name=resume.filename or 'resume.pdf',
+    )
+
+
+@app.route('/api/extension/tokens', methods=['GET'])
+def api_extension_tokens_list():
+    """List user's extension tokens (session-authed, for Settings page)."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    tokens = ExtensionToken.query.filter_by(
+        user_id=session['user_id'], is_active=True
+    ).order_by(ExtensionToken.created_at.desc()).all()
+    return jsonify({'tokens': [{
+        'id': t.id,
+        'label': t.label,
+        'created_at': t.created_at.isoformat() if t.created_at else '',
+        'last_used_at': t.last_used_at.isoformat() if t.last_used_at else None,
+    } for t in tokens]})
+
+
+@app.route('/api/extension/tokens', methods=['POST'])
+def api_extension_tokens_create():
+    """Generate a new extension token (max 3 per user)."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    user_id = session['user_id']
+
+    # Max 3 active tokens per user
+    active_count = ExtensionToken.query.filter_by(
+        user_id=user_id, is_active=True).count()
+    if active_count >= 3:
+        return jsonify({'error': 'Maximum 3 active tokens. Please revoke one first.'}), 400
+
+    label = (request.json or {}).get('label', 'Chrome Extension')
+    raw_token = secrets.token_hex(24)  # 48-char hex string
+    token_hash = hashlib.sha256(raw_token.encode()).hexdigest()
+
+    ext_token = ExtensionToken(
+        user_id=user_id,
+        token_hash=token_hash,
+        label=label[:100],
+    )
+    db.session.add(ext_token)
+    db.session.commit()
+
+    return jsonify({
+        'token': raw_token,  # Shown ONCE, never stored raw
+        'id': ext_token.id,
+        'label': ext_token.label,
+        'message': 'Copy this token now — it will not be shown again.',
+    })
+
+
+@app.route('/api/extension/tokens/<int:token_id>', methods=['DELETE'])
+def api_extension_tokens_revoke(token_id):
+    """Revoke (deactivate) an extension token."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+    ext_token = ExtensionToken.query.filter_by(
+        id=token_id, user_id=session['user_id']
+    ).first()
+    if not ext_token:
+        return jsonify({'error': 'Token not found'}), 404
+    ext_token.is_active = False
+    db.session.commit()
+    return jsonify({'success': True, 'message': 'Token revoked'})
+
+
+@app.route('/download-extension')
+def download_extension_zip():
+    """Serve the Chrome Extension as a downloadable ZIP file."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    ext_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'chrome-extension')
+    if not os.path.isdir(ext_dir):
+        return jsonify({'error': 'Extension files not found'}), 404
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as zf:
+        for root, _dirs, files in os.walk(ext_dir):
+            for fname in files:
+                full_path = os.path.join(root, fname)
+                arc_name = os.path.join('levelupx-autofill',
+                                        os.path.relpath(full_path, ext_dir))
+                zf.write(full_path, arc_name)
+    buf.seek(0)
+    return send_file(buf, mimetype='application/zip', as_attachment=True,
+                     download_name='levelupx-autofill.zip')
+
 
 # ---------------------------------------------------------------------------
 # Session credits are updated at every point where credits change (login,

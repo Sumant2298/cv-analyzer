@@ -1,0 +1,57 @@
+{
+  "manifest_version": 3,
+  "name": "LevelUpX AutoFill",
+  "description": "Auto-fill job application forms on Workday, Greenhouse, Lever, Naukri & LinkedIn with your LevelUpX resume data.",
+  "version": "1.0.0",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": [
+    "https://levelupx.ai/*",
+    "https://*.myworkdayjobs.com/*",
+    "https://boards.greenhouse.io/*",
+    "https://jobs.lever.co/*",
+    "https://*.naukri.com/*",
+    "https://*.linkedin.com/*"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.myworkdayjobs.com/*",
+        "https://boards.greenhouse.io/*",
+        "https://jobs.lever.co/*",
+        "https://*.naukri.com/*",
+        "https://*.linkedin.com/*"
+      ],
+      "js": [
+        "adapters/base-adapter.js",
+        "adapters/greenhouse.js",
+        "adapters/lever.js",
+        "adapters/workday.js",
+        "adapters/naukri.js",
+        "adapters/linkedin.js",
+        "content/field-detector.js",
+        "content/field-filler.js",
+        "content/content.js"
+      ],
+      "css": ["styles/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}

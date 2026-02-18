@@ -417,3 +417,25 @@ class ApiUsage(db.Model):
 
     def __repr__(self):
         return f'<ApiUsage {self.provider} {self.month} calls={self.calls_made}>'
+
+
+class ExtensionToken(db.Model):
+    """API tokens for the LevelUpX AutoFill Chrome Extension.
+
+    Raw token is a 48-char hex string (secrets.token_hex(24)).
+    Only the SHA-256 hash is stored in the database.
+    """
+    __tablename__ = 'extension_tokens'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+    token_hash = db.Column(db.String(128), unique=True, nullable=False)
+    label = db.Column(db.String(100), default='Chrome Extension')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_used_at = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+
+    user = db.relationship('User', backref=db.backref('extension_tokens', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<ExtensionToken id={self.id} user={self.user_id} active={self.is_active}>'

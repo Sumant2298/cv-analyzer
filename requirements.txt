@@ -17,3 +17,4 @@ nltk>=3.8
 scikit-learn>=1.4
 rake-nltk>=1.0.6
 rapidfuzz>=3.6
+flask-cors>=4.0

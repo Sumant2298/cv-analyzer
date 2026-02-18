@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LevelUpX AutoFill</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup">
+    <!-- Header -->
+    <div class="header">
+      <div class="logo-row">
+        <img src="../icons/icon-32.png" alt="LevelUpX" class="logo">
+        <span class="brand">LevelUpX <span class="brand-light">AutoFill</span></span>
+      </div>
+    </div>
+
+    <!-- Not Connected State -->
+    <div id="state-disconnected" class="state">
+      <div class="section">
+        <p class="label">Connect to your LevelUpX account</p>
+        <p class="hint">Paste your API token from <a href="https://levelupx.ai/settings" target="_blank">Settings</a></p>
+        <div class="token-input-row">
+          <input type="text" id="token-input" placeholder="Paste token here..." spellcheck="false" autocomplete="off">
+          <button id="connect-btn" class="btn btn-primary" onclick="connect()">Connect</button>
+        </div>
+        <p id="connect-error" class="error hidden"></p>
+      </div>
+    </div>
+
+    <!-- Connected State -->
+    <div id="state-connected" class="state hidden">
+      <div class="profile-card">
+        <div class="profile-avatar" id="profile-avatar">?</div>
+        <div class="profile-info">
+          <p class="profile-name" id="profile-name">—</p>
+          <p class="profile-email" id="profile-email">—</p>
+          <p class="profile-resume" id="profile-resume">—</p>
+        </div>
+      </div>
+      <div class="actions">
+        <button class="btn btn-primary btn-full" id="fill-btn" onclick="fillCurrentPage()">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 3a2.828 2.828 0 114 4L7.5 20.5 2 22l1.5-5.5L17 3z"/></svg>
+          Auto-fill Current Page
+        </button>
+        <button class="btn btn-secondary btn-full" onclick="disconnect()">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- Loading State -->
+    <div id="state-loading" class="state">
+      <div class="loading">
+        <div class="spinner"></div>
+        <p>Connecting...</p>
+      </div>
+    </div>
+
+    <!-- Status Messages -->
+    <div id="status-bar" class="status-bar hidden">
+      <p id="status-text"></p>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
