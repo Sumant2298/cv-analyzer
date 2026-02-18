@@ -1556,6 +1556,16 @@ def jobs_search():
     if not user:
         return jsonify({'error': 'User not found'}), 404
 
+    try:
+        return _jobs_search_impl(user)
+    except Exception as e:
+        logger.exception('Unhandled error in /jobs/search: %s', e)
+        db.session.rollback()
+        return jsonify({'error': f'Search failed: {str(e)}', 'jobs': [], 'total_count': 0}), 500
+
+
+def _jobs_search_impl(user):
+    """Inner implementation of /jobs/search (extracted so top-level catches all errors)."""
     use_preferences = request.args.get('use_preferences', '') == '1'
     force_refresh = request.args.get('force', '') == '1'
     page = request.args.get('page', 1, type=int)
@@ -1671,8 +1681,12 @@ def jobs_search():
                     ).first()
                     if cached_ats:
                         job['ats_score'] = cached_ats.score
-                        job['matched_skills'] = json.loads(cached_ats.matched_skills or '[]')[:5]
-                        job['missing_skills'] = json.loads(cached_ats.missing_skills or '[]')[:5]
+                        try:
+                            job['matched_skills'] = json.loads(cached_ats.matched_skills or '[]')[:5]
+                            job['missing_skills'] = json.loads(cached_ats.missing_skills or '[]')[:5]
+                        except (json.JSONDecodeError, TypeError):
+                            job['matched_skills'] = []
+                            job['missing_skills'] = []
                         continue
                 # Compute fresh
                 try:
@@ -1688,8 +1702,11 @@ def jobs_search():
                             matched_skills=json.dumps(ats['matched_skills'][:5]),
                             missing_skills=json.dumps(ats['missing_skills'][:5]),
                         ))
-                except Exception:
+                except Exception as _ats_err:
+                    logger.warning('Quick ATS score failed for job %s: %s', job_id, _ats_err)
                     job['ats_score'] = None
+                    job['matched_skills'] = []
+                    job['missing_skills'] = []
             else:
                 job['ats_score'] = None
         # Bulk-save quick ATS cache entries

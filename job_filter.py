@@ -240,8 +240,14 @@ def _passes_salary(job: dict, prefs: dict) -> bool:
     if not user_min and not user_max:
         return True
 
-    job_min = job.get('salary_min')
-    job_max = job.get('salary_max')
+    try:
+        job_min = float(job.get('salary_min') or 0) or None
+    except (TypeError, ValueError):
+        job_min = None
+    try:
+        job_max = float(job.get('salary_max') or 0) or None
+    except (TypeError, ValueError):
+        job_max = None
     if job_min is None and job_max is None:
         return True  # No salary data → always include
 
