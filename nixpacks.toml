@@ -1,8 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_20"]
+
 [phases.install]
 cmds = [
+  "npm install",
   "pip install -r requirements.txt",
   "python -c \"import nltk; nltk.download('punkt_tab', quiet=True); nltk.download('averaged_perceptron_tagger_eng', quiet=True); nltk.download('stopwords', quiet=True)\""
 ]
+
+[phases.build]
+cmds = ["npm run build:css"]
 
 [start]
 cmd = "gunicorn app:app --bind 0.0.0.0:$PORT --workers 2 --threads 2 --worker-class gthread --timeout 300"

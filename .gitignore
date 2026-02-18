@@ -5,3 +5,5 @@ venv/
 *.egg-info/
 collected_cvs/
 users.db
+node_modules/
+instance/

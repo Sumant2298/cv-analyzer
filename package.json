@@ -1,0 +1,10 @@
+{
+  "name": "levelupx",
+  "private": true,
+  "scripts": {
+    "build:css": "npx tailwindcss -i ./src/input.css -o ./static/css/output.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "^3.4"
+  }
+}

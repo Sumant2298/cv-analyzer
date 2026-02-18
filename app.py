@@ -22,6 +22,7 @@ from flask import (Flask, Response, flash, jsonify, redirect, render_template,
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.utils import secure_filename
 
+from sqlalchemy.orm import defer
 from analyzer import analyze_cv_against_jd
 from models import (db, User, Transaction, CreditUsage, LLMUsage, StoredCV,
                     UserResume, JDAnalysis, JobPreferences, JobPool, ApiUsage)
@@ -277,19 +278,9 @@ if _oauth_enabled:
     init_oauth(app)
 
 # ---------------------------------------------------------------------------
-# Context processor — keep credit balance fresh in session
+# Session credits are updated at every point where credits change (login,
+# analysis, purchase, rewrite, etc.) — no need for a before_request DB hit.
 # ---------------------------------------------------------------------------
-@app.before_request
-def _refresh_user_credits():
-    """Refresh user credits from DB into session on every request."""
-    if session.get('user_id'):
-        try:
-            user = User.query.get(session['user_id'])
-            if user:
-                session['user_credits'] = user.credits
-        except Exception:
-            pass
-
 
 @app.after_request
 def _set_cache_headers(response):
@@ -2392,6 +2383,7 @@ def resume_studio_library():
         'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
     }
     resumes = UserResume.query.filter_by(user_id=user.id)\
+        .options(defer(UserResume.file_data), defer(UserResume.extracted_text), defer(UserResume.analysis_results_json))\
         .order_by(UserResume.created_at.desc()).all()
 
     return render_template('resume_studio/library.html',
@@ -2415,8 +2407,11 @@ def resume_studio_jd_match():
 
     from payments import CREDITS_PER_JD_ANALYSIS
     resumes = UserResume.query.filter_by(user_id=user.id)\
+        .options(defer(UserResume.file_data), defer(UserResume.extracted_text), defer(UserResume.analysis_results_json))\
         .order_by(UserResume.created_at.desc()).all()
-    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True)\
+        .options(defer(UserResume.file_data), defer(UserResume.extracted_text), defer(UserResume.analysis_results_json))\
+        .first()
 
     jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
         .order_by(JDAnalysis.created_at.desc()).all()
@@ -2466,7 +2461,9 @@ def resume_studio_analysis():
     jd_analyses_list = []
 
     # CV analyses
-    cv_resumes = UserResume.query.filter_by(user_id=user.id, analysis_status='completed').all()
+    cv_resumes = UserResume.query.filter_by(user_id=user.id, analysis_status='completed')\
+        .options(defer(UserResume.file_data), defer(UserResume.extracted_text), defer(UserResume.analysis_results_json))\
+        .all()
     for r in cv_resumes:
         cv_analyses.append({
             'name': r.label or r.filename or 'Resume',
@@ -2524,6 +2521,7 @@ def resume_studio_rewrite():
 
     from payments import CREDITS_PER_JD_ANALYSIS, CREDITS_PER_REWRITE
     resumes = UserResume.query.filter_by(user_id=user.id)\
+        .options(defer(UserResume.file_data), defer(UserResume.extracted_text), defer(UserResume.analysis_results_json))\
         .order_by(UserResume.created_at.desc()).all()
 
     return render_template('resume_studio/rewrite.html',
