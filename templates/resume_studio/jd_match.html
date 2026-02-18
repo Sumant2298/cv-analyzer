@@ -1,0 +1,277 @@
+{% extends "dashboard_base.html" %}
+{% block title %}JD Match — LevelUpX{% endblock %}
+{% block page_title %}JD Match{% endblock %}
+
+{% block content %}
+<div class="max-w-5xl anim-fade-up">
+
+    <!-- Header -->
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold text-slate-800">Job Description Match</h1>
+            <p class="text-sm text-slate-500 mt-1">Upload a JD to see how your resume matches</p>
+        </div>
+        {% if resumes|length > 0 %}
+        <div class="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-lg">
+            <svg class="w-3.5 h-3.5 text-brand-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
+            Analyzing against:
+            <select id="resume-selector" class="text-xs font-semibold text-slate-700 bg-transparent border-none outline-none cursor-pointer">
+                {% for r in resumes %}
+                <option value="{{ r.id }}" {% if r.is_primary %}selected{% endif %}>{{ r.label }}{% if r.is_primary %} (Primary){% endif %}</option>
+                {% endfor %}
+            </select>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if resumes|length > 0 and primary_resume %}
+    <!-- JD Upload Form -->
+    <form id="jdAnalyzeForm" action="{{ url_for('jobs_analyze') }}" method="POST" enctype="multipart/form-data"
+          class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden mb-6">
+
+        <div class="bg-gradient-to-r from-brand-600 to-emerald-500 px-5 py-4">
+            <h3 class="text-base font-bold text-white">Upload Job Description</h3>
+            <p class="text-xs text-white/70 mt-0.5">We'll analyze your resume against this JD</p>
+        </div>
+
+        <div class="px-5 pt-5 pb-6">
+            <!-- Tab Buttons -->
+            <div class="flex rounded-xl bg-slate-100 p-1 mb-5" role="tablist">
+                <button type="button" data-tab="file"
+                    class="jd-tab flex-1 text-xs font-semibold py-2 px-3 rounded-lg transition bg-white text-brand-700 shadow-sm"
+                    onclick="switchJdTab('file')">
+                    <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+                    Upload File
+                </button>
+                <button type="button" data-tab="text"
+                    class="jd-tab flex-1 text-xs font-semibold py-2 px-3 rounded-lg transition text-slate-500 hover:text-slate-700"
+                    onclick="switchJdTab('text')">
+                    <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+                    Paste Text
+                </button>
+                <button type="button" data-tab="url"
+                    class="jd-tab flex-1 text-xs font-semibold py-2 px-3 rounded-lg transition text-slate-500 hover:text-slate-700"
+                    onclick="switchJdTab('url')">
+                    <svg class="w-4 h-4 mx-auto mb-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/></svg>
+                    Job URL
+                </button>
+            </div>
+
+            <!-- Tab Panels -->
+            <div id="panel-file" class="jd-panel">
+                <label class="block w-full cursor-pointer border-2 border-dashed border-slate-300 hover:border-brand-400 rounded-xl p-8 text-center transition group">
+                    <input type="file" name="jd_file" accept=".pdf,.doc,.docx,.txt" class="hidden"
+                           onchange="document.getElementById('jd-file-name').textContent = this.files[0]?.name || 'No file chosen'">
+                    <svg class="w-10 h-10 text-slate-300 group-hover:text-brand-400 mx-auto mb-2 transition" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
+                    <p class="text-sm font-semibold text-slate-600 group-hover:text-brand-600 transition">Click to upload JD file</p>
+                    <p class="text-xs text-slate-400 mt-1">PDF, DOC, DOCX, TXT (max 10 MB)</p>
+                    <p id="jd-file-name" class="text-xs text-brand-600 font-semibold mt-2"></p>
+                </label>
+            </div>
+            <div id="panel-text" class="jd-panel hidden">
+                <textarea name="jd_text" rows="8" placeholder="Paste the full job description here..."
+                    class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none resize-y"></textarea>
+            </div>
+            <div id="panel-url" class="jd-panel hidden">
+                <div class="space-y-2">
+                    <input type="url" name="jd_url" placeholder="https://www.linkedin.com/jobs/view/..."
+                        class="w-full border border-slate-300 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 outline-none">
+                    <p class="text-xs text-slate-400">Paste a LinkedIn, Indeed, Naukri, or other job posting URL</p>
+                </div>
+            </div>
+
+            <!-- Credit Cost + Submit -->
+            <div class="flex items-center justify-between mt-6 pt-5 border-t border-slate-100">
+                <div class="flex items-center gap-3">
+                    <span class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                        <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029C10.792 13.807 10.304 14 10 14c-.304 0-.792-.193-1.264-.979a5.67 5.67 0 01-.421-.521H10a1 1 0 000-2H7.938a7.108 7.108 0 010-1H10a1 1 0 100-2H8.315c.12-.18.256-.355.421-.521z"/></svg>
+                        {{ credits_per_jd }} credits
+                    </span>
+                    <span class="text-xs text-slate-400">Balance: <strong class="text-slate-600">{{ credits_remaining }}</strong></span>
+                </div>
+                <button type="submit" id="jd-submit-btn"
+                    class="inline-flex items-center gap-2 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-semibold py-2.5 px-7 rounded-xl shadow-lg transition-all text-sm disabled:opacity-50 disabled:cursor-not-allowed">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    Analyze Match
+                </button>
+            </div>
+        </div>
+    </form>
+    {% elif resumes|length == 0 %}
+    <!-- No resumes at all -->
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center mb-6">
+        <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        </div>
+        <h3 class="text-sm font-bold text-amber-800 mb-1">Upload a Resume First</h3>
+        <p class="text-xs text-amber-600 mb-3">You need to upload at least one resume before matching against a job description.</p>
+        <a href="/resume-studio/library" class="inline-flex items-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700">Go to CV Library &rarr;</a>
+    </div>
+    {% else %}
+    <!-- No primary resume -->
+    <div class="bg-amber-50 border border-amber-200 rounded-2xl p-6 text-center mb-6">
+        <div class="w-12 h-12 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-3">
+            <svg class="w-6 h-6 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"/></svg>
+        </div>
+        <h3 class="text-sm font-bold text-amber-800 mb-1">Set a Primary Resume First</h3>
+        <p class="text-xs text-amber-600 mb-3">Mark one of your resumes as primary to start analyzing job descriptions.</p>
+        <a href="/resume-studio/library" class="inline-flex items-center gap-2 text-xs font-semibold text-brand-600 hover:text-brand-700">Go to CV Library &rarr;</a>
+    </div>
+    {% endif %}
+
+    {% if jd_histories %}
+    <!-- JD Analysis History Table -->
+    <div class="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden">
+        <div class="px-5 py-4 border-b border-slate-100">
+            <h3 class="text-base font-bold text-slate-800">Past Analyses</h3>
+            <p class="text-xs text-slate-400 mt-0.5">{{ jd_histories|length }} analysis{{ 'es' if jd_histories|length > 1 else '' }}</p>
+        </div>
+
+        <!-- Desktop Table -->
+        <div class="hidden sm:block overflow-x-auto">
+            <table class="w-full text-sm table-fixed">
+                <thead class="bg-slate-50 text-slate-500 text-xs uppercase tracking-wide border-b border-slate-200">
+                    <tr>
+                        <th class="text-left px-4 py-3.5 font-medium w-[40%]">Job Name</th>
+                        <th class="text-center px-4 py-3.5 font-medium w-[20%]">ATS Match</th>
+                        <th class="text-left px-4 py-3.5 font-medium w-[18%]">Date</th>
+                        <th class="text-right px-4 py-3.5 font-medium w-[22%]">Actions</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    {% for jd in jd_histories %}
+                    <tr class="hover:bg-slate-50/50 transition">
+                        <td class="px-4 py-3.5">
+                            <div class="flex items-center gap-2.5">
+                                <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
+                                    <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                                </div>
+                                <p class="text-sm font-semibold text-slate-800 truncate min-w-0" title="{{ jd_names.get(jd.id, 'Job Description') }}">
+                                    {{ jd_names.get(jd.id, 'Job Description') }}
+                                </p>
+                            </div>
+                        </td>
+                        <td class="px-4 py-3.5 text-center">
+                            {% if jd.status == 'completed' and jd.results_json %}
+                                {% set score = jd_scores.get(jd.id, 0) %}
+                                <div class="inline-flex flex-col items-center">
+                                    <span class="inline-flex items-center justify-center w-11 h-7 rounded-lg font-bold text-sm
+                                        {% if score >= 85 %}bg-emerald-100 text-emerald-700
+                                        {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                        {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                        {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                        {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                                    <span class="mt-1 text-[10px] font-bold px-2 py-0.5 rounded-full
+                                        {% if score >= 85 %}bg-emerald-100 text-emerald-700
+                                        {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                        {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                        {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                        {% else %}bg-red-100 text-red-700{% endif %}">
+                                        {% if score >= 85 %}Perfect Fit{% elif score >= 70 %}Great Fit{% elif score >= 50 %}Maybe Fit{% elif score >= 30 %}Low Fit{% else %}Reject{% endif %}
+                                    </span>
+                                </div>
+                            {% elif jd.status == 'analyzing' %}
+                                <span class="inline-flex items-center gap-1.5 text-xs text-brand-600 font-medium">
+                                    <svg class="animate-spin w-3.5 h-3.5" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                    Analyzing...
+                                </span>
+                            {% elif jd.status == 'failed' %}
+                                <span class="text-xs text-red-600 font-medium">Failed</span>
+                            {% else %}
+                                <span class="text-xs text-slate-400">&mdash;</span>
+                            {% endif %}
+                        </td>
+                        <td class="px-4 py-3.5 text-sm text-slate-500">{{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '—' }}</td>
+                        <td class="px-4 py-3.5 text-right whitespace-nowrap">
+                            <div class="inline-flex items-center gap-0.5">
+                                {% if jd.status == 'completed' %}
+                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Results">
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                </a>
+                                {% elif jd.status == 'analyzing' %}
+                                <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Progress">
+                                    <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                                </a>
+                                {% endif %}
+                                <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline" onsubmit="return confirm('Delete this analysis?')">
+                                    <button type="submit" class="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition" title="Delete">
+                                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                                    </button>
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Mobile Cards -->
+        <div class="sm:hidden divide-y divide-slate-100">
+            {% for jd in jd_histories %}
+            <div class="px-4 py-4">
+                <div class="flex items-start gap-3">
+                    <div class="flex-1 min-w-0">
+                        <p class="text-sm font-semibold text-slate-800 truncate">{{ jd_names.get(jd.id, 'Job Description') }}</p>
+                        <p class="text-xs text-slate-400 mt-0.5">{{ jd.created_at.strftime('%b %d, %Y') if jd.created_at else '' }}</p>
+                    </div>
+                    <div class="flex-shrink-0 text-center">
+                        {% if jd.status == 'completed' and jd.results_json %}
+                            {% set score = jd_scores.get(jd.id, 0) %}
+                            <span class="inline-flex items-center justify-center w-10 h-6 rounded-lg font-bold text-xs
+                                {% if score >= 85 %}bg-emerald-100 text-emerald-700
+                                {% elif score >= 70 %}bg-blue-100 text-blue-700
+                                {% elif score >= 50 %}bg-amber-100 text-amber-700
+                                {% elif score >= 30 %}bg-orange-100 text-orange-700
+                                {% else %}bg-red-100 text-red-700{% endif %}">{{ score }}</span>
+                        {% elif jd.status == 'analyzing' %}
+                            <svg class="animate-spin w-5 h-5 text-brand-500" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>
+                        {% elif jd.status == 'failed' %}
+                            <span class="text-xs text-red-500 font-bold">Failed</span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="flex items-center gap-2 mt-2">
+                    {% if jd.status == 'completed' %}
+                    <a href="{{ url_for('jd_analysis_results', jd_id=jd.id) }}" class="flex-1 text-center text-xs font-semibold text-brand-600 bg-brand-50 hover:bg-brand-100 py-1.5 rounded-lg transition">View Results</a>
+                    {% endif %}
+                    <form action="{{ url_for('jd_analysis_delete', jd_id=jd.id) }}" method="POST" class="inline" onsubmit="return confirm('Delete this analysis?')">
+                        <button type="submit" class="text-xs font-semibold text-red-500 bg-red-50 hover:bg-red-100 py-1.5 px-3 rounded-lg transition">Delete</button>
+                    </form>
+                </div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+</div>
+
+<script>
+// JD tab switching
+function switchJdTab(tab) {
+    document.querySelectorAll('.jd-tab').forEach(function(btn) {
+        btn.classList.remove('bg-white', 'text-brand-700', 'shadow-sm');
+        btn.classList.add('text-slate-500', 'hover:text-slate-700');
+    });
+    var activeBtn = document.querySelector('.jd-tab[data-tab="' + tab + '"]');
+    if (activeBtn) {
+        activeBtn.classList.add('bg-white', 'text-brand-700', 'shadow-sm');
+        activeBtn.classList.remove('text-slate-500', 'hover:text-slate-700');
+    }
+    document.querySelectorAll('.jd-panel').forEach(function(p) { p.classList.add('hidden'); });
+    var panel = document.getElementById('panel-' + tab);
+    if (panel) panel.classList.remove('hidden');
+}
+
+// Anti-double-submit
+var jdForm = document.getElementById('jdAnalyzeForm');
+if (jdForm) {
+    jdForm.addEventListener('submit', function() {
+        var btn = document.getElementById('jd-submit-btn');
+        btn.disabled = true;
+        btn.innerHTML = '<svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg> Processing...';
+    });
+}
+</script>
+{% endblock %}

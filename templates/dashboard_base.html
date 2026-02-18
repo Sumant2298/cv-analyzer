@@ -38,44 +38,109 @@
             <!-- Navigation -->
             <nav class="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
 
-                <!-- Resumes -->
-                <a href="/analyze" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
-                    {% if active_section == 'resumes' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
+                {# ── Resolve active category / page from new or legacy variables ── #}
+                {% set _cat = active_category|default('') %}
+                {% set _pg  = active_page|default('') %}
+                {% if not _cat and active_section == 'resumes'   %}{% set _cat = 'resume_studio' %}{% set _pg = 'library' %}{% endif %}
+                {% if not _cat and active_section == 'jobs'      %}{% set _cat = 'job_copilot'   %}{% set _pg = 'search'  %}{% endif %}
+                {% if not _cat and active_section == 'experts'   %}{% set _cat = 'career_services' %}{% set _pg = 'experts' %}{% endif %}
+                {% if not _cat and active_section == 'mentors'   %}{% set _cat = 'career_services' %}{% set _pg = 'mentors' %}{% endif %}
+                {% if not _cat and active_section == 'settings'  %}{% set _cat = 'settings' %}{% endif %}
+                {% if not _cat and active_section == 'dashboard' %}{% set _cat = 'dashboard' %}{% endif %}
+                {% if not _cat and active_section == 'profile'   %}{% set _cat = '' %}{% endif %}
+
+                <!-- ── Dashboard (top-level) ── -->
+                <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
+                    {% if _cat == 'dashboard' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
+                    <span class="text-sm font-medium">Dashboard</span>
+                </a>
+
+                <div class="pt-2 pb-1 px-3"><div class="border-t border-slate-800"></div></div>
+
+                <!-- ══════════════ Resume Studio ══════════════ -->
+                <button onclick="toggleNavSection('resume-studio-nav')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition hover:bg-white/5
+                    {% if _cat == 'resume_studio' %}text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-                    <span class="text-sm font-medium">Resumes</span>
-                </a>
-
-                <!-- Jobs -->
-                <a href="/jobs" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
-                    {% if active_section == 'jobs' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
-                    <span class="text-sm font-medium">Jobs</span>
-                </a>
-
-                <!-- CV Experts -->
-                <a href="/experts" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
-                    {% if active_section == 'experts' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/></svg>
-                    <span class="text-sm font-medium">CV Experts</span>
-                </a>
-
-                <!-- MentorPro -->
-                <a href="/mentors" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
-                    {% if active_section == 'mentors' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>
-                    <span class="text-sm font-medium">MentorPro</span>
-                </a>
-
-                <!-- Agent — placeholder -->
-                <div class="flex items-center gap-3 px-3 py-2.5 rounded-lg text-slate-500 cursor-default">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714a2.25 2.25 0 00.659 1.591L19 14.5M14.25 3.104c.251.023.501.05.75.082M19 14.5l-2.47 2.47a3.375 3.375 0 01-4.06.44L12 17m0 0l-.47.53a3.375 3.375 0 01-4.06.44L5 14.5m7 2.5v4.5"/></svg>
-                    <span class="text-sm font-medium">Agent</span>
-                    <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
+                    <span class="text-sm font-medium">Resume Studio</span>
+                    <svg class="nav-chevron w-4 h-4 ml-auto transition-transform duration-200 {% if _cat == 'resume_studio' %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="resume-studio-nav" data-has-active="{{ 'true' if _cat == 'resume_studio' else 'false' }}" class="{% if _cat != 'resume_studio' %}hidden{% endif %} space-y-0.5">
+                    <a href="/resume-studio/library" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'library' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        CV Library
+                    </a>
+                    <a href="/resume-studio/analysis" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'analysis' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        Analysis Report
+                    </a>
+                    <a href="/resume-studio/jd-match" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'jd_match' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        JD Match
+                    </a>
+                    <a href="/resume-studio/rewrite" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'rewrite' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        Rewrite CV
+                    </a>
                 </div>
 
-                <!-- Settings -->
+                <!-- ══════════════ Job Copilot ══════════════ -->
+                <button onclick="toggleNavSection('job-copilot-nav')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition hover:bg-white/5
+                    {% if _cat == 'job_copilot' %}text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M21 13.255A23.931 23.931 0 0112 15c-3.183 0-6.22-.62-9-1.745M16 6V4a2 2 0 00-2-2h-4a2 2 0 00-2 2v2m4 6h.01M5 20h14a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
+                    <span class="text-sm font-medium">Job Copilot</span>
+                    <svg class="nav-chevron w-4 h-4 ml-auto transition-transform duration-200 {% if _cat == 'job_copilot' %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="job-copilot-nav" data-has-active="{{ 'true' if _cat == 'job_copilot' else 'false' }}" class="{% if _cat != 'job_copilot' %}hidden{% endif %} space-y-0.5">
+                    <a href="/job-copilot/search" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'search' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        AI Job Search
+                    </a>
+                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
+                        <span class="text-xs font-medium">Auto Apply</span>
+                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
+                    </div>
+                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
+                        <span class="text-xs font-medium">Application Tracker</span>
+                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
+                    </div>
+                </div>
+
+                <!-- ══════════════ Career Services ══════════════ -->
+                <button onclick="toggleNavSection('career-services-nav')" class="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition hover:bg-white/5
+                    {% if _cat == 'career_services' %}text-white{% else %}text-slate-400 hover:text-slate-200{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 14l9-5-9-5-9 5 9 5zm0 0l6.16-3.422a12.083 12.083 0 01.665 6.479A11.952 11.952 0 0012 20.055a11.952 11.952 0 00-6.824-2.998 12.078 12.078 0 01.665-6.479L12 14zm-4 6v-7.5l4-2.222"/></svg>
+                    <span class="text-sm font-medium">Career Services</span>
+                    <svg class="nav-chevron w-4 h-4 ml-auto transition-transform duration-200 {% if _cat == 'career_services' %}rotate-180{% endif %}" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                </button>
+                <div id="career-services-nav" data-has-active="{{ 'true' if _cat == 'career_services' else 'false' }}" class="{% if _cat != 'career_services' %}hidden{% endif %} space-y-0.5">
+                    <a href="/career-services/experts" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'experts' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        Resume Experts
+                    </a>
+                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
+                        <span class="text-xs font-medium">Interview Prep with AI</span>
+                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
+                    </div>
+                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
+                        <span class="text-xs font-medium">Mock AI Interviews</span>
+                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
+                    </div>
+                    <a href="/career-services/mentors" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'mentors' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        Get Mentor Help
+                    </a>
+                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
+                        <span class="text-xs font-medium">Plan My Career</span>
+                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
+                    </div>
+                </div>
+
+                <div class="pt-2 pb-1 px-3"><div class="border-t border-slate-800"></div></div>
+
+                <!-- ── Settings ── -->
                 <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
-                    {% if active_section == 'settings' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
+                    {% if _cat == 'settings' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.573-1.066z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
                     <span class="text-sm font-medium">Settings</span>
                 </a>
@@ -205,6 +270,30 @@
         sidebar.classList.toggle('sidebar-hidden');
         overlay.classList.toggle('hidden');
     }
+
+    // Collapsible sidebar sections
+    function toggleNavSection(id) {
+        var el = document.getElementById(id);
+        if (!el) return;
+        var btn = el.previousElementSibling;
+        var chevron = btn ? btn.querySelector('.nav-chevron') : null;
+        el.classList.toggle('hidden');
+        if (chevron) chevron.classList.toggle('rotate-180');
+        localStorage.setItem('nav_' + id, el.classList.contains('hidden') ? 'closed' : 'open');
+    }
+    (function() {
+        ['resume-studio-nav','job-copilot-nav','career-services-nav'].forEach(function(id) {
+            var el = document.getElementById(id);
+            if (!el) return;
+            if (el.dataset.hasActive === 'true') { el.classList.remove('hidden'); return; }
+            var s = localStorage.getItem('nav_' + id);
+            if (s === 'open') {
+                el.classList.remove('hidden');
+                var chevron = el.previousElementSibling ? el.previousElementSibling.querySelector('.nav-chevron') : null;
+                if (chevron) chevron.classList.add('rotate-180');
+            }
+        });
+    })();
 
     // Page transition: show loader on internal navigation clicks
     (function() {

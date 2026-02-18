@@ -1068,72 +1068,24 @@ def dashboard():
     recent_activity = CreditUsage.query.filter_by(user_id=user.id)\
         .order_by(CreditUsage.created_at.desc()).limit(5).all()
 
+    # Dashboard summary widgets
+    primary_resume = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    primary_ats = primary_resume.ats_score if primary_resume and primary_resume.ats_score else None
+    pending_analyses = UserResume.query.filter_by(user_id=user.id, analysis_status='analyzing').count()
+
     return render_template('dashboard.html',
                            user=user,
                            resume_count=resume_count,
                            recent_activity=recent_activity,
+                           primary_ats=primary_ats,
+                           pending_analyses=pending_analyses,
                            active_section='dashboard')
 
 
 @app.route('/analyze')
 def analyze_page():
-    """Unified resumes page — table of uploaded CVs with analysis results."""
-    if not session.get('user_id'):
-        session['_login_next'] = url_for('analyze_page')
-        flash('Please sign in to manage and analyze your resumes.', 'warning')
-        return redirect(url_for('login_page'))
-
-    user = User.query.get(session['user_id'])
-    if not user:
-        flash('Session expired. Please sign in again.', 'error')
-        return redirect(url_for('login_page'))
-
-    from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS, CREDITS_PER_JD_ANALYSIS
-    user_data = {
-        'analysis_count': user.analysis_count,
-        'credits': user.credits,
-        'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
-        'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
-    }
-
-    resumes = UserResume.query.filter_by(user_id=user.id)\
-        .order_by(UserResume.created_at.desc()).all()
-
-    # Get primary resume for JD analysis section
-    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
-
-    # Get JD analysis history with pre-computed ATS scores
-    jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
-        .order_by(JDAnalysis.created_at.desc()).all()
-    jd_scores = {}
-    jd_names = {}
-    for jd in jd_histories:
-        if jd.status == 'completed' and jd.results_json:
-            try:
-                parsed = json.loads(jd.results_json)
-                jd_scores[jd.id] = parsed.get('ats_score', 0)
-            except (json.JSONDecodeError, AttributeError):
-                jd_scores[jd.id] = 0
-        # Extract job name from first meaningful line of JD text
-        jd_name = ''
-        if jd.jd_text:
-            for line in jd.jd_text.strip().split('\n'):
-                line = line.strip()
-                if line and len(line) > 3:
-                    jd_name = line[:80]
-                    break
-        jd_names[jd.id] = jd_name or 'Job Description'
-
-    return render_template('resumes.html',
-                           resumes=resumes,
-                           user_data=user_data,
-                           primary_resume=primary,
-                           jd_histories=jd_histories,
-                           jd_scores=jd_scores,
-                           jd_names=jd_names,
-                           credits_per_jd=CREDITS_PER_JD_ANALYSIS,
-                           credits_remaining=user.credits,
-                           active_section='resumes')
+    """Legacy redirect — /analyze now lives at /resume-studio/library."""
+    return redirect(url_for('resume_studio_library'), code=301)
 
 
 # ---------------------------------------------------------------------------
@@ -1242,7 +1194,7 @@ def analyze_cv():
     """Tier 1: CV-only analysis (NLP + small LLM call)."""
     # ---- Login gate ----
     if not _oauth_enabled or not session.get('user_id'):
-        session['_login_next'] = url_for('analyze_page')
+        session['_login_next'] = url_for('resume_studio_library')
         flash('Please sign in to analyze your CV. First analysis is FREE!', 'warning')
         return redirect(url_for('login_page'))
 
@@ -1280,13 +1232,13 @@ def analyze_cv():
         if credits_charged:
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
         flash(f'Error reading input: {e}', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if not cv_text:
         if credits_charged:
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
         flash('Could not get CV content. Please try uploading a file or pasting text.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     try:
         from llm_service import analyze_cv_only
@@ -1297,7 +1249,7 @@ def analyze_cv():
             _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
         logger.error('CV analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # Store CV text + analysis data server-side
     session['_data_token'] = _save_session_data({
@@ -1315,7 +1267,7 @@ def analyze_cv():
 
     return render_template('cv_results.html', results=results,
                            credits_remaining=user.credits if user else 0,
-                           active_section='resumes')
+                           active_category='resume_studio', active_page='library')
 
 
 @app.route('/analyze-jd', methods=['POST'])
@@ -1323,7 +1275,7 @@ def analyze_jd():
     """Tier 2: CV vs JD analysis (full LLM pipeline)."""
     # ---- Login gate ----
     if not _oauth_enabled or not session.get('user_id'):
-        session['_login_next'] = url_for('analyze_page')
+        session['_login_next'] = url_for('resume_studio_library')
         flash('Please sign in to analyze against a job description.', 'warning')
         return redirect(url_for('login_page'))
 
@@ -1338,7 +1290,7 @@ def analyze_jd():
     cv_text = data.get('cv_text', '')
     if not cv_text:
         flash('Please analyze your CV first before matching against a job description.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # ---- Credit check: always 3 credits for JD analysis ----
     from payments import CREDITS_PER_JD_ANALYSIS, deduct_credits
@@ -1361,12 +1313,12 @@ def analyze_jd():
     except Exception as e:
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         flash(f'Error reading JD: {e}', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if not jd_text:
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         flash('Could not get Job Description content. Please try again.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if len(jd_text.split()) < 10:
         flash('Job description seems very short. Results may be unreliable.', 'warning')
@@ -1378,7 +1330,7 @@ def analyze_jd():
         _refund_analysis_credits(user_id, CREDITS_PER_JD_ANALYSIS)
         logger.error('JD analysis error: %s', e, exc_info=True)
         flash(f'Analysis error: {e}', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # Update session data — add JD results to existing CV data
     token = session.get('_data_token', '')
@@ -1394,7 +1346,7 @@ def analyze_jd():
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_section='resumes')
+    return render_template('results.html', results=results, active_category='resume_studio', active_page='library')
 
 
 # ---------------------------------------------------------------------------
@@ -1406,30 +1358,8 @@ def analyze_jd():
 
 @app.route('/jobs')
 def jobs_page():
-    """Jobs page — search public job listings with saved filter preferences."""
-    if not session.get('user_id'):
-        session['_login_next'] = url_for('jobs_page')
-        flash('Please sign in to search for jobs.', 'warning')
-        return redirect(url_for('login_page'))
-
-    user = User.query.get(session['user_id'])
-    if not user:
-        flash('Session expired. Please sign in again.', 'error')
-        return redirect(url_for('login_page'))
-
-    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
-
-    # Load saved preferences (if any)
-    prefs = JobPreferences.query.filter_by(user_id=user.id).first()
-    show_wizard = not prefs or not prefs.setup_completed
-    preferences_json = json.dumps(prefs.to_dict()) if prefs and prefs.setup_completed else 'null'
-
-    return render_template('jobs.html',
-                           primary_resume=primary,
-                           credits_remaining=user.credits,
-                           show_wizard=show_wizard,
-                           preferences_json=preferences_json,
-                           active_section='jobs')
+    """Legacy redirect — /jobs now lives at /job-copilot/search."""
+    return redirect(url_for('job_copilot_search'), code=301)
 
 
 @app.route('/jobs/preferences', methods=['GET'])
@@ -1906,12 +1836,12 @@ def jobs_analyze():
     primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
     if not primary:
         flash('You need a primary resume first. Upload a CV and set it as primary.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     cv_text = primary.extracted_text
     if not cv_text or len(cv_text.strip()) < 50:
         flash('Your primary resume has no extracted text. Please re-upload it.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # Credit check
     from payments import CREDITS_PER_JD_ANALYSIS, deduct_credits
@@ -1927,11 +1857,11 @@ def jobs_analyze():
             save_cv=False, url_extractor=_extract_from_jd_url)
     except Exception as e:
         flash(f'Error reading Job Description: {e}', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if not jd_text:
         flash('Could not extract Job Description content. Please try again.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if len(jd_text.split()) < 10:
         flash('Job description seems very short. Results may be unreliable.', 'warning')
@@ -2002,14 +1932,14 @@ def jobs_waiting():
     jd_id = session.get('_jd_analysis_id')
     if not jd_id:
         flash('No analysis in progress.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     row = JDAnalysis.query.get(jd_id)
     if not row or row.status not in ('analyzing', 'completed'):
         flash('No analysis in progress.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
-    return render_template('jobs_waiting.html', active_section='resumes')
+    return render_template('jobs_waiting.html', active_category='resume_studio', active_page='library')
 
 
 @app.route('/jobs/results')
@@ -2021,12 +1951,12 @@ def jobs_results():
     jd_id = session.get('_jd_analysis_id')
     if not jd_id:
         flash('No completed analysis found. Please try again.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     row = JDAnalysis.query.get(jd_id)
     if not row or row.status != 'completed' or not row.results_json:
         flash('No completed analysis found. Please try again.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     results = json.loads(row.results_json)
 
@@ -2047,7 +1977,7 @@ def jobs_results():
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_section='resumes')
+    return render_template('results.html', results=results, active_category='resume_studio', active_page='library')
 
 
 @app.route('/jobs/<int:jd_id>/results')
@@ -2059,7 +1989,7 @@ def jd_analysis_results(jd_id):
     row = JDAnalysis.query.filter_by(id=jd_id, user_id=session['user_id']).first()
     if not row:
         flash('Analysis not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if row.status == 'analyzing':
         session['_jd_analysis_id'] = row.id
@@ -2067,7 +1997,7 @@ def jd_analysis_results(jd_id):
 
     if row.status != 'completed' or not row.results_json:
         flash('No completed analysis results available.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     results = json.loads(row.results_json)
 
@@ -2088,7 +2018,7 @@ def jd_analysis_results(jd_id):
         'tier': 2,
     })
 
-    return render_template('results.html', results=results, active_section='resumes')
+    return render_template('results.html', results=results, active_category='resume_studio', active_page='library')
 
 
 @app.route('/jobs/<int:jd_id>/delete', methods=['POST'])
@@ -2105,7 +2035,7 @@ def jd_analysis_delete(jd_id):
     else:
         flash('Analysis not found.', 'error')
 
-    return redirect(url_for('analyze_page'))
+    return redirect(url_for('resume_studio_library'))
 
 
 # ---------------------------------------------------------------------------
@@ -2119,7 +2049,7 @@ def download_cv_text():
     cv_text = data.get('cv_text', '')
     if not cv_text:
         flash('No CV available to download. Please run an analysis first.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'cv_download.pdf')
     _text_to_pdf(cv_text, pdf_path)
@@ -2138,7 +2068,7 @@ def rewrite_cv_page():
     data = _load_session_data(session.get('_data_token', ''))
     if not data.get('cv_text') or not data.get('jd_text'):
         flash('Please run a CV analysis first before requesting a rewrite.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # Must be logged in
     if not session.get('user_id'):
@@ -2164,7 +2094,7 @@ def rewrite_cv_page():
                            ats_score=analysis.get('ats_score', 0),
                            matched_count=len(analysis.get('matched', [])),
                            missing_count=len(analysis.get('missing', [])),
-                           active_section='resumes')
+                           active_category='resume_studio', active_page='library')
 
 
 @app.route('/rewrite-cv', methods=['POST'])
@@ -2176,7 +2106,7 @@ def rewrite_cv_action():
     data = _load_session_data(session.get('_data_token', ''))
     if not data.get('cv_text') or not data.get('jd_text'):
         flash('No analysis data found. Please run analysis first.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     from payments import deduct_credits, CREDITS_PER_REWRITE
 
@@ -2214,7 +2144,7 @@ def rewrite_cv_action():
         except Exception:
             pass
         flash(f'Rewrite failed: {e}. Your credits have been refunded.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # Compute side-by-side diff
     cv_diff = _compute_cv_diff(data['cv_text'], rewrite_result['rewritten_cv'])
@@ -2231,7 +2161,7 @@ def rewrite_cv_action():
                            credits_remaining=user.credits if user else 0,
                            cv_diff=cv_diff,
                            original_cv=data['cv_text'],
-                           active_section='resumes')
+                           active_category='resume_studio', active_page='library')
 
 
 @app.route('/download-rewritten-cv')
@@ -2241,7 +2171,7 @@ def download_rewritten_cv():
     rewritten_text = data.get('rewritten_cv', '')
     if not rewritten_text:
         flash('No rewritten CV available. Please perform a rewrite first.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     pdf_path = os.path.join(app.config['UPLOAD_FOLDER'], 'rewritten_cv.pdf')
     _rewritten_cv_to_pdf(rewritten_text, pdf_path)
@@ -2417,12 +2347,14 @@ def payment_webhook():
 
 @app.route('/experts')
 def experts():
-    return render_template('experts.html', active_section='experts')
+    """Legacy redirect — /experts now lives at /career-services/experts."""
+    return redirect(url_for('career_services_experts'), code=301)
 
 
 @app.route('/mentors')
 def mentors():
-    return render_template('mentors.html', active_section='mentors')
+    """Legacy redirect — /mentors now lives at /career-services/mentors."""
+    return redirect(url_for('career_services_mentors'), code=301)
 
 
 @app.route('/resume-tips')
@@ -2436,13 +2368,339 @@ def blog():
 
 
 # ---------------------------------------------------------------------------
+# Resume Studio — restructured navigation (CV Library, JD Match, Analysis, Rewrite)
+# ---------------------------------------------------------------------------
+
+@app.route('/resume-studio/library')
+def resume_studio_library():
+    """CV Library — upload, manage, and analyze resumes."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('resume_studio_library')
+        flash('Please sign in to manage your resumes.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    from payments import FREE_CV_ANALYSIS_LIMIT, CREDITS_PER_CV_ANALYSIS
+    user_data = {
+        'analysis_count': user.analysis_count,
+        'credits': user.credits,
+        'first_free': user.analysis_count < FREE_CV_ANALYSIS_LIMIT,
+        'credits_per_cv': CREDITS_PER_CV_ANALYSIS,
+    }
+    resumes = UserResume.query.filter_by(user_id=user.id)\
+        .order_by(UserResume.created_at.desc()).all()
+
+    return render_template('resume_studio/library.html',
+                           resumes=resumes,
+                           user_data=user_data,
+                           active_category='resume_studio', active_page='library')
+
+
+@app.route('/resume-studio/jd-match')
+def resume_studio_jd_match():
+    """JD Match — upload a JD to compare against a resume."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('resume_studio_jd_match')
+        flash('Please sign in to analyze job descriptions.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    from payments import CREDITS_PER_JD_ANALYSIS
+    resumes = UserResume.query.filter_by(user_id=user.id)\
+        .order_by(UserResume.created_at.desc()).all()
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+
+    jd_histories = JDAnalysis.query.filter_by(user_id=user.id)\
+        .order_by(JDAnalysis.created_at.desc()).all()
+    jd_scores = {}
+    jd_names = {}
+    for jd in jd_histories:
+        if jd.status == 'completed' and jd.results_json:
+            try:
+                parsed = json.loads(jd.results_json)
+                jd_scores[jd.id] = parsed.get('ats_score', 0)
+            except (json.JSONDecodeError, AttributeError):
+                jd_scores[jd.id] = 0
+        jd_name = ''
+        if jd.jd_text:
+            for line in jd.jd_text.strip().split('\n'):
+                line = line.strip()
+                if line and len(line) > 3:
+                    jd_name = line[:80]
+                    break
+        jd_names[jd.id] = jd_name or 'Job Description'
+
+    return render_template('resume_studio/jd_match.html',
+                           resumes=resumes,
+                           primary_resume=primary,
+                           jd_histories=jd_histories,
+                           jd_scores=jd_scores,
+                           jd_names=jd_names,
+                           credits_per_jd=CREDITS_PER_JD_ANALYSIS,
+                           credits_remaining=user.credits,
+                           active_category='resume_studio', active_page='jd_match')
+
+
+@app.route('/resume-studio/analysis')
+def resume_studio_analysis():
+    """Analysis Report — unified list of all CV and JD analyses."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('resume_studio_analysis')
+        flash('Please sign in to view your analyses.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    analyses = []
+
+    # CV analyses
+    cv_resumes = UserResume.query.filter_by(user_id=user.id, analysis_status='completed').all()
+    for r in cv_resumes:
+        analyses.append({
+            'type': 'cv',
+            'name': r.label or r.filename or 'Resume',
+            'score': r.ats_score,
+            'date': r.last_analyzed_at or r.created_at,
+            'url': url_for('resume_results', resume_id=r.id),
+        })
+
+    # JD analyses
+    jd_analyses = JDAnalysis.query.filter_by(user_id=user.id, status='completed').all()
+    for jd in jd_analyses:
+        score = None
+        if jd.results_json:
+            try:
+                parsed = json.loads(jd.results_json)
+                score = parsed.get('ats_score')
+            except (json.JSONDecodeError, AttributeError):
+                pass
+        jd_name = ''
+        if jd.jd_text:
+            for line in jd.jd_text.strip().split('\n'):
+                line = line.strip()
+                if line and len(line) > 3:
+                    jd_name = line[:80]
+                    break
+        analyses.append({
+            'type': 'jd',
+            'name': jd_name or 'Job Description',
+            'score': score,
+            'date': jd.created_at,
+            'url': url_for('jd_analysis_results', jd_id=jd.id),
+        })
+
+    # Sort by date descending
+    analyses.sort(key=lambda a: a['date'] or datetime.min, reverse=True)
+
+    return render_template('resume_studio/analysis.html',
+                           analyses=analyses,
+                           active_category='resume_studio', active_page='analysis')
+
+
+@app.route('/resume-studio/rewrite')
+def resume_studio_rewrite():
+    """Standalone Rewrite CV — select resume + provide JD."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('resume_studio_rewrite')
+        flash('Please sign in to rewrite your resume.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    from payments import CREDITS_PER_JD_ANALYSIS, CREDITS_PER_REWRITE
+    resumes = UserResume.query.filter_by(user_id=user.id)\
+        .order_by(UserResume.created_at.desc()).all()
+
+    return render_template('resume_studio/rewrite.html',
+                           resumes=resumes,
+                           credits_per_rewrite=CREDITS_PER_JD_ANALYSIS + CREDITS_PER_REWRITE,
+                           credits_remaining=user.credits,
+                           active_category='resume_studio', active_page='rewrite')
+
+
+@app.route('/resume-studio/rewrite', methods=['POST'])
+def resume_studio_rewrite_action():
+    """Process standalone rewrite — analyze JD, then redirect to rewrite confirm."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return redirect(url_for('login_page'))
+
+    resume_id = request.form.get('resume_id', type=int)
+    resume = UserResume.query.filter_by(id=resume_id, user_id=user.id).first()
+    if not resume or not resume.extracted_text:
+        flash('Please select a valid resume with extracted text.', 'error')
+        return redirect(url_for('resume_studio_rewrite'))
+
+    # Extract JD text
+    jd_text = None
+    try:
+        jd_text = _process_input('jd_file', 'jd_text', 'jd_url',
+                                 url_extractor=_extract_from_jd_url)
+    except Exception as e:
+        logger.warning('JD extraction failed: %s', e)
+
+    if not jd_text or len(jd_text.strip()) < 50:
+        flash('Please provide a valid job description (at least 50 characters).', 'error')
+        return redirect(url_for('resume_studio_rewrite'))
+
+    # Store in session for the existing rewrite flow
+    cv_text = resume.extracted_text
+    token = _save_session_data({
+        'cv_text': cv_text,
+        'jd_text': jd_text,
+        'resume_id': resume_id,
+    })
+    session['_data_token'] = token
+
+    # Run JD analysis to get skill match data
+    try:
+        from llm_service import analyze_cv_against_jd
+        results = analyze_cv_against_jd(cv_text, jd_text)
+        if results:
+            _update_session_data(token, {'results': results})
+    except Exception as e:
+        logger.warning('Quick JD analysis for rewrite failed: %s', e)
+
+    return redirect(url_for('rewrite_cv_page'))
+
+
+# ---------------------------------------------------------------------------
+# Job Copilot — restructured navigation
+# ---------------------------------------------------------------------------
+
+@app.route('/job-copilot/search')
+def job_copilot_search():
+    """AI Job Search — search public job listings with saved filter preferences."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('job_copilot_search')
+        flash('Please sign in to search jobs.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        flash('Session expired. Please sign in again.', 'error')
+        return redirect(url_for('login_page'))
+
+    primary = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    prefs = JobPreferences.query.filter_by(user_id=user.id).first()
+    show_wizard = not prefs or not prefs.setup_completed
+    preferences_json = json.dumps(prefs.to_dict()) if prefs and prefs.setup_completed else 'null'
+
+    return render_template('jobs.html',
+                           primary_resume=primary,
+                           credits_remaining=user.credits,
+                           show_wizard=show_wizard,
+                           preferences_json=preferences_json,
+                           active_category='job_copilot', active_page='search')
+
+
+@app.route('/job-copilot/auto-apply')
+def job_copilot_auto_apply():
+    """Auto Apply — coming soon."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('_coming_soon.html',
+                           coming_soon_title='Auto Apply',
+                           coming_soon_desc='Let our AI automatically apply to jobs that match your profile. Set your preferences and let us handle the rest.',
+                           coming_soon_icon='M13 10V3L4 14h7v7l9-11h-7z',
+                           active_category='job_copilot', active_page='auto_apply')
+
+
+@app.route('/job-copilot/tracker')
+def job_copilot_tracker():
+    """Application Tracker — coming soon."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('_coming_soon.html',
+                           coming_soon_title='Application Tracker',
+                           coming_soon_desc='Track all your job applications in one place. Monitor status, follow-ups, and interview schedules.',
+                           coming_soon_icon='M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01',
+                           active_category='job_copilot', active_page='tracker')
+
+
+# ---------------------------------------------------------------------------
+# Career Services — restructured navigation
+# ---------------------------------------------------------------------------
+
+@app.route('/career-services/experts')
+def career_services_experts():
+    """Resume Experts — moved from /experts."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('experts.html',
+                           active_category='career_services', active_page='experts')
+
+
+@app.route('/career-services/mentors')
+def career_services_mentors():
+    """Get Mentor Help — moved from /mentors."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('mentors.html',
+                           active_category='career_services', active_page='mentors')
+
+
+@app.route('/career-services/interview-prep')
+def career_services_interview_prep():
+    """Interview Prep with AI — coming soon."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('_coming_soon.html',
+                           coming_soon_title='Interview Prep with AI',
+                           coming_soon_desc='Practice with our AI interviewer tailored to your target role. Get instant feedback on your answers.',
+                           coming_soon_icon='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
+                           active_category='career_services', active_page='interview_prep')
+
+
+@app.route('/career-services/mock-interviews')
+def career_services_mock_interviews():
+    """Mock AI Interviews — coming soon."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('_coming_soon.html',
+                           coming_soon_title='Mock AI Interviews',
+                           coming_soon_desc='Experience realistic mock interviews with AI that adapts to your industry and seniority level.',
+                           coming_soon_icon='M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
+                           active_category='career_services', active_page='mock_interviews')
+
+
+@app.route('/career-services/career-plan')
+def career_services_career_plan():
+    """Plan My Career — coming soon."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    return render_template('_coming_soon.html',
+                           coming_soon_title='Plan My Career',
+                           coming_soon_desc='Get a personalized career roadmap with skill gap analysis, learning paths, and milestone tracking.',
+                           coming_soon_icon='M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7',
+                           active_category='career_services', active_page='career_plan')
+
+
+# ---------------------------------------------------------------------------
 # My Resumes — store up to 5 resumes per user
 # ---------------------------------------------------------------------------
 
 @app.route('/my-resumes')
 def my_resumes():
-    """Redirect to unified resumes page."""
-    return redirect(url_for('analyze_page'))
+    """Legacy redirect — now at /resume-studio/library."""
+    return redirect(url_for('resume_studio_library'), code=301)
 
 
 @app.route('/my-resumes/upload', methods=['POST'])
@@ -2455,23 +2713,23 @@ def upload_resume():
     count = UserResume.query.filter_by(user_id=user_id).count()
     if count >= 5:
         flash('You can store up to 5 resumes. Please delete one before uploading a new one.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     file = request.files.get('resume_file')
     if not file or not file.filename:
         flash('Please select a file to upload.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if not allowed_file(file.filename):
         flash('Only PDF, DOCX, and TXT files are supported.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     filename = secure_filename(file.filename)
     file_data = file.read()
 
     if len(file_data) > 5 * 1024 * 1024:
         flash('File too large. Maximum size is 5 MB.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     # Extract text for caching
     temp_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
@@ -2519,7 +2777,7 @@ def upload_resume():
     else:
         flash(f'Resume "{label}" uploaded.', 'success')
 
-    return redirect(url_for('analyze_page'))
+    return redirect(url_for('resume_studio_library'))
 
 
 @app.route('/my-resumes/<int:resume_id>/set-primary', methods=['POST'])
@@ -2531,7 +2789,7 @@ def set_primary_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     UserResume.query.filter_by(user_id=session['user_id'], is_primary=True)\
         .update({'is_primary': False})
@@ -2539,7 +2797,7 @@ def set_primary_resume(resume_id):
     db.session.commit()
 
     flash(f'"{resume.label}" is now your primary resume.', 'success')
-    return redirect(url_for('analyze_page'))
+    return redirect(url_for('resume_studio_library'))
 
 
 @app.route('/my-resumes/<int:resume_id>/delete', methods=['POST'])
@@ -2551,7 +2809,7 @@ def delete_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     was_primary = resume.is_primary
     label = resume.label
@@ -2567,7 +2825,7 @@ def delete_resume(resume_id):
             db.session.commit()
 
     flash(f'Resume "{label}" deleted.', 'success')
-    return redirect(url_for('analyze_page'))
+    return redirect(url_for('resume_studio_library'))
 
 
 @app.route('/my-resumes/<int:resume_id>/download')
@@ -2579,7 +2837,7 @@ def download_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     return send_file(
         io.BytesIO(resume.file_data),
@@ -2598,11 +2856,11 @@ def resume_results(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if resume.analysis_status != 'completed' or not resume.analysis_results_json:
         flash('No analysis results available for this resume. Try analyzing it first.', 'warning')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     results = json.loads(resume.analysis_results_json)
 
@@ -2616,7 +2874,7 @@ def resume_results(resume_id):
     return render_template('cv_results.html', results=results,
                            credits_remaining=session.get('user_credits', 0),
                            resume_id=resume_id,
-                           active_section='resumes')
+                           active_category='resume_studio', active_page='library')
 
 
 @app.route('/my-resumes/<int:resume_id>/analyze', methods=['POST'])
@@ -2629,11 +2887,11 @@ def reanalyze_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=user_id).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     if not resume.extracted_text:
         flash('No text available for this resume. Please re-upload it.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     success = _auto_analyze_resume(resume.id, user_id, resume.extracted_text)
     if success:
@@ -2648,7 +2906,7 @@ def reanalyze_resume(resume_id):
             return redirect(url_for('buy_credits'))
         flash('Analysis failed. Please try again later.', 'error')
 
-    return redirect(url_for('analyze_page'))
+    return redirect(url_for('resume_studio_library'))
 
 
 @app.route('/my-resumes/<int:resume_id>/update', methods=['POST'])
@@ -2660,7 +2918,7 @@ def update_resume(resume_id):
     resume = UserResume.query.filter_by(id=resume_id, user_id=session['user_id']).first()
     if not resume:
         flash('Resume not found.', 'error')
-        return redirect(url_for('analyze_page'))
+        return redirect(url_for('resume_studio_library'))
 
     new_label = request.form.get('label', '').strip()
     new_target_job = request.form.get('target_job', '').strip()
@@ -2674,7 +2932,7 @@ def update_resume(resume_id):
     db.session.commit()
 
     flash(f'Resume "{resume.label}" updated.', 'success')
-    return redirect(url_for('analyze_page'))
+    return redirect(url_for('resume_studio_library'))
 
 
 @app.route('/my-resumes/<int:resume_id>/status')
