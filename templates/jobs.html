@@ -1,34 +1,28 @@
 {% extends "dashboard_base.html" %}
 {% block title %}AI Job Search — LevelUpX{% endblock %}
 {% block page_title %}AI Job Search{% endblock %}
+{% block page_subtitle %}
+<p class="text-xs text-slate-500 mt-0.5">Discover jobs matched to your resume with AI-powered ATS scoring &mdash; apply with confidence.</p>
+{% endblock %}
 {% block content %}
 
 <div class="max-w-5xl mx-auto anim-fade-up">
 
-    <!-- Header -->
-    <div class="mb-6">
-        <h1 class="text-2xl font-bold text-slate-800">AI Job Search</h1>
-        <p class="text-sm text-slate-500 mt-1">Discover jobs matched to your resume with AI-powered ATS scoring. We analyse every listing against your CV so you can apply with confidence.</p>
-    </div>
-
-    <!-- Primary Resume Indicator -->
+    <!-- Primary Resume Indicator (compact) -->
     {% if primary_resume %}
-    <div class="bg-white rounded-xl border border-slate-200 p-3 mb-6 flex items-center gap-3 text-sm shadow-sm">
-        <div class="w-8 h-8 bg-brand-50 rounded-lg flex items-center justify-center flex-shrink-0">
-            <svg class="w-4 h-4 text-brand-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        </div>
-        <span class="text-slate-600">Matching against: <strong class="text-slate-800">{{ primary_resume.label or primary_resume.filename }}</strong></span>
-        <span class="ml-auto text-xs text-slate-400 hidden sm:inline">ATS scores auto-calculated</span>
+    <div class="bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 flex items-center gap-2 text-xs shadow-sm">
+        <svg class="w-3.5 h-3.5 text-brand-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+        <span class="text-slate-500">Matching against: <strong class="text-slate-700">{{ primary_resume.label or primary_resume.filename }}</strong></span>
+        <span class="ml-auto text-[10px] text-slate-400 hidden sm:inline">ATS auto-scored</span>
     </div>
     {% else %}
-    <div class="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 text-center">
-        <p class="text-sm text-amber-700 mb-1">Upload and set a primary resume to see ATS match scores</p>
-        <a href="{{ url_for('resume_studio_library') }}" class="text-sm text-brand-600 font-semibold hover:underline">Go to My Resumes &rarr;</a>
+    <div class="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3 text-center">
+        <p class="text-xs text-amber-700">Upload a primary resume to see ATS match scores &mdash; <a href="{{ url_for('resume_studio_library') }}" class="text-brand-600 font-semibold hover:underline">Go to My Resumes &rarr;</a></p>
     </div>
     {% endif %}
 
     <!-- Preferences Summary Bar (return visits only) -->
-    <div id="prefs-summary" class="hidden bg-white rounded-xl border border-slate-200 p-3 mb-6 shadow-sm">
+    <div id="prefs-summary" class="hidden bg-white rounded-lg border border-slate-200 px-3 py-2 mb-3 shadow-sm">
         <div class="flex items-center gap-2">
             <svg class="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"/></svg>
             <span id="prefs-summary-text" class="text-xs text-slate-600 flex-1 min-w-0"></span>
@@ -159,20 +153,21 @@
                                 <button type="button" onclick="setSalaryPreset(600000,1200000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">6-12 LPA</button>
                                 <button type="button" onclick="setSalaryPreset(1200000,2500000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">12-25 LPA</button>
                                 <button type="button" onclick="setSalaryPreset(2500000,5000000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">25-50 LPA</button>
-                                <button type="button" onclick="setSalaryPreset(5000000,null)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">50+ LPA</button>
+                                <button type="button" onclick="setSalaryPreset(5000000,10000000)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">50L-1Cr</button>
+                                <button type="button" onclick="setSalaryPreset(10000000,null)" class="text-xs px-3 py-1.5 rounded-full border border-slate-200 hover:bg-brand-50 hover:border-brand-300 transition">1Cr+</button>
                             </div>
                         </div>
                         <div>
                             <div class="flex justify-between mb-2">
                                 <span id="wiz-salary-min-label" class="text-xs font-semibold text-brand-600">&#8377;0</span>
-                                <span id="wiz-salary-max-label" class="text-xs font-semibold text-brand-600">&#8377;1 Cr</span>
+                                <span id="wiz-salary-max-label" class="text-xs font-semibold text-brand-600">&#8377;2 Cr+</span>
                             </div>
                             <div class="salary-slider-wrap">
                                 <div class="slider-track-bg"></div>
                                 <div id="wiz-salary-track" class="slider-track-fill"></div>
-                                <input type="range" id="wiz-salary-min" min="0" max="10000000" step="100000" value="0"
+                                <input type="range" id="wiz-salary-min" min="0" max="20000000" step="100000" value="0"
                                     class="salary-range-thumb" oninput="updateSalarySlider('wiz')">
-                                <input type="range" id="wiz-salary-max" min="0" max="10000000" step="100000" value="10000000"
+                                <input type="range" id="wiz-salary-max" min="0" max="20000000" step="100000" value="20000000"
                                     class="salary-range-thumb" oninput="updateSalarySlider('wiz')">
                             </div>
                         </div>
@@ -305,14 +300,14 @@
                     <div>
                         <div class="flex justify-between mb-2">
                             <span id="fp-salary-min-label" class="text-[10px] font-semibold text-brand-600">&#8377;0</span>
-                            <span id="fp-salary-max-label" class="text-[10px] font-semibold text-brand-600">&#8377;1 Cr</span>
+                            <span id="fp-salary-max-label" class="text-[10px] font-semibold text-brand-600">&#8377;2 Cr+</span>
                         </div>
                         <div class="salary-slider-wrap">
                             <div class="slider-track-bg"></div>
                             <div id="fp-salary-track" class="slider-track-fill"></div>
-                            <input type="range" id="fp-salary-min" min="0" max="10000000" step="100000" value="0"
+                            <input type="range" id="fp-salary-min" min="0" max="20000000" step="100000" value="0"
                                 class="salary-range-thumb" oninput="updateSalarySlider('fp')">
-                            <input type="range" id="fp-salary-max" min="0" max="10000000" step="100000" value="10000000"
+                            <input type="range" id="fp-salary-max" min="0" max="20000000" step="100000" value="20000000"
                                 class="salary-range-thumb" oninput="updateSalarySlider('fp')">
                         </div>
                     </div>
@@ -823,7 +818,7 @@ function setSalaryPreset(min, max) {
     const minEl = document.getElementById('wiz-salary-min') || document.getElementById('fp-salary-min');
     const maxEl = document.getElementById('wiz-salary-max') || document.getElementById('fp-salary-max');
     if (minEl) minEl.value = min || 0;
-    if (maxEl) maxEl.value = max || 10000000;
+    if (maxEl) maxEl.value = max || 20000000;
     // Determine prefix and update slider visual
     const prefix = (minEl && minEl.id.startsWith('wiz')) ? 'wiz' : 'fp';
     updateSalarySlider(prefix);
@@ -834,12 +829,12 @@ function updateSalarySlider(prefix) {
     const maxEl = document.getElementById(prefix + '-salary-max');
     if (!minEl || !maxEl) return;
     let minVal = parseInt(minEl.value) || 0;
-    let maxVal = parseInt(maxEl.value) || 10000000;
+    let maxVal = parseInt(maxEl.value) || 20000000;
     if (minVal > maxVal) { const t = minVal; minVal = maxVal; maxVal = t; minEl.value = minVal; maxEl.value = maxVal; }
     const track = document.getElementById(prefix + '-salary-track');
     if (track) {
-        const pctMin = (minVal / 10000000) * 100;
-        const pctMax = (maxVal / 10000000) * 100;
+        const pctMin = (minVal / 20000000) * 100;
+        const pctMax = (maxVal / 20000000) * 100;
         track.style.left = pctMin + '%';
         track.style.width = (pctMax - pctMin) + '%';
     }
@@ -850,7 +845,8 @@ function updateSalarySlider(prefix) {
 }
 
 function formatLPA(val) {
-    if (val >= 10000000) return '\u20B91 Cr';
+    if (val >= 20000000) return '\u20B92 Cr+';
+    if (val >= 10000000) return '\u20B9' + (val / 10000000).toFixed(1).replace(/\.0$/, '') + ' Cr';
     if (val >= 100000) return '\u20B9' + (val / 100000).toFixed(1).replace(/\.0$/, '') + ' L';
     if (val === 0) return '\u20B90';
     return '\u20B9' + (val / 1000) + 'K';
@@ -921,7 +917,7 @@ function collectPreferences(prefix) {
         work_mode: getActivePill(prefix + '-work-mode'),
         locations: locations,
         salary_min: _sliderVal(prefix, 'salary-min', 0),
-        salary_max: _sliderVal(prefix, 'salary-max', 10000000),
+        salary_max: _sliderVal(prefix, 'salary-max', 20000000),
         salary_period: getActivePill(prefix + '-salary-period') || 'annual',
         industries: industries,
         functional_areas: functionalAreas,
@@ -1014,6 +1010,10 @@ async function searchWithPrefs(force) {
     try {
         const url = '/jobs/search?use_preferences=1&page=1' + (force ? '&force=1' : '');
         const resp = await fetch(url);
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.error || 'Server error (' + resp.status + ')');
+        }
         const data = await resp.json();
 
         // If a newer search was triggered while this one was in-flight, discard results
@@ -1052,7 +1052,8 @@ async function searchWithPrefs(force) {
         }
     } catch (err) {
         if (thisGen !== _searchGeneration) return;  // Ignore errors from superseded searches
-        document.getElementById('error-message').textContent = 'Network error. Please try again.';
+        console.error('Job search error:', err);
+        document.getElementById('error-message').textContent = err.message || 'Network error. Please try again.';
         showState('error');
     }
 }
@@ -1073,6 +1074,10 @@ async function loadMoreJobs() {
     try {
         const url = '/jobs/search?use_preferences=1&page=' + nextPage;
         const resp = await fetch(url);
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.error || 'Server error (' + resp.status + ')');
+        }
         const data = await resp.json();
 
         // Discard if a new search was started while loading more
@@ -1101,6 +1106,7 @@ async function loadMoreJobs() {
         _showLoadMore();
     } catch (err) {
         if (thisGen !== _searchGeneration) { _isLoadingMore = false; return; }
+        console.error('Load more error:', err);
         // Show the button again on error so user can retry
         _showLoadMore();
     } finally {
@@ -1229,7 +1235,7 @@ function openEditPrefs() {
 
         // Restore salary
         document.getElementById('fp-salary-min').value = savedPrefs.salary_min || 0;
-        document.getElementById('fp-salary-max').value = savedPrefs.salary_max || 10000000;
+        document.getElementById('fp-salary-max').value = savedPrefs.salary_max || 20000000;
         setActivePill('fp-salary-period', savedPrefs.salary_period || 'annual');
         updateSalarySlider('fp');
 
@@ -1413,6 +1419,10 @@ async function deepAnalyzeAndRewrite(idx, btn) {
                 company: job.company,
             }),
         });
+        if (!resp.ok) {
+            const errData = await resp.json().catch(() => ({}));
+            throw new Error(errData.error || 'Server error (' + resp.status + ')');
+        }
         const data = await resp.json();
         if (data.error) { alert(data.error); btn.disabled = false; btn.innerHTML = origHTML; return; }
         if (data.credits_remaining !== undefined) currentCredits = data.credits_remaining;
@@ -1444,7 +1454,7 @@ async function deepAnalyzeAndRewrite(idx, btn) {
         btn.innerHTML = '<svg class="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"/></svg> View Rewritten CV';
         btn.disabled = false;
         btn.onclick = function() { window.open('/jobs/rewrite-result/' + token, '_blank'); };
-    } catch (err) { alert('Network error. Please try again.'); btn.disabled = false; btn.innerHTML = origHTML; }
+    } catch (err) { console.error('Deep analyze error:', err); alert(err.message || 'Network error. Please try again.'); btn.disabled = false; btn.innerHTML = origHTML; }
 }
 
 function formatSalary(job) {
