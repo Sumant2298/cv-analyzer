@@ -2706,15 +2706,18 @@ def my_resumes():
 
 @app.route('/my-resumes/upload', methods=['POST'])
 def upload_resume():
-    """Upload a new resume (max 5 per user) and auto-analyze."""
+    """Upload a new resume and auto-analyze.
+
+    Storage limit: max 5 resumes stored per user. When at the limit,
+    the resume is still analysed (results shown in Analysis Reports)
+    but the file is NOT stored — the user must delete one to store more.
+    """
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
 
     user_id = session['user_id']
     count = UserResume.query.filter_by(user_id=user_id).count()
-    if count >= 5:
-        flash('You can store up to 5 resumes. Please delete one before uploading a new one.', 'warning')
-        return redirect(url_for('resume_studio_library'))
+    at_storage_limit = count >= 5
 
     file = request.files.get('resume_file')
     if not file or not file.filename:
@@ -2749,6 +2752,57 @@ def upload_resume():
     target_job = request.form.get('target_job', '').strip() or 'General'
     is_primary = request.form.get('is_primary') == '1'
 
+    if at_storage_limit:
+        # ── Analyse-only mode: run analysis without storing the resume ──
+        if not extracted_text:
+            flash('Could not extract text from this file. Please try another format.', 'error')
+            return redirect(url_for('resume_studio_library'))
+
+        user = User.query.get(user_id)
+        from payments import CREDITS_PER_CV_ANALYSIS, FREE_CV_ANALYSIS_LIMIT, deduct_credits
+        credits_charged = False
+
+        if user.analysis_count >= FREE_CV_ANALYSIS_LIMIT:
+            if user.credits < CREDITS_PER_CV_ANALYSIS:
+                flash(f'You need {CREDITS_PER_CV_ANALYSIS} credits to analyse. You have {user.credits}.', 'warning')
+                return redirect(url_for('buy_credits'))
+            if not deduct_credits(user_id, CREDITS_PER_CV_ANALYSIS, action='cv_analysis'):
+                flash(f'Insufficient credits. You need {CREDITS_PER_CV_ANALYSIS} credits.', 'warning')
+                return redirect(url_for('buy_credits'))
+            credits_charged = True
+            user = User.query.get(user_id)
+            session['user_credits'] = user.credits
+
+        try:
+            from llm_service import analyze_cv_only
+            results = analyze_cv_only(extracted_text)
+            _log_llm_usage(user_id, 'cv_analysis')
+        except Exception as e:
+            if credits_charged:
+                _refund_analysis_credits(user_id, CREDITS_PER_CV_ANALYSIS)
+            logger.error('CV analysis error (analyse-only): %s', e, exc_info=True)
+            flash(f'Analysis error: {e}', 'error')
+            return redirect(url_for('resume_studio_library'))
+
+        # Store for Analysis Reports page
+        session['_data_token'] = _save_session_data({
+            'cv_text': extracted_text[:20000],
+            'cv_analysis_results': results,
+            'tier': 1,
+        })
+
+        try:
+            track_analysis(user_id)
+            session['user_credits'] = User.query.get(user_id).credits
+        except Exception:
+            pass
+
+        flash('Storage limit reached (5/5). Resume analysed but not stored — delete one to store new resumes.', 'warning')
+        return render_template('cv_results.html', results=results,
+                               credits_remaining=user.credits if user else 0,
+                               active_category='resume_studio', active_page='analysis')
+
+    # ── Normal flow: store resume + auto-analyse ──
     # If setting as primary, un-primary all others
     if is_primary:
         UserResume.query.filter_by(user_id=user_id, is_primary=True)\

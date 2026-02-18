@@ -12,7 +12,7 @@
     <a href="{{ url_for('resume_studio_library') if back_from == 'library' else url_for('resume_studio_analysis') }}"
        class="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-brand-600 transition font-medium">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-        {{ 'Back to Resume Library' if back_from == 'library' else 'Back to Analysis Reports' }}
+        {{ 'Back to My Resumes' if back_from == 'library' else 'Back to Analysis Reports' }}
     </a>
 </div>
 

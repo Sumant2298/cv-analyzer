@@ -1,6 +1,6 @@
 {% extends "dashboard_base.html" %}
-{% block title %}Resume Library — LevelUpX{% endblock %}
-{% block page_title %}Resume Library{% endblock %}
+{% block title %}My Resumes — LevelUpX{% endblock %}
+{% block page_title %}My Resumes{% endblock %}
 {% block page_subtitle %}
 <p class="text-xs text-slate-500 mt-0.5">Upload, analyze, and track your resumes</p>
 {% endblock %}
@@ -8,17 +8,27 @@
 {% block content %}
 <div class="max-w-5xl anim-fade-up">
 
-    {% if resumes|length < 5 %}
-    <div class="flex justify-end mb-4">
+    <!-- ═══════ Prominent Upload & Analyse CTA ═══════ -->
+    <div class="bg-gradient-to-r from-brand-600 to-emerald-500 rounded-2xl shadow-lg p-6 mb-6 text-center">
+        <h3 class="text-lg font-bold text-white mb-1">Upload &amp; Analyse Your Resume</h3>
+        <p class="text-sm text-white/70 mb-4">Get an instant AI-powered ATS score with detailed improvement tips</p>
         <button onclick="document.getElementById('uploadModal').classList.remove('hidden')"
-                class="inline-flex items-center gap-2 bg-brand-600 hover:bg-brand-700 text-white font-semibold px-5 py-2.5 rounded-xl transition text-sm whitespace-nowrap shadow-lg shadow-brand-200">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"/></svg>
-            Upload Resume
+                class="inline-flex items-center gap-2 bg-white hover:bg-slate-50 text-brand-700 font-bold px-7 py-3 rounded-xl transition text-sm shadow-lg">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            Upload &amp; Analyse Resume
         </button>
+        <div class="flex items-center justify-center gap-3 mt-3 text-xs text-white/60">
+            <span>PDF, DOC, DOCX</span>
+            <span>&middot;</span>
+            <span>{{ user_data.credits_per_cv if user_data else 2 }} credits per analysis</span>
+            {% if user_data and user_data.first_free %}
+            <span>&middot;</span>
+            <span class="text-emerald-200 font-semibold">First analysis FREE!</span>
+            {% endif %}
+        </div>
     </div>
-    {% endif %}
 
-    <!-- Credit info bar -->
+    <!-- Credit & storage info bar -->
     <div class="bg-white border border-slate-200 rounded-xl p-4 mb-6 flex flex-wrap items-center gap-4 text-sm shadow-sm">
         <div class="flex items-center gap-2">
             <div class="w-8 h-8 bg-amber-50 rounded-lg flex items-center justify-center">
@@ -27,13 +37,10 @@
             <span class="text-slate-600"><strong class="text-slate-800">{{ session.get('user_credits', 0) }}</strong> credits</span>
         </div>
         <span class="text-slate-300">|</span>
-        {% if user_data and user_data.first_free %}
-        <span class="text-emerald-600 font-medium">First analysis is FREE!</span>
-        {% else %}
-        <span class="text-slate-500">{{ user_data.credits_per_cv if user_data else 2 }} credits per analysis</span>
-        {% endif %}
-        <span class="text-slate-300">|</span>
         <span class="text-slate-500">{{ resumes|length }}/5 resumes stored</span>
+        {% if resumes|length >= 5 %}
+        <span class="text-xs text-amber-600 font-medium">&mdash; Delete a resume to store another. Analysis still works.</span>
+        {% endif %}
         <a href="/buy-credits" class="ml-auto text-brand-600 hover:text-brand-700 font-semibold text-xs">Buy Credits &rarr;</a>
     </div>
 
@@ -77,7 +84,11 @@
                                 </div>
                                 <div class="min-w-0 overflow-hidden">
                                     <div class="flex items-center gap-2">
-                                        <a href="/my-resumes/{{ resume.id }}/download" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline truncate transition" title="Click to download {{ resume.filename }}">{{ resume.label }}</a>
+                                        {% if resume.analysis_status == 'completed' %}
+                                        <a href="/my-resumes/{{ resume.id }}/results?from=library" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline truncate transition" title="View analysis for {{ resume.label }}">{{ resume.label }}</a>
+                                        {% else %}
+                                        <span class="font-semibold text-slate-800 truncate" title="{{ resume.label }}">{{ resume.label }}</span>
+                                        {% endif %}
                                         {% if resume.is_primary %}
                                         <span class="inline-flex items-center gap-1 bg-brand-100 text-brand-700 text-[10px] font-bold px-2 py-0.5 rounded-full">
                                             <svg class="w-2.5 h-2.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"/></svg>
@@ -122,8 +133,9 @@
                         <td class="px-4 py-4 text-right whitespace-nowrap">
                             <div class="inline-flex items-center gap-0.5">
                                 {% if resume.analysis_status == 'completed' %}
-                                <a href="/my-resumes/{{ resume.id }}/results?from=library" class="p-1.5 text-brand-600 hover:text-brand-700 hover:bg-brand-50 rounded-lg transition" title="View Analysis">
-                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg>
+                                <a href="/my-resumes/{{ resume.id }}/results?from=library" class="inline-flex items-center gap-1 px-2 py-1.5 text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 rounded-lg transition" title="View Analysis">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/></svg>
+                                    View Analysis
                                 </a>
                                 {% endif %}
                                 {% if resume.analysis_status != 'analyzing' %}
@@ -163,7 +175,11 @@
                 <div class="flex items-start justify-between gap-3 mb-3">
                     <div class="min-w-0 flex-1">
                         <div class="flex items-center gap-2 mb-1">
-                            <a href="/my-resumes/{{ resume.id }}/download" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline truncate text-sm transition">{{ resume.label }}</a>
+                            {% if resume.analysis_status == 'completed' %}
+                            <a href="/my-resumes/{{ resume.id }}/results?from=library" class="font-semibold text-brand-600 hover:text-brand-700 hover:underline truncate text-sm transition">{{ resume.label }}</a>
+                            {% else %}
+                            <span class="font-semibold text-slate-800 truncate text-sm">{{ resume.label }}</span>
+                            {% endif %}
                             {% if resume.is_primary %}
                             <span class="inline-flex items-center bg-brand-100 text-brand-700 text-[10px] font-bold px-1.5 py-0.5 rounded-full">Primary</span>
                             {% endif %}
@@ -197,7 +213,7 @@
                 </div>
                 <div class="flex flex-wrap gap-2">
                     {% if resume.analysis_status == 'completed' %}
-                    <a href="/my-resumes/{{ resume.id }}/results?from=library" class="text-xs font-medium text-brand-600 bg-brand-50 px-2.5 py-1.5 rounded-lg">View</a>
+                    <a href="/my-resumes/{{ resume.id }}/results?from=library" class="text-xs font-medium text-brand-600 bg-brand-50 px-2.5 py-1.5 rounded-lg">View Analysis</a>
                     {% endif %}
                     {% if resume.analysis_status != 'analyzing' %}
                     <form action="/my-resumes/{{ resume.id }}/analyze" method="POST" class="inline">
@@ -216,14 +232,15 @@
         </div>
     </div>
 
-    {% if resumes|length < 5 %}
+    <!-- Storage disclaimer -->
     <div class="mt-4 text-center">
-        <button onclick="document.getElementById('uploadModal').classList.remove('hidden')"
-                class="text-sm text-brand-600 hover:text-brand-700 font-semibold transition">
-            + Upload another resume ({{ resumes|length }}/5)
-        </button>
+        <p class="text-xs text-slate-400">
+            <span class="font-medium text-slate-500">{{ resumes|length }}/5 resumes stored &amp; analysed.</span>
+            {% if resumes|length >= 5 %}
+            Delete a resume to store a new one. You can still upload &amp; analyse anytime &mdash; results will appear in <a href="/resume-studio/analysis" class="text-brand-600 hover:text-brand-700 font-semibold">Analysis Reports</a>.
+            {% endif %}
+        </p>
     </div>
-    {% endif %}
 
     {% endif %}
 
@@ -235,7 +252,7 @@
         <div class="fixed inset-0 bg-black/50 backdrop-blur-sm" onclick="document.getElementById('uploadModal').classList.add('hidden')"></div>
         <div class="bg-white rounded-2xl shadow-2xl p-6 md:p-8 max-w-md w-full relative z-10">
             <div class="flex items-center justify-between mb-6">
-                <h2 class="text-xl font-bold text-slate-900">Upload Resume</h2>
+                <h2 class="text-xl font-bold text-slate-900">Upload &amp; Analyse Resume</h2>
                 <button onclick="document.getElementById('uploadModal').classList.add('hidden')" class="text-slate-400 hover:text-slate-600 transition">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                 </button>
@@ -268,11 +285,11 @@
                 <div class="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-4">
                     <p class="text-xs text-amber-700 flex items-start gap-2">
                         <svg class="w-4 h-4 text-amber-500 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                        <span>Analysis runs automatically after upload and takes <strong>30–60 seconds</strong>. You'll see a spinner in the table while it's processing.</span>
+                        <span>Analysis runs automatically after upload and takes <strong>30-60 seconds</strong>. You'll see a spinner in the table while it's processing.</span>
                     </p>
                 </div>
                 <button type="submit" id="uploadSubmitBtn" class="w-full bg-brand-600 hover:bg-brand-700 text-white font-semibold px-6 py-3 rounded-xl transition shadow-lg shadow-brand-200 text-sm flex items-center justify-center gap-2">
-                    <span id="uploadBtnText">Upload & Analyze</span>
+                    <span id="uploadBtnText">Upload &amp; Analyse</span>
                     <svg id="uploadSpinner" class="hidden animate-spin w-4 h-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg>
                 </button>
             </form>
@@ -290,7 +307,7 @@ if (uploadForm) {
         var spinner = document.getElementById('uploadSpinner');
         btn.disabled = true;
         btn.classList.add('opacity-80', 'cursor-wait');
-        btnText.textContent = 'Uploading...';
+        btnText.textContent = 'Uploading & Analysing...';
         spinner.classList.remove('hidden');
     });
 }

@@ -10,7 +10,7 @@
         <a href="{% if back_from == 'jd_match' %}{{ url_for('resume_studio_jd_match') }}{% elif back_from == 'library' %}{{ url_for('resume_studio_library') }}{% else %}{{ url_for('resume_studio_analysis') }}{% endif %}"
            class="inline-flex items-center gap-1.5 text-sm text-white/60 hover:text-white transition font-medium">
             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/></svg>
-            {% if back_from == 'jd_match' %}Back to JD Match{% elif back_from == 'library' %}Back to Resume Library{% else %}Back to Analysis Reports{% endif %}
+            {% if back_from == 'jd_match' %}Back to JD Match{% elif back_from == 'library' %}Back to My Resumes{% else %}Back to Analysis Reports{% endif %}
         </a>
     </div>
 </div>
