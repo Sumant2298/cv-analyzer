@@ -1,0 +1,499 @@
+{% extends "dashboard_base.html" %}
+{% block title %}My Profile — LevelUpX{% endblock %}
+{% block page_title %}My Profile{% endblock %}
+
+{% block content %}
+<div class="max-w-3xl anim-fade-up">
+    <h1 class="text-2xl font-bold text-slate-800 mb-1">My Profile</h1>
+    <p class="text-sm text-slate-500 mb-6">Fill this once, auto-fill job applications everywhere.</p>
+
+    <!-- Country Selector -->
+    <div class="bg-white rounded-xl border border-slate-200 p-5 shadow-sm mb-6">
+        <p class="text-sm font-semibold text-slate-700 mb-3">Where are you applying for jobs?</p>
+        <div class="grid grid-cols-2 gap-3">
+            <label class="cursor-pointer">
+                <input type="radio" name="country" value="IN" class="sr-only peer"
+                       {% if profile.country != 'US' %}checked{% endif %}
+                       onchange="switchCountry('IN')">
+                <div class="peer-checked:border-indigo-500 peer-checked:bg-indigo-50 border-2 border-slate-200 rounded-xl p-4 text-center transition hover:border-slate-300">
+                    <div class="text-2xl mb-1">🇮🇳</div>
+                    <p class="text-sm font-semibold text-slate-700">India</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Naukri, LinkedIn</p>
+                </div>
+            </label>
+            <label class="cursor-pointer">
+                <input type="radio" name="country" value="US" class="sr-only peer"
+                       {% if profile.country == 'US' %}checked{% endif %}
+                       onchange="switchCountry('US')">
+                <div class="peer-checked:border-indigo-500 peer-checked:bg-indigo-50 border-2 border-slate-200 rounded-xl p-4 text-center transition hover:border-slate-300">
+                    <div class="text-2xl mb-1">🇺🇸</div>
+                    <p class="text-sm font-semibold text-slate-700">United States</p>
+                    <p class="text-[10px] text-slate-400 mt-0.5">Greenhouse, Workday, Lever</p>
+                </div>
+            </label>
+        </div>
+    </div>
+
+    <!-- Tab Bar -->
+    <div class="flex border-b border-slate-200 mb-6">
+        <button onclick="switchTab('personal')" id="tab-personal"
+            class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px border-indigo-500 text-indigo-600">
+            Personal Info
+        </button>
+        <button onclick="switchTab('work')" id="tab-work"
+            class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px border-transparent text-slate-500 hover:text-slate-700">
+            Education & Work
+        </button>
+        <button onclick="switchTab('prefs')" id="tab-prefs"
+            class="tab-btn px-4 py-2.5 text-sm font-medium border-b-2 transition -mb-px border-transparent text-slate-500 hover:text-slate-700">
+            Application Preferences
+        </button>
+    </div>
+
+    <form id="profile-form" onsubmit="return saveProfile(event)">
+
+    <!-- ═══ Tab 1: Personal Info ═══ -->
+    <div id="panel-personal" class="tab-panel">
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-5">
+
+            <!-- Name -->
+            <div data-country="common">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Name & Contact</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">First Name</label>
+                        <input type="text" name="first_name" value="{{ profile.first_name or '' }}"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Last Name</label>
+                        <input type="text" name="last_name" value="{{ profile.last_name or '' }}"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <label class="block text-xs font-medium text-slate-600 mb-1">Phone</label>
+                    <input type="text" name="phone" value="{{ profile.phone or '' }}"
+                           class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                </div>
+            </div>
+
+            <!-- DOB (India) -->
+            <div data-country="IN">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Date of Birth</label>
+                <input type="date" name="date_of_birth" value="{{ profile.date_of_birth or '' }}"
+                       class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+
+            <!-- Address -->
+            <div data-country="common">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 mt-2">Address</p>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Street Address</label>
+                        <input type="text" name="street_address" value="{{ profile.street_address or '' }}"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">City</label>
+                            <input type="text" name="city" value="{{ profile.city or '' }}"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">State / Province</label>
+                            <input type="text" name="state" value="{{ profile.state or '' }}"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Postal / ZIP Code</label>
+                        <input type="text" name="postal_code" value="{{ profile.postal_code or '' }}"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Links -->
+            <div data-country="common">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 mt-2">Links</p>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">LinkedIn URL</label>
+                        <input type="url" name="linkedin_url" value="{{ profile.linkedin_url or '' }}" placeholder="https://linkedin.com/in/..."
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">GitHub URL</label>
+                        <input type="url" name="github_url" value="{{ profile.github_url or '' }}" placeholder="https://github.com/..."
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Website / Portfolio URL</label>
+                        <input type="url" name="website_url" value="{{ profile.website_url or '' }}" placeholder="https://..."
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab 2: Education & Work ═══ -->
+    <div id="panel-work" class="tab-panel hidden">
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-5">
+
+            <!-- Current Work -->
+            <div data-country="common">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Current Work</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Current Company</label>
+                        <input type="text" name="current_company" value="{{ profile.current_company or '' }}"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Current Title / Designation</label>
+                        <input type="text" name="current_title" value="{{ profile.current_title or '' }}"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <!-- Total Experience (India) -->
+            <div data-country="IN">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Total Years of Experience</label>
+                <select name="total_experience_years"
+                        class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    <option value="">Select...</option>
+                    {% for val in ['<1', '1-3', '3-5', '5-10', '10-15', '15+'] %}
+                    <option value="{{ val }}" {% if profile.total_experience_years == val %}selected{% endif %}>{{ val }} years</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <!-- Education -->
+            <div data-country="common">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 mt-2">Education</p>
+                <div class="space-y-3">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">University / College</label>
+                            <input type="text" name="university" value="{{ profile.university or '' }}"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Degree</label>
+                            <input type="text" name="degree" value="{{ profile.degree or '' }}" placeholder="e.g. B.Tech, MBA"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Major / Field of Study</label>
+                        <input type="text" name="major" value="{{ profile.major or '' }}" placeholder="e.g. Computer Science"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">GPA / CGPA</label>
+                            <input type="text" name="gpa" value="{{ profile.gpa or '' }}" placeholder="e.g. 3.8, 8.5"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-slate-600 mb-1">Graduation Year</label>
+                            <input type="text" name="graduation_year" value="{{ profile.graduation_year or '' }}" placeholder="e.g. 2023"
+                                   class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══ Tab 3: Application Preferences ═══ -->
+    <div id="panel-prefs" class="tab-panel hidden">
+        <div class="bg-white rounded-xl border border-slate-200 p-6 shadow-sm space-y-5">
+
+            <!-- ── India Preferences ── -->
+            <div data-country="IN">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Compensation (India)</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Current CTC</label>
+                        <input type="text" name="current_ctc" value="{{ profile.current_ctc or '' }}" placeholder="e.g. 12 LPA"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Expected CTC</label>
+                        <input type="text" name="expected_ctc" value="{{ profile.expected_ctc or '' }}" placeholder="e.g. 18 LPA"
+                               class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    </div>
+                </div>
+            </div>
+
+            <div data-country="IN">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Notice Period</label>
+                <select name="notice_period"
+                        class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    <option value="">Select...</option>
+                    {% for val in ['Immediately', '15 days', '1 month', '2 months', '3 months'] %}
+                    <option value="{{ val }}" {% if profile.notice_period == val %}selected{% endif %}>{{ val }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div data-country="IN">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Languages Known</label>
+                <div class="flex flex-wrap gap-2 mb-2" id="lang-tags"></div>
+                <div class="flex gap-2">
+                    <input type="text" id="lang-input" placeholder="Type a language and press Enter"
+                           class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    <button type="button" onclick="addTag('lang')" class="px-3 py-2 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition">Add</button>
+                </div>
+            </div>
+
+            <div data-country="IN">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Preferred Job Locations</label>
+                <div class="flex flex-wrap gap-2 mb-2" id="loc-tags"></div>
+                <div class="flex gap-2">
+                    <input type="text" id="loc-input" placeholder="Type a city and press Enter"
+                           class="flex-1 px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                    <button type="button" onclick="addTag('loc')" class="px-3 py-2 text-xs font-semibold text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-lg transition">Add</button>
+                </div>
+            </div>
+
+            <div data-country="IN">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Gender</label>
+                <div class="flex gap-4">
+                    {% for val in ['Male', 'Female', 'Other'] %}
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="radio" name="gender_in" value="{{ val }}" {% if profile.gender_in == val %}checked{% endif %}
+                               class="text-indigo-600 focus:ring-indigo-500">
+                        <span class="text-sm text-slate-700">{{ val }}</span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- ── US Preferences ── -->
+            <div data-country="US">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">Work Authorization</p>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Are you legally authorized to work in the United States?</label>
+                        <div class="flex gap-4">
+                            {% for val in ['Yes', 'No'] %}
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="work_authorization" value="{{ val }}" {% if profile.work_authorization == val %}checked{% endif %}
+                                       class="text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm text-slate-700">{{ val }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Will you now or in the future require visa sponsorship?</label>
+                        <div class="flex gap-4">
+                            {% for val in ['Yes', 'No'] %}
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="visa_sponsorship" value="{{ val }}" {% if profile.visa_sponsorship == val %}checked{% endif %}
+                                       class="text-indigo-600 focus:ring-indigo-500">
+                                <span class="text-sm text-slate-700">{{ val }}</span>
+                            </label>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div data-country="US">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Salary Expectation (Annual USD)</label>
+                <input type="text" name="salary_expectation_usd" value="{{ profile.salary_expectation_usd or '' }}" placeholder="e.g. 120000"
+                       class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+
+            <div data-country="US">
+                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3 mt-2">Equal Employment Opportunity</p>
+                <p class="text-xs text-slate-400 mb-4">Optional. Used to auto-fill EEO sections on applications.</p>
+                <div class="space-y-3">
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Gender</label>
+                        <select name="gender_us"
+                                class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="">Select...</option>
+                            {% for val in ['Male', 'Female', 'Non-binary', 'Prefer not to say'] %}
+                            <option value="{{ val }}" {% if profile.gender_us == val %}selected{% endif %}>{{ val }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Race / Ethnicity</label>
+                        <select name="race_ethnicity"
+                                class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="">Select...</option>
+                            {% for val in ['White', 'Black or African American', 'Hispanic or Latino', 'Asian', 'Native Hawaiian or Pacific Islander', 'American Indian or Alaska Native', 'Two or More Races', 'Prefer not to say'] %}
+                            <option value="{{ val }}" {% if profile.race_ethnicity == val %}selected{% endif %}>{{ val }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Veteran Status</label>
+                        <select name="veteran_status"
+                                class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="">Select...</option>
+                            {% for val in ['Not a veteran', 'Veteran', 'Prefer not to say'] %}
+                            <option value="{{ val }}" {% if profile.veteran_status == val %}selected{% endif %}>{{ val }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-medium text-slate-600 mb-1">Disability Status</label>
+                        <select name="disability_status"
+                                class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+                            <option value="">Select...</option>
+                            {% for val in ['No', 'Yes', 'Prefer not to say'] %}
+                            <option value="{{ val }}" {% if profile.disability_status == val %}selected{% endif %}>{{ val }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <div data-country="US">
+                <label class="block text-xs font-medium text-slate-600 mb-1">Default Referral Source</label>
+                <input type="text" name="referral_source" value="{{ profile.referral_source or '' }}" placeholder="e.g. LinkedIn, Company website"
+                       class="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none">
+            </div>
+
+        </div>
+    </div>
+
+    <!-- Save Button -->
+    <div class="mt-6 flex items-center gap-3">
+        <button type="submit" id="save-btn"
+                class="px-6 py-2.5 text-sm font-semibold text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg transition flex items-center gap-2">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+            Save Changes
+        </button>
+        <span id="save-status" class="text-sm text-green-600 hidden">Saved!</span>
+    </div>
+
+    </form>
+</div>
+
+<script>
+// ── Tag data stores ────────────────────────────────────────────
+const tagData = {
+    lang: {{ (profile.languages_known or '[]') | safe }},
+    loc: {{ (profile.preferred_locations or '[]') | safe }},
+};
+
+// ── Country switching ──────────────────────────────────────────
+function switchCountry(code) {
+    document.querySelectorAll('[data-country]').forEach(el => {
+        const c = el.dataset.country;
+        el.classList.toggle('hidden', c !== 'common' && c !== code);
+    });
+}
+// Init on load
+document.addEventListener('DOMContentLoaded', () => {
+    const checked = document.querySelector('input[name="country"]:checked');
+    if (checked) switchCountry(checked.value);
+    renderTags('lang');
+    renderTags('loc');
+});
+
+// ── Tab switching ──────────────────────────────────────────────
+function switchTab(name) {
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.add('hidden'));
+    document.querySelectorAll('.tab-btn').forEach(b => {
+        b.classList.remove('border-indigo-500', 'text-indigo-600');
+        b.classList.add('border-transparent', 'text-slate-500');
+    });
+    document.getElementById('panel-' + name).classList.remove('hidden');
+    const btn = document.getElementById('tab-' + name);
+    btn.classList.remove('border-transparent', 'text-slate-500');
+    btn.classList.add('border-indigo-500', 'text-indigo-600');
+}
+
+// ── Tag input helpers ──────────────────────────────────────────
+function renderTags(type) {
+    const container = document.getElementById(type + '-tags');
+    container.innerHTML = tagData[type].map((t, i) => `
+        <span class="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 text-xs font-medium px-2.5 py-1 rounded-full">
+            ${t}
+            <button type="button" onclick="removeTag('${type}', ${i})" class="text-indigo-400 hover:text-indigo-600">&times;</button>
+        </span>
+    `).join('');
+}
+function addTag(type) {
+    const input = document.getElementById(type + '-input');
+    const val = input.value.trim();
+    if (val && !tagData[type].includes(val)) {
+        tagData[type].push(val);
+        renderTags(type);
+    }
+    input.value = '';
+    input.focus();
+}
+function removeTag(type, idx) {
+    tagData[type].splice(idx, 1);
+    renderTags(type);
+}
+// Enter key adds tag
+document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+        if (e.target.id === 'lang-input') { e.preventDefault(); addTag('lang'); }
+        if (e.target.id === 'loc-input') { e.preventDefault(); addTag('loc'); }
+    }
+});
+
+// ── Save profile ───────────────────────────────────────────────
+async function saveProfile(e) {
+    e.preventDefault();
+    const btn = document.getElementById('save-btn');
+    const status = document.getElementById('save-status');
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+    status.classList.add('hidden');
+
+    const form = document.getElementById('profile-form');
+    const fd = new FormData(form);
+    const data = {};
+
+    // Collect all form fields
+    for (const [key, val] of fd.entries()) {
+        data[key] = val;
+    }
+
+    // Add tag data
+    data.languages_known = tagData.lang;
+    data.preferred_locations = tagData.loc;
+
+    // Add country from radio
+    const countryRadio = document.querySelector('input[name="country"]:checked');
+    data.country = countryRadio ? countryRadio.value : 'IN';
+
+    try {
+        const resp = await fetch('/api/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(data),
+        });
+        const result = await resp.json();
+        if (result.success) {
+            status.textContent = 'Saved!';
+            status.classList.remove('hidden');
+            setTimeout(() => status.classList.add('hidden'), 3000);
+        } else {
+            alert(result.error || 'Failed to save');
+        }
+    } catch (err) {
+        alert('Network error saving profile');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg> Save Changes';
+    }
+    return false;
+}
+</script>
+{% endblock %}

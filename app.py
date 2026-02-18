@@ -27,7 +27,7 @@ from analyzer import analyze_cv_against_jd
 from flask_cors import CORS
 from models import (db, User, Transaction, CreditUsage, LLMUsage, StoredCV,
                     UserResume, JDAnalysis, JobPreferences, JobPool, ApiUsage,
-                    ExtensionToken)
+                    ExtensionToken, UserProfile)
 
 # Configure logging for debugging on Render
 logging.basicConfig(level=logging.INFO,
@@ -266,6 +266,17 @@ with app.app_context():
             db.session.commit()
     except Exception as e:
         logger.info('Migration check (resume editor): %s', e)
+        db.session.rollback()
+
+    # Migration: create user_profiles table if missing
+    try:
+        from sqlalchemy import inspect as _up_inspect
+        _up_insp = _up_inspect(db.engine)
+        if 'user_profiles' not in _up_insp.get_table_names():
+            UserProfile.__table__.create(db.engine)
+            logger.info('Migration: created user_profiles table')
+    except Exception as e:
+        logger.info('Migration check (user_profiles): %s', e)
         db.session.rollback()
 
     # Cleanup: remove expired job_search_cache entries older than 7 days
@@ -507,6 +518,89 @@ def api_extension_profile():
         parts = (user.name or '').split(None, 1)
         profile['basics']['firstName'] = parts[0] if parts else ''
         profile['basics']['lastName'] = parts[1] if len(parts) > 1 else ''
+
+    # ── Merge UserProfile data ──────────────────────────────────
+    up = UserProfile.query.filter_by(user_id=user.id).first()
+    if up:
+        b = profile['basics']
+        loc = b['location']
+
+        # Override empty basics fields
+        if not b['firstName'] and up.first_name:
+            b['firstName'] = up.first_name
+        if not b['lastName'] and up.last_name:
+            b['lastName'] = up.last_name
+        if not b['fullName'] and (up.first_name or up.last_name):
+            b['fullName'] = f'{up.first_name} {up.last_name}'.strip()
+        if not b['phone'] and up.phone:
+            b['phone'] = up.phone
+        if not loc.get('city') and up.city:
+            loc['city'] = up.city
+        if not loc.get('region') and up.state:
+            loc['region'] = up.state
+        if not loc.get('country') and up.country:
+            # Map country code to full name for form dropdowns
+            loc['country'] = 'India' if up.country == 'IN' else 'United States' if up.country == 'US' else up.country
+        if not loc.get('postalCode') and up.postal_code:
+            loc['postalCode'] = up.postal_code
+        if not loc.get('address') and up.street_address:
+            loc['address'] = up.street_address
+        if not b.get('linkedin') and up.linkedin_url:
+            b['linkedin'] = up.linkedin_url
+        if not b.get('github') and up.github_url:
+            b['github'] = up.github_url
+        if not b.get('website') and up.website_url:
+            b['website'] = up.website_url
+
+        # Work / Education overrides
+        if not profile['work'] and up.current_company:
+            profile['work'] = [{'company': up.current_company, 'position': up.current_title or ''}]
+        elif profile['work']:
+            w = profile['work'][0]
+            if not w.get('company') and up.current_company:
+                w['company'] = up.current_company
+            if not w.get('position') and up.current_title:
+                w['position'] = up.current_title
+
+        if not profile['education'] and up.university:
+            profile['education'] = [{
+                'institution': up.university, 'studyType': up.degree or '',
+                'area': up.major or '', 'score': up.gpa or '',
+                'endDate': up.graduation_year or '',
+            }]
+        elif profile['education']:
+            e = profile['education'][0]
+            if not e.get('institution') and up.university:
+                e['institution'] = up.university
+            if not e.get('studyType') and up.degree:
+                e['studyType'] = up.degree
+            if not e.get('area') and up.major:
+                e['area'] = up.major
+            if not e.get('score') and up.gpa:
+                e['score'] = up.gpa
+
+        # Application preferences (all India + US fields)
+        profile['applicationPrefs'] = {
+            'country': up.country or 'IN',
+            # India
+            'currentCTC': up.current_ctc or '',
+            'expectedCTC': up.expected_ctc or '',
+            'noticePeriod': up.notice_period or '',
+            'totalExperienceYears': up.total_experience_years or '',
+            'languagesKnown': json.loads(up.languages_known or '[]'),
+            'preferredLocations': json.loads(up.preferred_locations or '[]'),
+            'dateOfBirth': up.date_of_birth or '',
+            'genderIN': up.gender_in or '',
+            # US
+            'workAuthorization': up.work_authorization or '',
+            'visaSponsorship': up.visa_sponsorship or '',
+            'genderUS': up.gender_us or '',
+            'raceEthnicity': up.race_ethnicity or '',
+            'veteranStatus': up.veteran_status or '',
+            'disabilityStatus': up.disability_status or '',
+            'salaryExpectationUSD': up.salary_expectation_usd or '',
+            'referralSource': up.referral_source or '',
+        }
 
     return jsonify(profile)
 
@@ -3719,6 +3813,102 @@ def resume_status(resume_id):
         'status': resume.analysis_status or 'none',
         'ats_score': resume.ats_score,
     })
+
+
+# ---------------------------------------------------------------------------
+# My Profile — country-adaptive profile for AutoFill extension
+# ---------------------------------------------------------------------------
+
+def _prefill_profile_from_resume(user, profile_obj):
+    """Pre-populate a new UserProfile from the user's primary resume."""
+    resume = UserResume.query.filter_by(user_id=user.id, is_primary=True).first()
+    if not resume:
+        resume = UserResume.query.filter_by(user_id=user.id).order_by(
+            UserResume.updated_at.desc()).first()
+    if not resume:
+        parts = (user.name or '').split(None, 1)
+        profile_obj.first_name = parts[0] if parts else ''
+        profile_obj.last_name = parts[1] if len(parts) > 1 else ''
+        return
+
+    rp = _build_extension_profile(resume)
+    b = rp.get('basics', {})
+    loc = b.get('location', {})
+    work = rp.get('work', [{}])[0] if rp.get('work') else {}
+    edu = rp.get('education', [{}])[0] if rp.get('education') else {}
+
+    profile_obj.first_name = b.get('firstName', '')
+    profile_obj.last_name = b.get('lastName', '')
+    profile_obj.phone = b.get('phone', '')
+    profile_obj.city = loc.get('city', '')
+    profile_obj.state = loc.get('region', '')
+    profile_obj.linkedin_url = b.get('linkedin', '')
+    profile_obj.github_url = b.get('github', '')
+    profile_obj.website_url = b.get('website', '')
+    profile_obj.current_company = work.get('company', '')
+    profile_obj.current_title = work.get('position', '') or b.get('title', '')
+    profile_obj.university = edu.get('institution', '')
+    profile_obj.degree = edu.get('studyType', '')
+    profile_obj.major = edu.get('area', '')
+    profile_obj.gpa = edu.get('score', '')
+
+
+@app.route('/my-profile')
+def my_profile():
+    """Country-adaptive profile page for AutoFill extension data."""
+    if not session.get('user_id'):
+        session['_login_next'] = url_for('my_profile')
+        flash('Please sign in to view your profile.', 'warning')
+        return redirect(url_for('login_page'))
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return redirect(url_for('login_page'))
+
+    profile = UserProfile.query.filter_by(user_id=user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=user.id)
+        _prefill_profile_from_resume(user, profile)
+        db.session.add(profile)
+        db.session.commit()
+
+    return render_template('my_profile.html',
+                           active_section='my_profile',
+                           user=user, profile=profile)
+
+
+@app.route('/api/profile', methods=['GET', 'POST'])
+def api_user_profile():
+    """GET: Return user profile data. POST: Save user profile data."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    if not user:
+        return jsonify({'error': 'User not found'}), 404
+
+    if request.method == 'GET':
+        profile = UserProfile.query.filter_by(user_id=user.id).first()
+        if not profile:
+            return jsonify({'setup_completed': False})
+        return jsonify(profile.to_dict())
+
+    # POST
+    data = request.get_json(silent=True) or {}
+    profile = UserProfile.query.filter_by(user_id=user.id).first()
+    if not profile:
+        profile = UserProfile(user_id=user.id)
+        db.session.add(profile)
+
+    profile.update_from_dict(data)
+
+    try:
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        logger.error('Failed to save profile: %s', e)
+        return jsonify({'error': 'Failed to save profile'}), 500
 
 
 # ---------------------------------------------------------------------------

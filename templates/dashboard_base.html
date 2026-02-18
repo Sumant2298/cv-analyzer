@@ -48,6 +48,7 @@
                 {% if not _cat and active_section == 'settings'  %}{% set _cat = 'settings' %}{% endif %}
                 {% if not _cat and active_section == 'dashboard' %}{% set _cat = 'dashboard' %}{% endif %}
                 {% if not _cat and active_section == 'profile'   %}{% set _cat = '' %}{% endif %}
+                {% if not _cat and active_section == 'my_profile' %}{% set _cat = 'my_profile' %}{% endif %}
 
                 <!-- ── Dashboard (top-level) ── -->
                 <a href="/dashboard" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
@@ -141,6 +142,15 @@
                 </div>
 
                 <div class="pt-2 pb-1 px-3"><div class="border-t border-slate-800"></div></div>
+
+                <!-- ── My Profile ── -->
+                <a href="/my-profile" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition
+                    {% if _cat == 'my_profile' %}bg-white/10 text-white font-semibold{% else %}hover:bg-white/5 text-slate-400 hover:text-slate-200{% endif %}">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                    </svg>
+                    <span class="text-sm font-medium">My Profile</span>
+                </a>
 
                 <!-- ── Settings ── -->
                 <a href="/settings" class="flex items-center gap-3 px-3 py-2.5 rounded-lg transition

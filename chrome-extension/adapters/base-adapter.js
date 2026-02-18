@@ -91,6 +91,7 @@ window.LevelUpXBaseAdapter = {
         const loc = b.location || {};
         const latestWork = (profile.work && profile.work[0]) || {};
         const latestEdu = (profile.education && profile.education[0]) || {};
+        const prefs = profile.applicationPrefs || {};
         let extraFilled = 0;
 
         // Map of label patterns → profile values
@@ -120,6 +121,37 @@ window.LevelUpXBaseAdapter = {
           [['summary', 'about yourself', 'cover letter', 'tell us about', 'introduce yourself', 'brief description'], b.summary],
         ];
 
+        // ── Application preferences patterns (India + US) ──────
+        const customPatterns = [
+          // India: CTC & salary
+          [['current ctc', 'ctc', 'current salary', 'current annual salary', 'current compensation', 'present salary', 'current package', 'annual ctc'], prefs.currentCTC],
+          [['expected ctc', 'expected salary', 'expected compensation', 'expected package', 'desired salary', 'desired ctc', 'salary expectation'], prefs.expectedCTC],
+          // India: Notice period
+          [['notice period', 'notice', 'serving notice', 'joining time', 'when can you join', 'earliest joining'], prefs.noticePeriod],
+          // India: Total experience
+          [['total experience', 'years of experience', 'work experience', 'total years', 'experience in years', 'professional experience'], prefs.totalExperienceYears],
+          // India: DOB
+          [['date of birth', 'dob', 'birth date', 'birthday'], prefs.dateOfBirth],
+          // India: Preferred location
+          [['preferred location', 'preferred city', 'preferred work location', 'desired location'], (prefs.preferredLocations || [])[0]],
+          // Gender (fallback chain: India → US)
+          [['gender', 'gender identity'], prefs.genderIN || prefs.genderUS],
+          // US: Work auth & visa
+          [['authorized to work', 'work authorization', 'legally authorized', 'eligible to work', 'right to work'], prefs.workAuthorization],
+          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor'], prefs.visaSponsorship],
+          // US: Salary
+          [['salary expectation', 'salary requirement', 'compensation expectation', 'annual salary', 'desired compensation'], prefs.salaryExpectationUSD || prefs.expectedCTC],
+          // US: EEO
+          [['race', 'ethnicity', 'race/ethnicity', 'racial', 'ethnic background'], prefs.raceEthnicity],
+          [['veteran', 'veteran status', 'military service', 'protected veteran'], prefs.veteranStatus],
+          [['disability', 'disability status', 'disabled', 'do you have a disability'], prefs.disabilityStatus],
+          // Common: Referral
+          [['how did you hear', 'referral source', 'referred by', 'how did you find', 'hear about this'], prefs.referralSource],
+          // Common: "comfortable moving forward" type questions
+          [['comfortable moving forward', 'comfortable with the salary'], prefs.workAuthorization ? 'Yes' : ''],
+        ];
+        const allPatterns = [...labelPatterns, ...customPatterns];
+
         // ── Pass A: Scan <label> elements ────────────────────────────
         const labels = container.querySelectorAll('label');
         for (const label of labels) {
@@ -138,7 +170,7 @@ window.LevelUpXBaseAdapter = {
           }
 
           // Try matching label text against known patterns
-          for (const [patterns, value] of labelPatterns) {
+          for (const [patterns, value] of allPatterns) {
             if (!value) continue;
             const matched = patterns.some(p => labelText.includes(p));
             if (matched) {
@@ -173,7 +205,7 @@ window.LevelUpXBaseAdapter = {
             continue;
           }
 
-          for (const [patterns, value] of labelPatterns) {
+          for (const [patterns, value] of allPatterns) {
             if (!value) continue;
             if (patterns.some(p => text.includes(p))) {
               if (Filler.fill(el, value)) {
@@ -205,7 +237,7 @@ window.LevelUpXBaseAdapter = {
 
           if (!matchText.trim()) continue;
 
-          for (const [patterns, value] of labelPatterns) {
+          for (const [patterns, value] of allPatterns) {
             if (!value) continue;
             if (patterns.some(p => matchText.includes(p))) {
               if (Filler.fill(el, value)) {

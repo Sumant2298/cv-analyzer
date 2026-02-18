@@ -87,11 +87,20 @@ window.LevelUpXDetector = {
     for (let i = 0; i < 5 && ancestor && ancestor !== container; i++) {
       const inputs = ancestor.querySelectorAll('input:not([type="hidden"]), textarea, select');
       if (inputs.length === 1) return inputs[0];
-      // If 2-4 inputs, return the first that isn't inside a different label group
+      // If 2-4 inputs, find the one that belongs to THIS label
       if (inputs.length > 1 && inputs.length <= 4) {
         for (const inp of inputs) {
+          const inpId = inp.id;
+          if (inpId) {
+            try {
+              const ownerLabel = ancestor.querySelector(`label[for="${CSS.escape(inpId)}"]`);
+              if (ownerLabel && ownerLabel !== label) continue; // owned by DIFFERENT label
+              if (ownerLabel && ownerLabel === label) return inp; // owned by THIS label
+            } catch { /* invalid selector */ }
+          }
           const inpLabel = inp.closest('label');
-          if (!inpLabel || inpLabel === label) return inp;
+          if (inpLabel && inpLabel !== label) continue; // nested inside different label
+          // No label association — skip (don't default to first)
         }
       }
       ancestor = ancestor.parentElement;
