@@ -887,7 +887,81 @@ def _extract_pdf(filepath: str) -> str:
             page_text = page.extract_text()
             if page_text:
                 text_parts.append(page_text)
-    return '\n'.join(text_parts)
+
+    text = '\n'.join(text_parts)
+
+    # Fallback: if pdfplumber found no text (image-based PDF), try Gemini Vision OCR
+    if not text.strip():
+        logger.info('PDF has no extractable text, attempting Gemini Vision OCR: %s', filepath)
+        text = _ocr_pdf_with_gemini(filepath)
+
+    return text
+
+
+def _ocr_pdf_with_gemini(filepath: str) -> str:
+    """OCR fallback for image-based PDFs using Gemini Vision.
+
+    Opens the PDF, renders each page to a PNG image, sends to Gemini 2.5 Flash
+    with a vision prompt to extract all text. Returns concatenated text.
+    """
+    import base64
+    import io
+    import pdfplumber
+    from openai import OpenAI
+
+    api_key = os.environ.get('GEMINI_API_KEY', '')
+    if not api_key:
+        logger.warning('Gemini Vision OCR skipped — no GEMINI_API_KEY')
+        return ''
+
+    model = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
+    client = OpenAI(
+        api_key=api_key,
+        base_url='https://generativelanguage.googleapis.com/v1beta/openai/',
+    )
+
+    text_parts = []
+    try:
+        with pdfplumber.open(filepath) as pdf:
+            for i, page in enumerate(pdf.pages):
+                # Render page to PIL Image
+                img = page.to_image(resolution=200).original
+
+                # Convert to base64 PNG
+                buf = io.BytesIO()
+                img.save(buf, format='PNG')
+                b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[{
+                        'role': 'user',
+                        'content': [
+                            {
+                                'type': 'text',
+                                'text': (
+                                    'Extract ALL text from this resume/CV image exactly as written. '
+                                    'Preserve the original structure with section headings, bullet points, '
+                                    'dates, and formatting. Output ONLY the extracted text, nothing else.'
+                                ),
+                            },
+                            {
+                                'type': 'image_url',
+                                'image_url': {'url': f'data:image/png;base64,{b64}'},
+                            },
+                        ],
+                    }],
+                    max_tokens=4000,
+                    temperature=0.1,
+                )
+                page_text = response.choices[0].message.content
+                if page_text and page_text.strip():
+                    text_parts.append(page_text.strip())
+                    logger.info('Gemini Vision OCR page %d: %d chars extracted', i, len(page_text))
+    except Exception as e:
+        logger.warning('Gemini Vision OCR failed: %s', e)
+
+    return '\n\n'.join(text_parts)
 
 
 def _extract_docx(filepath: str) -> str:
