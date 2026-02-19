@@ -279,6 +279,28 @@ with app.app_context():
         logger.info('Migration check (user_profiles): %s', e)
         db.session.rollback()
 
+    # Migration: add new application-preference columns to user_profiles
+    try:
+        from sqlalchemy import inspect as _up2_inspect, text as _up2_text
+        _up2_insp = _up2_inspect(db.engine)
+        if 'user_profiles' in _up2_insp.get_table_names():
+            _up2_cols = [c['name'] for c in _up2_insp.get_columns('user_profiles')]
+            _new_up_cols = {
+                'earliest_start_date': "ALTER TABLE user_profiles ADD COLUMN earliest_start_date VARCHAR(30) DEFAULT ''",
+                'additional_info': "ALTER TABLE user_profiles ADD COLUMN additional_info TEXT DEFAULT ''",
+                'willing_to_relocate': "ALTER TABLE user_profiles ADD COLUMN willing_to_relocate VARCHAR(5) DEFAULT ''",
+                'can_work_onsite': "ALTER TABLE user_profiles ADD COLUMN can_work_onsite VARCHAR(5) DEFAULT ''",
+                'preferred_office': "ALTER TABLE user_profiles ADD COLUMN preferred_office VARCHAR(200) DEFAULT ''",
+            }
+            for col_name, ddl in _new_up_cols.items():
+                if col_name not in _up2_cols:
+                    db.session.execute(_up2_text(ddl))
+                    logger.info('Migration: added %s column to user_profiles', col_name)
+            db.session.commit()
+    except Exception as e:
+        logger.info('Migration check (user_profiles new cols): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
