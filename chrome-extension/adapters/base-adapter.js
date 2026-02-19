@@ -147,13 +147,13 @@ window.LevelUpXBaseAdapter = {
           // Gender (fallback chain: India → US)
           [['gender', 'gender identity'], prefs.genderIN || prefs.genderUS],
           // US: Work auth & visa
-          [['authorized to work', 'work authorization', 'legally authorized', 'eligible to work', 'right to work'], prefs.workAuthorization],
-          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor', 'now or in the future require', 'will you now or in the future require'], prefs.visaSponsorship],
+          [['authorized to work', 'work authorization', 'legally authorized', 'eligible to work', 'right to work'], prefs.workAuthorization || 'Yes'],
+          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor', 'now or in the future require', 'will you now or in the future require'], prefs.visaSponsorship || 'No'],
           // US: Salary
           [['salary expectation', 'salary requirement', 'compensation expectation', 'annual salary', 'desired compensation', 'desired salary', 'salary range', 'pay expectation', 'what is your desired'], prefs.salaryExpectationUSD || prefs.expectedCTC],
           // US: EEO
-          [['race', 'ethnicity', 'race/ethnicity', 'racial', 'ethnic background'], prefs.raceEthnicity],
-          [['veteran', 'veteran status', 'military service', 'protected veteran'], prefs.veteranStatus],
+          [['race', 'ethnicity', 'race/ethnicity', 'racial', 'ethnic background', 'hispanic', 'latino'], prefs.raceEthnicity],
+          [['veteran', 'veteran status', 'military service', 'protected veteran'], prefs.veteranStatus || 'I am not a protected veteran'],
           [['disability', 'disability status', 'disabled', 'do you have a disability'], prefs.disabilityStatus],
           // Common: Referral — multiple phrasings
           [['how did you hear', 'referral source', 'referred by', 'how did you find', 'hear about this', 'hear about us', 'source of application', 'where did you hear', 'how did you learn'], prefs.referralSource],
