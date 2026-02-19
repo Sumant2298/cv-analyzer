@@ -108,7 +108,7 @@ window.LevelUpXBaseAdapter = {
         // Each entry: [arrayOfPatterns, value]
         const labelPatterns = [
           [['preferred name', 'nickname', 'goes by'], b.firstName],
-          [['full name'], b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim()],
+          [['full name', 'your name', 'candidate name'], b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim()],
           [['first name', 'given name', 'fname'], b.firstName],
           [['last name', 'family name', 'surname', 'lname'], b.lastName],
           [['email', 'e-mail'], b.email],
@@ -148,7 +148,7 @@ window.LevelUpXBaseAdapter = {
           [['gender', 'gender identity'], prefs.genderIN || prefs.genderUS],
           // US: Work auth & visa
           [['authorized to work', 'work authorization', 'legally authorized', 'eligible to work', 'right to work'], prefs.workAuthorization],
-          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor', 'now or in the future require'], prefs.visaSponsorship],
+          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor', 'now or in the future require', 'will you now or in the future require'], prefs.visaSponsorship],
           // US: Salary
           [['salary expectation', 'salary requirement', 'compensation expectation', 'annual salary', 'desired compensation', 'desired salary', 'salary range', 'pay expectation', 'what is your desired'], prefs.salaryExpectationUSD || prefs.expectedCTC],
           // US: EEO
@@ -160,7 +160,7 @@ window.LevelUpXBaseAdapter = {
           // Common: "comfortable moving forward" type questions
           [['comfortable moving forward', 'comfortable with the salary'], prefs.workAuthorization ? 'Yes' : ''],
           // Start date / availability
-          [['start date', 'available start', 'earliest start', 'when can you start', 'date available', 'available to start', 'availability date', 'availability'], prefs.noticePeriod],
+          [['start date', 'available start', 'earliest start', 'when can you start', 'date available', 'available to start', 'availability date', 'availability', 'start a new role', 'when could you start', 'when would you be able'], prefs.earliestStartDate || prefs.noticePeriod],
           // Previously employed
           [['previously employed', 'former employee', 'worked here before', 'have you worked', 'have you previously'], 'No'],
           // Age / 18+
@@ -168,9 +168,18 @@ window.LevelUpXBaseAdapter = {
           // Background check consent
           [['background check', 'consent to background', 'agree to background'], 'Yes'],
           // Relocation
-          [['willing to relocate', 'open to relocation', 'relocate', 'relocation'], prefs.willingToRelocate || ''],
+          [['willing to relocate', 'open to relocation', 'relocate', 'relocation', 'open to relocate'], prefs.willingToRelocate || 'Yes'],
           // Travel
           [['willing to travel', 'travel requirement', 'comfortable with travel', 'travel percentage'], prefs.willingToTravel || ''],
+          // Current location (Ashby and many modern ATS)
+          [['where are you currently located', 'current location', 'where are you located', 'where do you live', 'where are you based', 'your location', 'city you live in'],
+           loc.city ? `${loc.city}${loc.region ? ', ' + loc.region : ''}`.trim() : ''],
+          // Office / onsite work questions
+          [['able to work from', 'work from our', 'work onsite', 'work in person', 'come into the office', 'work in office', 'office three days', 'office.*days per week', 'able to work.*three days'],
+           prefs.canWorkOnsite || 'Yes'],
+          // Additional information / free-text
+          [['additional information', 'anything else', 'additional context', 'additional details', 'share anything else', 'is there anything else', 'other information', 'motivation to apply'],
+           prefs.additionalInfo || b.summary || ''],
           // NDA / Non-compete
           [['non-compete', 'nda', 'non-disclosure', 'restrictive covenant'], ''],
         ];
@@ -198,6 +207,13 @@ window.LevelUpXBaseAdapter = {
           if (!el && Detector.findRadioGroupNearLabel) {
             el = Detector.findRadioGroupNearLabel(container, labelEl);
             if (el) isRadioGroup = true;
+          }
+
+          // If still nothing, try checkbox group finder
+          let isCheckboxGroup = false;
+          if (!el && Detector.findCheckboxGroupNearLabel) {
+            el = Detector.findCheckboxGroupNearLabel(container, labelEl);
+            if (el) isCheckboxGroup = true;
           }
 
           if (!el || filledElements.has(el)) return false;
@@ -232,7 +248,12 @@ window.LevelUpXBaseAdapter = {
             const matched = patterns.some(p => labelText.includes(p));
             if (matched) {
               let success = false;
-              if (isCustomSelect) {
+              if (isCheckboxGroup) {
+                // Checkbox group: pass value(s) to match checkbox labels
+                success = Filler.setCheckboxGroup
+                  ? Filler.setCheckboxGroup(container, el, String(value))
+                  : false;
+              } else if (isCustomSelect) {
                 // Queue async React-Select fill
                 Filler._pendingAsyncFills = Filler._pendingAsyncFills || [];
                 Filler._pendingAsyncFills.push(
@@ -248,7 +269,7 @@ window.LevelUpXBaseAdapter = {
               if (success) {
                 extraFilled++;
                 filledElements.add(el);
-                const tag = isRadioGroup ? 'radio' : isCustomSelect ? 'custom-select' : 'input';
+                const tag = isRadioGroup ? 'radio' : isCustomSelect ? 'custom-select' : isCheckboxGroup ? 'checkbox-group' : 'input';
                 console.log(`[LevelUpX] Auto-filled (${tag}): "${labelText}" → "${String(value).slice(0, 30)}"`);
               }
               return true; // pattern matched (even if fill failed)
@@ -263,6 +284,27 @@ window.LevelUpXBaseAdapter = {
           const labelText = label.textContent.toLowerCase().trim();
           if (!labelText || labelText.length > 100) continue;
           tryFillForLabel(label, labelText);
+        }
+
+        // ── Pass A.1: Standalone "Name" label (exact match post-pass) ──
+        // Must be separate to avoid false positives: "name" would match
+        // "first name", "last name", "company name" via includes()
+        const fullNameVal = b.fullName || `${b.firstName || ''} ${b.lastName || ''}`.trim();
+        if (fullNameVal) {
+          for (const label of labels) {
+            const raw = label.textContent.toLowerCase().trim();
+            const clean = raw.replace(/\s*\*\s*$/, '').trim();
+            if (clean === 'name') {
+              const el = Detector.findInputNearLabel(container, label);
+              if (el && !filledElements.has(el) && !(el.value && el.value.trim())) {
+                if (Filler.fill(el, fullNameVal, container)) {
+                  extraFilled++;
+                  filledElements.add(el);
+                  console.log(`[LevelUpX] Auto-filled (name-exact): "name" → "${fullNameVal}"`);
+                }
+              }
+            }
+          }
         }
 
         // ── Pass B: Scan pseudo-label elements ───────────────────────

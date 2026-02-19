@@ -503,6 +503,13 @@ class UserProfile(db.Model):
     salary_expectation_usd = db.Column(db.String(30), default='')
     referral_source = db.Column(db.String(200), default='')
 
+    # ── Common Application Fields ─────────────────
+    earliest_start_date = db.Column(db.String(30), default='')
+    additional_info = db.Column(db.Text, default='')
+    willing_to_relocate = db.Column(db.String(5), default='')   # 'Yes' / 'No'
+    can_work_onsite = db.Column(db.String(5), default='')       # 'Yes' / 'No'
+    preferred_office = db.Column(db.String(200), default='')
+
     # ── Meta ────────────────────────────────────────
     setup_completed = db.Column(db.Boolean, default=False, nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
@@ -557,6 +564,11 @@ class UserProfile(db.Model):
             'disability_status': self.disability_status or '',
             'salary_expectation_usd': self.salary_expectation_usd or '',
             'referral_source': self.referral_source or '',
+            'earliest_start_date': self.earliest_start_date or '',
+            'additional_info': self.additional_info or '',
+            'willing_to_relocate': self.willing_to_relocate or '',
+            'can_work_onsite': self.can_work_onsite or '',
+            'preferred_office': self.preferred_office or '',
             'setup_completed': self.setup_completed,
         }
 
@@ -579,6 +591,8 @@ class UserProfile(db.Model):
             'work_authorization', 'visa_sponsorship', 'gender_us',
             'race_ethnicity', 'veteran_status', 'disability_status',
             'salary_expectation_usd', 'referral_source',
+            'earliest_start_date', 'additional_info',
+            'willing_to_relocate', 'can_work_onsite', 'preferred_office',
         ]
         for field in str_fields:
             if field in data:

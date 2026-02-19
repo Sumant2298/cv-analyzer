@@ -18,6 +18,7 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     logout:         () => handleLogout(sendResponse),
     getProfile:     () => handleGetProfile(sendResponse),
     getResumeFile:  () => handleGetResumeFile(sendResponse),
+    setBadge:       () => handleSetBadge(msg.text, _sender, sendResponse),
   };
 
   const handler = handlers[msg.action];
@@ -158,3 +159,77 @@ async function handleGetResumeFile(sendResponse) {
     sendResponse({ error: err.message });
   }
 }
+
+// ── Badge handler ───────────────────────────────────────────────────────────
+
+async function handleSetBadge(text, sender, sendResponse) {
+  try {
+    const tabId = sender && sender.tab && sender.tab.id;
+    if (tabId) {
+      await chrome.action.setBadgeText({ text: text || '', tabId });
+      await chrome.action.setBadgeBackgroundColor({ color: '#6366f1', tabId });
+    }
+  } catch (e) {
+    console.error('[LevelUpX BG] setBadge error:', e);
+  }
+  if (sendResponse) sendResponse({ success: true });
+}
+
+// ── Broader job page detection via tab URL listener ─────────────────────────
+
+const KNOWN_ATS_PATTERNS = [
+  'myworkdayjobs.com', 'greenhouse.io', 'lever.co',
+  'naukri.com', 'linkedin.com', 'ashbyhq.com',
+  'bamboohr.com', 'icims.com', 'smartrecruiters.com', 'jobvite.com',
+  'gem.com',
+];
+
+const JOB_URL_SIGNALS = [
+  '/apply', '/application', '/career', '/jobs/', '/job/',
+  '/hiring', '/talent', '/recruit', '/opening', '/position',
+];
+
+const CONTENT_SCRIPTS_TO_INJECT = [
+  'adapters/base-adapter.js', 'adapters/greenhouse.js',
+  'adapters/lever.js', 'adapters/workday.js',
+  'adapters/naukri.js', 'adapters/linkedin.js',
+  'adapters/ashby.js',
+  'content/field-detector.js', 'content/field-filler.js',
+  'content/dom-waiters.js', 'content/button-finder.js',
+  'content/step-orchestrator.js', 'content/content.js',
+];
+
+chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
+  if (changeInfo.status !== 'complete' || !tab.url) return;
+
+  const url = tab.url.toLowerCase();
+
+  // Skip known ATS domains — content scripts already auto-injected via manifest
+  if (KNOWN_ATS_PATTERNS.some(p => url.includes(p))) return;
+
+  // Skip non-http(s) URLs
+  if (!url.startsWith('http')) return;
+
+  // Check for job-application-like URL signals
+  if (!JOB_URL_SIGNALS.some(s => url.includes(s))) return;
+
+  // Verify user is authenticated before injecting
+  const token = await getToken();
+  if (!token) return;
+
+  // Inject content scripts on-demand for job-like pages
+  try {
+    await chrome.scripting.insertCSS({
+      target: { tabId },
+      files: ['styles/content.css'],
+    });
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      files: CONTENT_SCRIPTS_TO_INJECT,
+    });
+    console.log('[LevelUpX BG] Injected scripts on job-like URL:', tab.url);
+  } catch (e) {
+    // Injection may fail on restricted pages — that's OK
+    console.log('[LevelUpX BG] Could not inject on:', tab.url, e.message);
+  }
+});

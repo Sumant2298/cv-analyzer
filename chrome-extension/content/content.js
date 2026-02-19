@@ -19,6 +19,7 @@
     window.LevelUpXWorkday,
     window.LevelUpXNaukri,
     window.LevelUpXLinkedIn,
+    window.LevelUpXAshby,
   ].filter(Boolean);
 
   let currentAdapter = null;
@@ -97,10 +98,27 @@
 
   // ── Floating panel ─────────────────────────────────────────────────────
 
+  function showToast(message) {
+    const existing = document.getElementById('levelupx-toast');
+    if (existing) existing.remove();
+
+    const toast = document.createElement('div');
+    toast.id = 'levelupx-toast';
+    toast.textContent = message;
+    toast.addEventListener('click', () => {
+      toast.remove();
+      const p = document.getElementById('levelupx-autofill-panel');
+      if (p) p.scrollIntoView({ behavior: 'smooth', block: 'end' });
+    });
+    document.body.appendChild(toast);
+    setTimeout(() => { if (toast.parentNode) toast.remove(); }, 4000);
+  }
+
   function createPanel() {
     if (panel) return;
     panel = document.createElement('div');
     panel.id = 'levelupx-autofill-panel';
+    panel.classList.add('lux-entering');
     panel.innerHTML = `
       <div class="lux-panel-header">
         <span class="lux-panel-logo">L</span>
@@ -125,6 +143,17 @@
     `;
 
     document.body.appendChild(panel);
+
+    // Show toast notification
+    showToast('LevelUpX detected a job form — click to auto-fill!');
+
+    // Remove entrance animation class after it completes
+    setTimeout(() => panel.classList.remove('lux-entering'), 500);
+
+    // Set badge on extension icon
+    try {
+      chrome.runtime.sendMessage({ action: 'setBadge', text: '1' });
+    } catch { /* ignore */ }
 
     // Close button
     panel.querySelector('.lux-panel-close').addEventListener('click', () => {
@@ -485,17 +514,36 @@
     currentAdapter = detectAdapter();
 
     if (currentAdapter) {
-      // Check if user is authenticated, then show panel
-      chrome.runtime.sendMessage({ action: 'checkAuth' }, (resp) => {
-        if (chrome.runtime.lastError) return;
-        if (resp && resp.authenticated) {
-          createPanel();
-        }
-      });
+      checkAuthAndShowPanel(0);
     }
 
     // Always set up observer for SPA navigation
     setupObserver();
+  }
+
+  /**
+   * Auth check with retry logic — handles service worker cold starts.
+   * Retries up to 3 times with increasing delays.
+   */
+  function checkAuthAndShowPanel(attempt) {
+    const MAX_RETRIES = 3;
+    const RETRY_DELAYS = [0, 1000, 2500];
+
+    chrome.runtime.sendMessage({ action: 'checkAuth' }, (resp) => {
+      if (chrome.runtime.lastError) {
+        console.warn('[LevelUpX] Auth check failed (attempt', attempt, '):', chrome.runtime.lastError.message);
+        if (attempt < MAX_RETRIES - 1) {
+          setTimeout(() => checkAuthAndShowPanel(attempt + 1), RETRY_DELAYS[attempt + 1] || 2000);
+        }
+        return;
+      }
+      if (resp && resp.authenticated) {
+        createPanel();
+      } else if (attempt < MAX_RETRIES - 1) {
+        // Not authenticated yet — could be service worker cold start
+        setTimeout(() => checkAuthAndShowPanel(attempt + 1), RETRY_DELAYS[attempt + 1] || 2000);
+      }
+    });
   }
 
   function setupObserver() {

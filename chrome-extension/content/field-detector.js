@@ -281,6 +281,53 @@ window.LevelUpXDetector = {
   },
 
   /**
+   * Find a checkbox group near a label element.
+   * Returns the container element holding the checkboxes, or null.
+   * @param {Element} container - Form container
+   * @param {Element} label - The label element
+   * @returns {Element|null}
+   */
+  findCheckboxGroupNearLabel(container, label) {
+    // Strategy 1: Next sibling contains checkboxes
+    const next = label.nextElementSibling;
+    if (next) {
+      const cbs = next.querySelectorAll('input[type="checkbox"]');
+      if (cbs.length > 0) return next;
+    }
+
+    // Strategy 2: Parent chain — look for a container with 2+ checkboxes
+    let ancestor = label.parentElement;
+    for (let i = 0; i < 5 && ancestor && ancestor !== container; i++) {
+      const cbs = ancestor.querySelectorAll('input[type="checkbox"]');
+      if (cbs.length >= 2) return ancestor;
+      ancestor = ancestor.parentElement;
+    }
+
+    // Strategy 3: Closest form-group-like container
+    const parent = label.closest(
+      '.field, .form-group, .form-field, .form-row, .form-item, ' +
+      '[class*="field"], [class*="question"], [class*="checkbox-group"], ' +
+      '[class*="FormField"], [data-field], [data-qa], [data-testid]'
+    );
+    if (parent) {
+      const cbs = parent.querySelectorAll('input[type="checkbox"]');
+      if (cbs.length > 0) return parent;
+    }
+
+    // Strategy 4: Scan following siblings
+    let sibling = label.nextElementSibling;
+    let sibCount = 0;
+    while (sibling && sibCount < 5) {
+      const cbs = sibling.querySelectorAll('input[type="checkbox"]');
+      if (cbs.length > 0) return sibling;
+      sibling = sibling.nextElementSibling;
+      sibCount++;
+    }
+
+    return null;
+  },
+
+  /**
    * Find field by associated label text (case-insensitive partial match).
    * Uses findInputNearLabel() for robust label-to-input resolution.
    */

@@ -3,7 +3,7 @@
   "name": "LevelUpX AutoFill",
   "description": "Auto-fill job application forms on Workday, Greenhouse, Lever, Naukri & LinkedIn with your LevelUpX resume data.",
   "version": "1.0.0",
-  "permissions": ["storage", "activeTab", "scripting"],
+  "permissions": ["storage", "activeTab", "scripting", "tabs"],
   "host_permissions": [
     "https://levelupx.ai/*",
     "https://*.myworkdayjobs.com/*",
@@ -46,6 +46,7 @@
         "adapters/workday.js",
         "adapters/naukri.js",
         "adapters/linkedin.js",
+        "adapters/ashby.js",
         "content/field-detector.js",
         "content/field-filler.js",
         "content/dom-waiters.js",

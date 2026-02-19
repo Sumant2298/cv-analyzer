@@ -390,6 +390,210 @@ window.LevelUpXFiller = {
   },
 
   /**
+   * Set a date input value — handles native type="date", and custom date pickers.
+   * @param {HTMLElement} el - The input element
+   * @param {string} value - Date string (YYYY-MM-DD, MM/DD/YYYY, or descriptive like "Immediately")
+   * @returns {boolean}
+   */
+  setDate(el, value) {
+    if (!el || !value) return false;
+
+    const type = (el.getAttribute('type') || '').toLowerCase();
+
+    // Native date input — needs YYYY-MM-DD format
+    if (type === 'date') {
+      const normalized = this._normalizeDateISO(value);
+      if (normalized) {
+        const nativeSetter = Object.getOwnPropertyDescriptor(
+          window.HTMLInputElement.prototype, 'value'
+        )?.set;
+        if (nativeSetter) {
+          nativeSetter.call(el, normalized);
+        } else {
+          el.value = normalized;
+        }
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        return !!el.value;
+      }
+    }
+
+    // Custom date picker — click to open, type the value
+    el.focus();
+    el.click();
+    return this.setText(el, value);
+  },
+
+  /**
+   * Normalize various date formats to ISO YYYY-MM-DD.
+   * @param {string} value
+   * @returns {string|null}
+   */
+  _normalizeDateISO(value) {
+    if (!value) return null;
+    // Already ISO
+    if (/^\d{4}-\d{2}-\d{2}$/.test(value)) return value;
+    // MM/DD/YYYY
+    const mdyMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (mdyMatch) {
+      return `${mdyMatch[3]}-${mdyMatch[1].padStart(2, '0')}-${mdyMatch[2].padStart(2, '0')}`;
+    }
+    // DD-MM-YYYY
+    const dmyMatch = value.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
+    if (dmyMatch) {
+      return `${dmyMatch[3]}-${dmyMatch[2].padStart(2, '0')}-${dmyMatch[1].padStart(2, '0')}`;
+    }
+    // Try Date.parse for things like "March 15, 2025"
+    const d = new Date(value);
+    if (!isNaN(d.getTime())) {
+      return d.toISOString().split('T')[0];
+    }
+    return null;
+  },
+
+  /**
+   * Handle simple typeahead/autocomplete inputs (non-React-Select).
+   * Types the value, waits for suggestions, clicks the best match.
+   * @param {HTMLElement} el - The text input element
+   * @param {string} value - Value to type and select from suggestions
+   * @returns {Promise<boolean>}
+   */
+  async setTypeahead(el, value) {
+    if (!el || !value) return false;
+
+    // Type the value
+    el.focus();
+    el.click();
+    this.setText(el, value);
+
+    // Wait for suggestion dropdown to appear
+    await new Promise(r => setTimeout(r, 600));
+
+    // Look for dropdown options in the DOM
+    const OPTION_SELECTORS = [
+      '[role="option"]',
+      '[role="listbox"] li',
+      '[class*="suggestion"]',
+      '[class*="autocomplete"] li',
+      '[class*="dropdown-item"]',
+      '[class*="typeahead"] li',
+      '[class*="option"]:not([class*="control"]):not([class*="container"])',
+      '[class*="menu"] li',
+    ];
+
+    const valueLower = value.toLowerCase().trim();
+
+    for (const selector of OPTION_SELECTORS) {
+      const options = document.querySelectorAll(selector);
+      if (options.length === 0) continue;
+
+      // Pass 1: exact match
+      for (const opt of options) {
+        const text = opt.textContent.trim().toLowerCase();
+        if (text === valueLower) {
+          opt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+          opt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          console.log('[LevelUpX] Typeahead selected (exact):', opt.textContent.trim());
+          return true;
+        }
+      }
+      // Pass 2: partial match
+      for (const opt of options) {
+        const text = opt.textContent.trim().toLowerCase();
+        if (text.includes(valueLower) || valueLower.includes(text)) {
+          opt.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+          opt.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+          console.log('[LevelUpX] Typeahead selected (partial):', opt.textContent.trim());
+          return true;
+        }
+      }
+    }
+
+    // No suggestion matched — leave the typed value as-is
+    console.log('[LevelUpX] Typeahead: no matching suggestion for:', value);
+    return true; // text was still typed in
+  },
+
+  /**
+   * Fill a checkbox group by matching value(s) to checkbox labels.
+   * @param {HTMLElement} container - Form container
+   * @param {HTMLElement} groupContainer - The parent element containing checkboxes
+   * @param {string|string[]} values - Value(s) to match against checkbox labels
+   * @returns {boolean}
+   */
+  setCheckboxGroup(container, groupContainer, values) {
+    if (!groupContainer || !values) return false;
+    const valueList = Array.isArray(values) ? values : String(values).split(',').map(v => v.trim());
+    const valuesLower = valueList.map(v => v.toLowerCase().trim());
+
+    const checkboxes = groupContainer.querySelectorAll('input[type="checkbox"]');
+    if (checkboxes.length === 0) return false;
+
+    let anyChecked = false;
+    for (const cb of checkboxes) {
+      let labelText = '';
+      // Strategy 1: label[for=id]
+      if (cb.id) {
+        try {
+          const lbl = container.querySelector(`label[for="${CSS.escape(cb.id)}"]`);
+          if (lbl) labelText = lbl.textContent.trim();
+        } catch { /* ignore */ }
+      }
+      // Strategy 2: enclosing <label>
+      if (!labelText) {
+        const enclosing = cb.closest('label');
+        if (enclosing) labelText = enclosing.textContent.trim();
+      }
+      // Strategy 3: next sibling text
+      if (!labelText) {
+        const nextEl = cb.nextElementSibling;
+        if (nextEl && nextEl.tagName !== 'INPUT') labelText = nextEl.textContent.trim();
+        if (!labelText) {
+          let next = cb.nextSibling;
+          if (next && next.nodeType === Node.TEXT_NODE) labelText = next.textContent.trim();
+        }
+      }
+      // Strategy 4: aria-label or value
+      if (!labelText) {
+        labelText = cb.getAttribute('aria-label') || cb.value || '';
+      }
+
+      const labelLower = labelText.toLowerCase().trim();
+      const shouldCheck = valuesLower.some(v =>
+        labelLower.includes(v) || v.includes(labelLower)
+      );
+
+      if (shouldCheck && !cb.checked) {
+        cb.click();
+        anyChecked = true;
+        console.log('[LevelUpX] Checkbox checked:', labelText);
+      }
+    }
+    return anyChecked;
+  },
+
+  /**
+   * Check if an element is a typeahead/autocomplete input (non-React-Select).
+   * @param {HTMLElement} el
+   * @returns {boolean}
+   */
+  _isTypeaheadInput(el) {
+    if (!el || el.tagName !== 'INPUT') return false;
+    const placeholder = (el.getAttribute('placeholder') || '').toLowerCase();
+    const role = el.getAttribute('role') || '';
+    const ariaAuto = el.getAttribute('aria-autocomplete') || '';
+    const ariaPopup = el.getAttribute('aria-haspopup') || '';
+    // Match common typeahead indicators
+    if (placeholder.includes('start typing') || placeholder.includes('type to search') ||
+        placeholder.includes('search') || placeholder.includes('begin typing')) {
+      return true;
+    }
+    if (ariaAuto === 'list' || ariaAuto === 'both') return true;
+    if (ariaPopup === 'listbox' && role !== 'combobox') return true;
+    return false;
+  },
+
+  /**
    * Check if an element is an input inside a custom select component.
    * @param {HTMLElement} el
    * @returns {boolean}
@@ -440,6 +644,17 @@ window.LevelUpXFiller = {
     if (type === 'radio') {
       // Use intelligent radio group matching instead of blind click
       return this.setRadioGroup(container || document.body, el, String(value));
+    }
+    if (type === 'date') {
+      return this.setDate(el, String(value));
+    }
+
+    // Check if this input is a simple typeahead (non-React-Select)
+    if (this._isTypeaheadInput(el)) {
+      this._pendingAsyncFills.push(
+        this.setTypeahead(el, String(value))
+      );
+      return true; // optimistic; async fill queued
     }
 
     // Check if this input is part of a custom select (React-Select, etc.)

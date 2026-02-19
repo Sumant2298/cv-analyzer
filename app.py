@@ -600,6 +600,12 @@ def api_extension_profile():
             'disabilityStatus': up.disability_status or '',
             'salaryExpectationUSD': up.salary_expectation_usd or '',
             'referralSource': up.referral_source or '',
+            # Common application fields
+            'earliestStartDate': up.earliest_start_date or '',
+            'additionalInfo': up.additional_info or '',
+            'willingToRelocate': up.willing_to_relocate or '',
+            'canWorkOnsite': up.can_work_onsite or '',
+            'preferredOffice': up.preferred_office or '',
         }
     else:
         # Always include applicationPrefs (even empty) so extension code works
@@ -612,6 +618,9 @@ def api_extension_profile():
             'genderUS': '', 'raceEthnicity': '',
             'veteranStatus': '', 'disabilityStatus': '',
             'salaryExpectationUSD': '', 'referralSource': '',
+            'earliestStartDate': '', 'additionalInfo': '',
+            'willingToRelocate': '', 'canWorkOnsite': '',
+            'preferredOffice': '',
         }
 
     return jsonify(profile)

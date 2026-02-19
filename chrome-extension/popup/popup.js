@@ -134,6 +134,7 @@ const CONTENT_SCRIPTS = [
   'adapters/workday.js',
   'adapters/naukri.js',
   'adapters/linkedin.js',
+  'adapters/ashby.js',
   'content/field-detector.js',
   'content/field-filler.js',
   'content/dom-waiters.js',
