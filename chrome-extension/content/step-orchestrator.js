@@ -104,7 +104,7 @@ window.LevelUpXOrchestrator = {
         const container = this._getFormContainer(stepConfig);
 
         // 2b. Fill visible fields using existing adapter.fill()
-        const result = adapter.fill(container, profile);
+        const result = await adapter.fill(container, profile);
         const stepFilled = result ? (result.filledCount || 0) : 0;
         totalFilled += stepFilled;
 

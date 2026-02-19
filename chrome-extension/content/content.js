@@ -245,7 +245,7 @@
 
       // Let adapter fill the form
       const container = document.body;
-      const result = currentAdapter.fill(container, profile);
+      const result = await currentAdapter.fill(container, profile);
       const filledCount = result ? (result.filledCount || 0) : 0;
 
       // Try to upload resume file

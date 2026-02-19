@@ -133,6 +133,154 @@ window.LevelUpXDetector = {
   },
 
   /**
+   * Find a radio button group near a label element.
+   * Simplified version of findInputNearLabel targeting radio inputs specifically.
+   * Returns the first radio found — caller can use its name to find the full group.
+   * @param {Element} container - Form container
+   * @param {Element} label - The label element
+   * @returns {Element|null} A radio button element, or null
+   */
+  findRadioGroupNearLabel(container, label) {
+    // Strategy 1: label[for] → radio by id
+    const forId = label.getAttribute('for');
+    if (forId) {
+      try {
+        const el = container.querySelector(`#${CSS.escape(forId)}`);
+        if (el && (el.getAttribute('type') || '').toLowerCase() === 'radio') return el;
+      } catch { /* ignore */ }
+    }
+
+    // Strategy 2: Nested radio inside label
+    const nested = label.querySelector('input[type="radio"]');
+    if (nested) return nested;
+
+    // Strategy 3: Next sibling or its children
+    const next = label.nextElementSibling;
+    if (next) {
+      if (next.tagName === 'INPUT' && (next.getAttribute('type') || '').toLowerCase() === 'radio') return next;
+      const inside = next.querySelector('input[type="radio"]');
+      if (inside) return inside;
+    }
+
+    // Strategy 4: Walk up parent chain (5 levels) looking for radios
+    let ancestor = label.parentElement;
+    for (let i = 0; i < 5 && ancestor && ancestor !== container; i++) {
+      const radios = ancestor.querySelectorAll('input[type="radio"]');
+      if (radios.length > 0) return radios[0];
+      ancestor = ancestor.parentElement;
+    }
+
+    // Strategy 5: Closest form-group container
+    const parent = label.closest(
+      '.field, .form-group, .form-field, .form-row, .form-item, ' +
+      '[class*="field"], [class*="question"], [class*="radio"], ' +
+      '[class*="FormField"], [data-field], [data-qa], [data-testid]'
+    );
+    if (parent) {
+      const radio = parent.querySelector('input[type="radio"]');
+      if (radio) return radio;
+    }
+
+    // Strategy 6: Scan following siblings
+    let sibling = label.nextElementSibling;
+    let sibCount = 0;
+    while (sibling && sibCount < 5) {
+      if (sibling.tagName === 'INPUT' && (sibling.getAttribute('type') || '').toLowerCase() === 'radio') return sibling;
+      const inside = sibling.querySelector('input[type="radio"]');
+      if (inside) return inside;
+      sibling = sibling.nextElementSibling;
+      sibCount++;
+    }
+
+    return null;
+  },
+
+  /**
+   * Find a React-Select or custom dropdown component near a label element.
+   * Returns the custom select wrapper/control element, or null.
+   * @param {Element} container - Form container
+   * @param {Element} label - The label element
+   * @returns {Element|null}
+   */
+  findCustomSelectNearLabel(container, label) {
+    const CUSTOM_SEL = [
+      '[class*="select__control"]',
+      '[class*="select-container"]',
+      '[class*="selectContainer"]',
+      '[class*="Select-control"]',
+      '[role="combobox"]',
+      '[role="listbox"]',
+      '[class*="Dropdown"][class*="select"]',
+      'input[aria-autocomplete="list"]',
+      'input[aria-haspopup="listbox"]',
+    ];
+    const combinedSelector = CUSTOM_SEL.join(', ');
+
+    // Strategy 1: label[for] → element might be inside a custom select
+    const forId = label.getAttribute('for');
+    if (forId) {
+      try {
+        const el = container.querySelector(`#${CSS.escape(forId)}`);
+        if (el) {
+          let cur = el;
+          for (let i = 0; i < 4 && cur; i++) {
+            try { if (cur.matches && cur.matches(combinedSelector)) return cur; } catch {}
+            cur = cur.parentElement;
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Strategy 2: Next sibling or its children
+    const next = label.nextElementSibling;
+    if (next) {
+      try { if (next.matches && next.matches(combinedSelector)) return next; } catch {}
+      try {
+        const inside = next.querySelector(combinedSelector);
+        if (inside) return inside;
+      } catch {}
+    }
+
+    // Strategy 3: Walk up parent chain (5 levels)
+    let ancestor = label.parentElement;
+    for (let i = 0; i < 5 && ancestor && ancestor !== container; i++) {
+      try {
+        const custom = ancestor.querySelector(combinedSelector);
+        if (custom) return custom;
+      } catch {}
+      ancestor = ancestor.parentElement;
+    }
+
+    // Strategy 4: Closest form-group container
+    const parent = label.closest(
+      '.field, .form-group, .form-field, .form-row, .form-item, ' +
+      '[class*="field"], [class*="question"], [class*="FormField"], ' +
+      '[data-field], [data-qa], [data-testid]'
+    );
+    if (parent) {
+      try {
+        const custom = parent.querySelector(combinedSelector);
+        if (custom) return custom;
+      } catch {}
+    }
+
+    // Strategy 5: Scan following siblings
+    let sibling = label.nextElementSibling;
+    let sibCount = 0;
+    while (sibling && sibCount < 5) {
+      try { if (sibling.matches && sibling.matches(combinedSelector)) return sibling; } catch {}
+      try {
+        const inside = sibling.querySelector(combinedSelector);
+        if (inside) return inside;
+      } catch {}
+      sibling = sibling.nextElementSibling;
+      sibCount++;
+    }
+
+    return null;
+  },
+
+  /**
    * Find field by associated label text (case-insensitive partial match).
    * Uses findInputNearLabel() for robust label-to-input resolution.
    */

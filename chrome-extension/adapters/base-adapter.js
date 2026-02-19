@@ -3,6 +3,9 @@
  *
  * Base class/factory for platform adapters.
  * Each adapter must implement: matchesHost(), isApplicationForm(), fill(), getResumeInput()
+ *
+ * fill() is async to support React-Select custom dropdowns that require
+ * click-wait-match sequences.
  */
 
 window.LevelUpXBaseAdapter = {
@@ -43,10 +46,10 @@ window.LevelUpXBaseAdapter = {
       },
 
       /**
-       * Fill the form with profile data.
-       * @returns {{filledCount: number}}
+       * Fill the form with profile data (async for custom select support).
+       * @returns {Promise<{filledCount: number}>}
        */
-      fill(container, profile) {
+      async fill(container, profile) {
         const Detector = window.LevelUpXDetector;
         const Filler = window.LevelUpXFiller;
         if (!Detector || !Filler) return { filledCount: 0 };
@@ -60,7 +63,7 @@ window.LevelUpXBaseAdapter = {
           if (!value) continue;
           const el = Detector.findField(container, strategies);
           if (el) {
-            const success = Filler.fill(el, value);
+            const success = Filler.fill(el, value, container);
             if (success) {
               filledCount++;
               filledElements.add(el);
@@ -70,7 +73,13 @@ window.LevelUpXBaseAdapter = {
 
         // ── Pass 2: Generic label-scanning for custom questions ──────
         // Scan all labels and match against known patterns from profile data
-        filledCount += this._scanAndFillByLabels(container, profile, Filler, filledElements);
+        filledCount += await this._scanAndFillByLabels(container, profile, Filler, filledElements);
+
+        // ── Flush any pending async fills (custom selects) ───────────
+        if (Filler.flushAsyncFills) {
+          const asyncCount = await Filler.flushAsyncFills();
+          filledCount += asyncCount;
+        }
 
         // Run any custom post-fill logic
         if (config.afterFill) {
@@ -82,10 +91,11 @@ window.LevelUpXBaseAdapter = {
 
       /**
        * Scan form labels and auto-fill fields that match known patterns.
-       * Only fills fields that haven't been filled already (not in filledElements set).
-       * Returns count of additionally filled fields.
+       * Handles standard inputs, native selects, radio groups, and React-Select.
+       * Only fills fields that haven't been filled already.
+       * @returns {Promise<number>} count of additionally filled fields
        */
-      _scanAndFillByLabels(container, profile, Filler, filledElements) {
+      async _scanAndFillByLabels(container, profile, Filler, filledElements) {
         const Detector = window.LevelUpXDetector;
         const b = profile.basics || {};
         const loc = b.location || {};
@@ -138,56 +148,125 @@ window.LevelUpXBaseAdapter = {
           [['gender', 'gender identity'], prefs.genderIN || prefs.genderUS],
           // US: Work auth & visa
           [['authorized to work', 'work authorization', 'legally authorized', 'eligible to work', 'right to work'], prefs.workAuthorization],
-          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor'], prefs.visaSponsorship],
+          [['visa sponsorship', 'require sponsorship', 'need sponsorship', 'immigration sponsorship', 'sponsor', 'now or in the future require'], prefs.visaSponsorship],
           // US: Salary
-          [['salary expectation', 'salary requirement', 'compensation expectation', 'annual salary', 'desired compensation'], prefs.salaryExpectationUSD || prefs.expectedCTC],
+          [['salary expectation', 'salary requirement', 'compensation expectation', 'annual salary', 'desired compensation', 'desired salary', 'salary range', 'pay expectation', 'what is your desired'], prefs.salaryExpectationUSD || prefs.expectedCTC],
           // US: EEO
           [['race', 'ethnicity', 'race/ethnicity', 'racial', 'ethnic background'], prefs.raceEthnicity],
           [['veteran', 'veteran status', 'military service', 'protected veteran'], prefs.veteranStatus],
           [['disability', 'disability status', 'disabled', 'do you have a disability'], prefs.disabilityStatus],
-          // Common: Referral
-          [['how did you hear', 'referral source', 'referred by', 'how did you find', 'hear about this'], prefs.referralSource],
+          // Common: Referral — multiple phrasings
+          [['how did you hear', 'referral source', 'referred by', 'how did you find', 'hear about this', 'hear about us', 'source of application', 'where did you hear', 'how did you learn'], prefs.referralSource],
           // Common: "comfortable moving forward" type questions
           [['comfortable moving forward', 'comfortable with the salary'], prefs.workAuthorization ? 'Yes' : ''],
+          // Start date / availability
+          [['start date', 'available start', 'earliest start', 'when can you start', 'date available', 'available to start', 'availability date', 'availability'], prefs.noticePeriod],
+          // Previously employed
+          [['previously employed', 'former employee', 'worked here before', 'have you worked', 'have you previously'], 'No'],
+          // Age / 18+
+          [['are you 18', 'over 18', 'at least 18', 'legal age', 'over the age of 18', 'are you at least'], 'Yes'],
+          // Background check consent
+          [['background check', 'consent to background', 'agree to background'], 'Yes'],
+          // Relocation
+          [['willing to relocate', 'open to relocation', 'relocate', 'relocation'], prefs.willingToRelocate || ''],
+          // Travel
+          [['willing to travel', 'travel requirement', 'comfortable with travel', 'travel percentage'], prefs.willingToTravel || ''],
+          // NDA / Non-compete
+          [['non-compete', 'nda', 'non-disclosure', 'restrictive covenant'], ''],
         ];
         const allPatterns = [...labelPatterns, ...customPatterns];
+
+        // Shared helper: try to fill a field for a label-like element
+        const tryFillForLabel = (labelEl, labelText) => {
+          // ── Step 1: Find associated element ─────────────────────
+          let el = Detector.findInputNearLabel(container, labelEl);
+          let isRadioGroup = false;
+          let isCustomSelect = false;
+
+          // Check if result is a radio button
+          if (el && el.tagName === 'INPUT' && (el.getAttribute('type') || '').toLowerCase() === 'radio') {
+            isRadioGroup = true;
+          }
+
+          // If no standard input, try custom select
+          if (!el && Detector.findCustomSelectNearLabel) {
+            el = Detector.findCustomSelectNearLabel(container, labelEl);
+            if (el) isCustomSelect = true;
+          }
+
+          // If still nothing, try dedicated radio finder
+          if (!el && Detector.findRadioGroupNearLabel) {
+            el = Detector.findRadioGroupNearLabel(container, labelEl);
+            if (el) isRadioGroup = true;
+          }
+
+          if (!el || filledElements.has(el)) return false;
+
+          // ── Step 2: Skip if already has a value ─────────────────
+          if (isRadioGroup) {
+            // Check if a radio in the group is already checked
+            const name = el.getAttribute('name');
+            if (name) {
+              try {
+                const checked = container.querySelector(`input[type="radio"][name="${CSS.escape(name)}"]:checked`);
+                if (checked) return false;
+              } catch { /* ignore */ }
+            }
+          } else if (isCustomSelect) {
+            // Custom selects: check if there's already a selected value displayed
+            // (heuristic: look for a value container with text)
+            const valueContainer = el.closest('[class*="select"]');
+            if (valueContainer) {
+              const singleValue = valueContainer.querySelector('[class*="singleValue"], [class*="single-value"]');
+              if (singleValue && singleValue.textContent.trim()) return false;
+            }
+          } else if (el.tagName === 'SELECT') {
+            if (el.selectedIndex > 0) return false;
+          } else if (el.value && el.value.trim()) {
+            return false;
+          }
+
+          // ── Step 3: Match label text against patterns ───────────
+          for (const [patterns, value] of allPatterns) {
+            if (!value) continue;
+            const matched = patterns.some(p => labelText.includes(p));
+            if (matched) {
+              let success = false;
+              if (isCustomSelect) {
+                // Queue async React-Select fill
+                Filler._pendingAsyncFills = Filler._pendingAsyncFills || [];
+                Filler._pendingAsyncFills.push(
+                  Filler.setReactSelect(el, String(value)).then(ok => {
+                    if (!ok) return Filler.setText(el, String(value));
+                    return ok;
+                  })
+                );
+                success = true; // optimistic
+              } else {
+                success = Filler.fill(el, String(value), container);
+              }
+              if (success) {
+                extraFilled++;
+                filledElements.add(el);
+                const tag = isRadioGroup ? 'radio' : isCustomSelect ? 'custom-select' : 'input';
+                console.log(`[LevelUpX] Auto-filled (${tag}): "${labelText}" → "${String(value).slice(0, 30)}"`);
+              }
+              return true; // pattern matched (even if fill failed)
+            }
+          }
+          return false;
+        };
 
         // ── Pass A: Scan <label> elements ────────────────────────────
         const labels = container.querySelectorAll('label');
         for (const label of labels) {
           const labelText = label.textContent.toLowerCase().trim();
           if (!labelText || labelText.length > 100) continue;
-
-          // Use robust 8-strategy label-to-input resolver
-          let el = Detector ? Detector.findInputNearLabel(container, label) : null;
-
-          if (!el || filledElements.has(el)) continue;
-          // Skip if already has a value
-          if (el.tagName === 'SELECT') {
-            if (el.selectedIndex > 0) continue;
-          } else if (el.value && el.value.trim()) {
-            continue;
-          }
-
-          // Try matching label text against known patterns
-          for (const [patterns, value] of allPatterns) {
-            if (!value) continue;
-            const matched = patterns.some(p => labelText.includes(p));
-            if (matched) {
-              const success = Filler.fill(el, value);
-              if (success) {
-                extraFilled++;
-                filledElements.add(el);
-                console.log(`[LevelUpX] Auto-filled: "${labelText}" → "${String(value).slice(0, 30)}"`);
-              }
-              break;
-            }
-          }
+          tryFillForLabel(label, labelText);
         }
 
         // ── Pass B: Scan pseudo-label elements ───────────────────────
         // Modern React forms often use <div>, <span>, <legend> as labels
-        // instead of <label>. Scan these too.
         const pseudoLabels = container.querySelectorAll(
           'legend, [class*="label"], [class*="Label"], [class*="LABEL"], [data-testid*="label"]'
         );
@@ -195,27 +274,7 @@ window.LevelUpXBaseAdapter = {
           if (pseudoLabel.tagName === 'LABEL') continue; // already handled
           const text = pseudoLabel.textContent.toLowerCase().trim();
           if (!text || text.length > 80) continue;
-
-          let el = Detector ? Detector.findInputNearLabel(container, pseudoLabel) : null;
-          if (!el || filledElements.has(el)) continue;
-
-          if (el.tagName === 'SELECT') {
-            if (el.selectedIndex > 0) continue;
-          } else if (el.value && el.value.trim()) {
-            continue;
-          }
-
-          for (const [patterns, value] of allPatterns) {
-            if (!value) continue;
-            if (patterns.some(p => text.includes(p))) {
-              if (Filler.fill(el, value)) {
-                extraFilled++;
-                filledElements.add(el);
-                console.log(`[LevelUpX] Auto-filled (pseudo-label): "${text}" → "${String(value).slice(0, 30)}"`);
-              }
-              break;
-            }
-          }
+          tryFillForLabel(pseudoLabel, text);
         }
 
         // ── Pass C: Fallback — scan inputs by placeholder/name ───────
@@ -240,7 +299,7 @@ window.LevelUpXBaseAdapter = {
           for (const [patterns, value] of allPatterns) {
             if (!value) continue;
             if (patterns.some(p => matchText.includes(p))) {
-              if (Filler.fill(el, value)) {
+              if (Filler.fill(el, value, container)) {
                 extraFilled++;
                 filledElements.add(el);
                 console.log(`[LevelUpX] Auto-filled (attr match): "${matchText.trim()}" → "${String(value).slice(0, 30)}"`);
@@ -249,6 +308,26 @@ window.LevelUpXBaseAdapter = {
             }
           }
         }
+
+        // ── Debug: log unfilled labels ───────────────────────────────
+        try {
+          const unfilled = [];
+          for (const label of labels) {
+            const text = label.textContent.toLowerCase().trim();
+            if (!text || text.length > 100) continue;
+            const el = Detector.findInputNearLabel(container, label);
+            if (el && !filledElements.has(el)) {
+              const hasValue = (el.tagName === 'SELECT' && el.selectedIndex > 0) ||
+                               (el.value && el.value.trim());
+              if (!hasValue) {
+                unfilled.push(text.slice(0, 60));
+              }
+            }
+          }
+          if (unfilled.length > 0) {
+            console.log('[LevelUpX] Unfilled labels (no pattern match):', unfilled);
+          }
+        } catch { /* debug only */ }
 
         return extraFilled;
       },
