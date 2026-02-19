@@ -452,6 +452,16 @@ async function doSave() {
     const fd = new FormData(form);
     const data = {};
     for (const [key, val] of fd.entries()) data[key] = val;
+
+    // Ensure radio fields are included even if hidden/unchecked
+    // (e.g. US fields hidden when India is selected, and vice versa)
+    for (const name of ['work_authorization', 'visa_sponsorship', 'gender_in', 'gender_us', 'veteran_status', 'disability_status']) {
+        if (!(name in data)) {
+            const checked = form.querySelector(`input[name="${name}"]:checked`);
+            data[name] = checked ? checked.value : '';
+        }
+    }
+
     data.languages_known = tagData.lang;
     data.preferred_locations = tagData.loc;
     const countryRadio = document.querySelector('input[name="country"]:checked');

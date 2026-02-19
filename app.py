@@ -520,64 +520,64 @@ def api_extension_profile():
         profile['basics']['lastName'] = parts[1] if len(parts) > 1 else ''
 
     # ── Merge UserProfile data ──────────────────────────────────
+    # UserProfile (manually entered by user) ALWAYS wins over NLP-extracted
+    # resume data, since user input is more trustworthy than regex heuristics.
     up = UserProfile.query.filter_by(user_id=user.id).first()
     if up:
         b = profile['basics']
         loc = b['location']
 
-        # Override empty basics fields
-        if not b['firstName'] and up.first_name:
+        # UserProfile overrides NLP extraction when it has data
+        if up.first_name:
             b['firstName'] = up.first_name
-        if not b['lastName'] and up.last_name:
+        if up.last_name:
             b['lastName'] = up.last_name
-        if not b['fullName'] and (up.first_name or up.last_name):
-            b['fullName'] = f'{up.first_name} {up.last_name}'.strip()
-        if not b['phone'] and up.phone:
+        if up.first_name or up.last_name:
+            b['fullName'] = f'{up.first_name or b["firstName"]} {up.last_name or b["lastName"]}'.strip()
+        if up.phone:
             b['phone'] = up.phone
-        if not loc.get('city') and up.city:
+        if up.city:
             loc['city'] = up.city
-        if not loc.get('region') and up.state:
+        if up.state:
             loc['region'] = up.state
-        if not loc.get('country') and up.country:
-            # Map country code to full name for form dropdowns
+        if up.country:
             loc['country'] = 'India' if up.country == 'IN' else 'United States' if up.country == 'US' else up.country
-        if not loc.get('postalCode') and up.postal_code:
+        if up.postal_code:
             loc['postalCode'] = up.postal_code
-        if not loc.get('address') and up.street_address:
+        if up.street_address:
             loc['address'] = up.street_address
-        if not b.get('linkedin') and up.linkedin_url:
+        if up.linkedin_url:
             b['linkedin'] = up.linkedin_url
-        if not b.get('github') and up.github_url:
+        if up.github_url:
             b['github'] = up.github_url
-        if not b.get('website') and up.website_url:
+        if up.website_url:
             b['website'] = up.website_url
 
-        # Work / Education overrides
-        if not profile['work'] and up.current_company:
-            profile['work'] = [{'company': up.current_company, 'position': up.current_title or ''}]
-        elif profile['work']:
+        # Work: UserProfile wins when it has data
+        if up.current_company or up.current_title:
+            if not profile['work']:
+                profile['work'] = [{}]
             w = profile['work'][0]
-            if not w.get('company') and up.current_company:
+            if up.current_company:
                 w['company'] = up.current_company
-            if not w.get('position') and up.current_title:
+            if up.current_title:
                 w['position'] = up.current_title
 
-        if not profile['education'] and up.university:
-            profile['education'] = [{
-                'institution': up.university, 'studyType': up.degree or '',
-                'area': up.major or '', 'score': up.gpa or '',
-                'endDate': up.graduation_year or '',
-            }]
-        elif profile['education']:
+        # Education: UserProfile wins when it has data
+        if up.university or up.degree or up.major:
+            if not profile['education']:
+                profile['education'] = [{}]
             e = profile['education'][0]
-            if not e.get('institution') and up.university:
+            if up.university:
                 e['institution'] = up.university
-            if not e.get('studyType') and up.degree:
+            if up.degree:
                 e['studyType'] = up.degree
-            if not e.get('area') and up.major:
+            if up.major:
                 e['area'] = up.major
-            if not e.get('score') and up.gpa:
+            if up.gpa:
                 e['score'] = up.gpa
+            if up.graduation_year:
+                e['endDate'] = up.graduation_year
 
         # Application preferences (all India + US fields)
         profile['applicationPrefs'] = {
@@ -600,6 +600,18 @@ def api_extension_profile():
             'disabilityStatus': up.disability_status or '',
             'salaryExpectationUSD': up.salary_expectation_usd or '',
             'referralSource': up.referral_source or '',
+        }
+    else:
+        # Always include applicationPrefs (even empty) so extension code works
+        profile['applicationPrefs'] = {
+            'country': '', 'currentCTC': '', 'expectedCTC': '',
+            'noticePeriod': '', 'totalExperienceYears': '',
+            'languagesKnown': [], 'preferredLocations': [],
+            'dateOfBirth': '', 'genderIN': '',
+            'workAuthorization': '', 'visaSponsorship': '',
+            'genderUS': '', 'raceEthnicity': '',
+            'veteranStatus': '', 'disabilityStatus': '',
+            'salaryExpectationUSD': '', 'referralSource': '',
         }
 
     return jsonify(profile)

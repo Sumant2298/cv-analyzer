@@ -239,7 +239,8 @@
     }
 
     try {
-      // Get profile from background
+      // Always fetch fresh profile data (clear cache)
+      profileCache = null;
       const profile = await getProfile();
       ensureAdapter();
 
