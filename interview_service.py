@@ -249,7 +249,7 @@ def process_answer(session, exchanges: list, answer_text: str,
                        f'when you ask your closing question. Use your judgment on when to end.]',
         })
 
-    result = _call_llm_chat(messages, max_tokens=1500, temperature=0.5, timeout=45.0)
+    result = _call_llm_chat(messages, max_tokens=1000, temperature=0.5, timeout=25.0)
 
     # Ensure defaults
     result.setdefault('interviewer_message', 'Thank you for that answer. Let me ask you another question.')

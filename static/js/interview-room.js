@@ -385,8 +385,8 @@ class AudioPipeline {
             source.connect(this.analyser);
             this.analyser.connect(this.audioContext.destination);
 
-            this.onSpeakStart?.();
             source.start();
+            this.onSpeakStart?.(audioBuffer.duration);
 
             return new Promise((resolve) => {
                 source.onended = () => {
@@ -422,7 +422,10 @@ class AudioPipeline {
                 resolve();
             };
 
-            utter.onstart = () => this.onSpeakStart?.();
+            utter.onstart = () => {
+                const estDuration = (text.split(/\s+/).length / 2.5);
+                this.onSpeakStart?.(estDuration);
+            };
             utter.onend = safeResolve;
             utter.onerror = safeResolve;
 
@@ -1133,13 +1136,9 @@ class InterviewRoom {
                 return;
             }
 
-            /* 4. natural pause */
-            await this.sleep(500);
-
-            /* 5. brief smile */
+            /* 4. brief smile (non-blocking — saves 900ms from critical path) */
             this.avatar.setExpression('smile');
-            await this.sleep(400);
-            this.avatar.setExpression('neutral');
+            setTimeout(() => this.avatar.setExpression('neutral'), 800);
 
             /* 6. remove typing indicator, typewriter + TTS concurrently */
             this.transcript.removeTypingIndicator();
@@ -1211,21 +1210,24 @@ class InterviewRoom {
             this.hideSubtitle(1000);
         };
 
-        /* Fallback: if onSpeakStart doesn't fire within 3s, show subtitle anyway */
+        /* Fallback: if onSpeakStart doesn't fire within 1.5s, show subtitle anyway */
+        const wordCount = text.split(/\s+/).length;
+        const estimatedDurationMs = (wordCount / 2.5) * 1000; /* ~150 wpm */
         const subtitleFallback = setTimeout(() => {
             if (!this.state.isSpeaking) {
-                this.showSubtitle(text);
+                this.showSubtitle(text, estimatedDurationMs);
             }
-        }, 3000);
+        }, 1500);
 
         const origOnStart = this.audio.onSpeakStart;
-        this.audio.onSpeakStart = () => {
+        this.audio.onSpeakStart = (audioDuration) => {
             clearTimeout(subtitleFallback);
             this.state.isSpeaking = true;
             this.dom.aiWave?.classList.remove('hidden');
             this.avatar.frame.classList.add('speaking-tilt', 'speaking-glow');
-            /* Show text as subtitle exactly when audio starts playing */
-            this.showSubtitle(text);
+            /* Show text as subtitle exactly when audio starts playing, synced to duration */
+            const durationMs = audioDuration ? audioDuration * 1000 : estimatedDurationMs;
+            this.showSubtitle(text, durationMs);
         };
 
         const origOnEnd = this.audio.onSpeakEnd;
@@ -1479,14 +1481,41 @@ class InterviewRoom {
 
     /**
      * Show Priya's spoken text as a subtitle overlay on the avatar panel.
+     * Progressive word-by-word reveal synced to speech duration.
      */
-    showSubtitle(text) {
+    showSubtitle(text, durationMs = 0) {
         const el = this.dom.avatarSubtitle;
         if (!el) return;
-        el.textContent = text;
+
+        /* Clear any previous animation */
+        if (this._subtitleTimer) {
+            clearInterval(this._subtitleTimer);
+            this._subtitleTimer = null;
+        }
+
         el.style.display = 'block';
-        void el.offsetHeight; // force reflow for CSS transition
+        void el.offsetHeight;
         el.style.opacity = '1';
+
+        const words = text.split(/\s+/);
+        if (!durationMs || durationMs <= 0 || words.length <= 1) {
+            el.textContent = text;
+            return;
+        }
+
+        /* Reveal word-by-word synced to speech duration */
+        const intervalMs = Math.max(80, durationMs / words.length);
+        let idx = 0;
+        el.textContent = '';
+        this._subtitleTimer = setInterval(() => {
+            if (idx < words.length) {
+                el.textContent += (idx > 0 ? ' ' : '') + words[idx];
+                idx++;
+            } else {
+                clearInterval(this._subtitleTimer);
+                this._subtitleTimer = null;
+            }
+        }, intervalMs);
     }
 
     /**
@@ -1495,6 +1524,13 @@ class InterviewRoom {
     hideSubtitle(delay = 1500) {
         const el = this.dom.avatarSubtitle;
         if (!el) return;
+
+        /* Clear progressive reveal timer */
+        if (this._subtitleTimer) {
+            clearInterval(this._subtitleTimer);
+            this._subtitleTimer = null;
+        }
+
         setTimeout(() => {
             el.style.opacity = '0';
             setTimeout(() => {
