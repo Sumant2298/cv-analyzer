@@ -123,14 +123,10 @@
                         {% if _pg == 'experts' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
                         Resume Experts
                     </a>
-                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
-                        <span class="text-xs font-medium">Interview Prep with AI</span>
-                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
-                    </div>
-                    <div class="flex items-center gap-2 pl-11 pr-3 py-2 text-slate-500 cursor-default">
-                        <span class="text-xs font-medium">Mock AI Interviews</span>
-                        <span class="ml-auto text-[10px] bg-slate-700 text-slate-400 px-1.5 py-0.5 rounded-full font-medium">Soon</span>
-                    </div>
+                    <a href="/career-services/mock-interviews" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
+                        {% if _pg == 'mock_interviews' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
+                        Mock AI Interviews
+                    </a>
                     <a href="/career-services/mentors" class="flex items-center gap-2 pl-11 pr-3 py-2 rounded-lg text-xs font-medium transition
                         {% if _pg == 'mentors' %}bg-white/10 text-white{% else %}text-slate-400 hover:text-slate-200 hover:bg-white/5{% endif %}">
                         Get Mentor Help

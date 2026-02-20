@@ -600,3 +600,67 @@ class UserProfile(db.Model):
 
         self.setup_completed = True
         self.updated_at = datetime.utcnow()
+
+
+# ---------------------------------------------------------------------------
+# Mock Interview Models
+# ---------------------------------------------------------------------------
+
+class InterviewSession(db.Model):
+    """A single mock interview session."""
+    __tablename__ = 'interview_sessions'
+
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
+
+    # Setup parameters
+    target_role = db.Column(db.String(200), nullable=False)
+    interview_type = db.Column(db.String(30), nullable=False)       # behavioral, technical, hr, case, mixed
+    difficulty = db.Column(db.String(20), nullable=False)            # easy, medium, hard
+    duration_minutes = db.Column(db.Integer, nullable=False)         # 15, 30, 45
+    persona = db.Column(db.String(20), nullable=False)               # friendly, neutral, tough
+
+    # Session state
+    status = db.Column(db.String(20), default='active', nullable=False)  # active, completed, abandoned
+    question_count = db.Column(db.Integer, default=0)
+    started_at = db.Column(db.DateTime, default=datetime.utcnow)
+    ended_at = db.Column(db.DateTime)
+
+    # Results (populated on completion)
+    overall_score = db.Column(db.Integer)                            # 0-100
+    feedback_json = db.Column(db.Text)                               # Full structured feedback
+
+    # Credits
+    credits_charged = db.Column(db.Integer, default=0)
+
+    user = db.relationship('User', backref=db.backref('interview_sessions', lazy='dynamic'))
+
+    def __repr__(self):
+        return f'<InterviewSession id={self.id} user={self.user_id} status={self.status}>'
+
+
+class InterviewExchange(db.Model):
+    """A single question-answer pair within an interview session."""
+    __tablename__ = 'interview_exchanges'
+
+    id = db.Column(db.Integer, primary_key=True)
+    session_id = db.Column(db.Integer, db.ForeignKey('interview_sessions.id'), nullable=False, index=True)
+    sequence = db.Column(db.Integer, nullable=False)                 # 1, 2, 3, ...
+
+    # Content
+    question_text = db.Column(db.Text, nullable=False)
+    answer_text = db.Column(db.Text)                                 # NULL until user answers
+    code_text = db.Column(db.Text)                                   # Code submission for technical questions
+    answer_duration_seconds = db.Column(db.Integer)
+
+    # Per-question feedback (populated when answer submitted)
+    feedback_json = db.Column(db.Text)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    session = db.relationship('InterviewSession',
+                              backref=db.backref('exchanges', lazy='dynamic',
+                                                 order_by='InterviewExchange.sequence'))
+
+    def __repr__(self):
+        return f'<InterviewExchange session={self.session_id} seq={self.sequence}>'

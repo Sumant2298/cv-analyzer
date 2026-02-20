@@ -203,6 +203,98 @@ def _call_llm(system: str, prompt: str, max_tokens: int = 3000,
     raise RuntimeError(f'Gemini LLM failed after {_retries + 1} attempts: {str(last_error)[:200]}')
 
 
+def _call_llm_chat(messages: list, max_tokens: int = 2000,
+                   temperature: float = 0.5, timeout: float = 60.0,
+                   json_mode: bool = True, _retries: int = 2):
+    """Call Gemini with a multi-turn conversation history.
+
+    Args:
+        messages: List of {"role": "system"|"user"|"assistant", "content": "..."} dicts
+        json_mode: If True, parse response as JSON dict. If False, return raw string.
+
+    Returns:
+        dict if json_mode=True, str if json_mode=False
+    """
+    global _last_call_stats
+
+    if not _PROVIDERS:
+        raise RuntimeError('No LLM backend configured — set GEMINI_API_KEY')
+
+    provider = _PROVIDERS[0]
+    name = provider['name']
+    client = _get_provider_client(provider)
+    last_error = None
+
+    for attempt in range(_retries + 1):
+        try:
+            retry_temp = max(temperature - 0.1 * attempt, 0.1)
+            if attempt > 0:
+                logger.info('[%s] chat retry %d/%d (temp=%.1f)',
+                            name, attempt, _retries, retry_temp)
+
+            kwargs = dict(
+                model=provider['model'],
+                messages=messages,
+                temperature=retry_temp,
+                max_tokens=max_tokens,
+                timeout=timeout,
+            )
+            if json_mode:
+                kwargs['response_format'] = {'type': 'json_object'}
+
+            t0 = time.time()
+            response = client.chat.completions.create(**kwargs)
+            raw = response.choices[0].message.content
+            elapsed = time.time() - t0
+
+            logger.info('[%s] chat response in %.1fs: %d chars (attempt %d)',
+                        name, elapsed, len(raw), attempt)
+
+            # Track stats
+            input_chars = sum(len(m.get('content', '')) for m in messages)
+            _last_call_stats = {
+                'model': provider['model'],
+                'input_chars': input_chars,
+                'output_chars': len(raw),
+                'estimated_input_tokens': input_chars // 4,
+                'estimated_output_tokens': len(raw) // 4,
+                'duration_ms': int(elapsed * 1000),
+            }
+
+            if json_mode:
+                return _parse_raw_json(raw)
+            return raw
+
+        except Exception as e:
+            last_error = e
+            error_str = str(e)
+
+            if ('json' in error_str.lower() or 'Expecting' in error_str or
+                    'json_validate_failed' in error_str or
+                    'failed_generation' in error_str):
+                logger.warning('[%s] chat JSON parse failed (attempt %d/%d): %s',
+                               name, attempt + 1, _retries + 1, error_str[:200])
+                if attempt < _retries:
+                    time.sleep(1)
+                    continue
+
+            if _is_rate_limit_error(e):
+                wait_time = 5 * (attempt + 1)
+                logger.warning('[%s] chat rate limited (attempt %d/%d), waiting %ds',
+                               name, attempt + 1, _retries + 1, wait_time)
+                if attempt < _retries:
+                    time.sleep(wait_time)
+                    continue
+
+            logger.warning('[%s] chat error (attempt %d/%d): %s',
+                           name, attempt + 1, _retries + 1, error_str[:200])
+            if attempt < _retries:
+                time.sleep(2)
+                continue
+
+    raise RuntimeError(f'Gemini chat failed after {_retries + 1} attempts: {str(last_error)[:200]}')
+
+
 # ---------------------------------------------------------------------------
 # Call 1: Skills & Scoring
 # ---------------------------------------------------------------------------

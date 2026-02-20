@@ -1,0 +1,339 @@
+{% extends "dashboard_base.html" %}
+{% block title %}Mock AI Interviews — LevelUpX{% endblock %}
+{% block page_title %}Mock AI Interviews{% endblock %}
+{% block content %}
+
+<div class="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+    <!-- ═══════════ Left: Setup Form (2 cols) ═══════════ -->
+    <div class="lg:col-span-2 space-y-6">
+
+        <!-- Hero Banner -->
+        <div class="bg-gradient-to-br from-indigo-600 via-brand-600 to-emerald-500 rounded-2xl p-6 text-white">
+            <div class="flex items-start gap-4">
+                <div class="w-12 h-12 bg-white/15 backdrop-blur-sm rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold tracking-tight">Practice with AI Interviewer</h1>
+                    <p class="text-white/70 text-sm mt-1 leading-relaxed">Voice-powered mock interviews with real-time feedback, adaptive follow-ups, and detailed scoring across 6 dimensions.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Setup Form Card -->
+        <form id="interview-setup-form" class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 space-y-6">
+
+            <!-- Target Role -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Target Role</label>
+                <input type="text" id="target-role" list="role-suggestions" required
+                       class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
+                       placeholder="e.g., Software Engineer, Product Manager, Data Analyst...">
+                <datalist id="role-suggestions">
+                    <option value="Software Engineer">
+                    <option value="Senior Software Engineer">
+                    <option value="Frontend Developer">
+                    <option value="Backend Developer">
+                    <option value="Full Stack Developer">
+                    <option value="DevOps Engineer">
+                    <option value="Data Scientist">
+                    <option value="Data Analyst">
+                    <option value="Machine Learning Engineer">
+                    <option value="Product Manager">
+                    <option value="Technical Program Manager">
+                    <option value="Engineering Manager">
+                    <option value="UX Designer">
+                    <option value="Business Analyst">
+                    <option value="Consultant">
+                    <option value="Marketing Manager">
+                    <option value="Financial Analyst">
+                    <option value="Operations Manager">
+                    <option value="HR Manager">
+                    <option value="Sales Executive">
+                </datalist>
+            </div>
+
+            <!-- Interview Type -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Interview Type</label>
+                <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                    {% set types = [
+                        ('behavioral', 'Behavioral', 'Leadership, teamwork, STAR format', 'M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z'),
+                        ('technical', 'Technical', 'Coding, system design, debugging', 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4'),
+                        ('hr', 'HR / General', 'Tell me about yourself, strengths', 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'),
+                        ('case', 'Case Study', 'Business scenarios, problem-solving', 'M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z'),
+                        ('mixed', 'Mixed', 'Blend of all question types', 'M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z'),
+                    ] %}
+                    {% for val, lbl, desc, icon in types %}
+                    <label class="type-card group cursor-pointer">
+                        <input type="radio" name="interview_type" value="{{ val }}" class="hidden peer" {% if val == 'behavioral' %}checked{% endif %}>
+                        <div class="border-2 border-slate-200 rounded-xl p-3 text-center transition
+                                    peer-checked:border-brand-500 peer-checked:bg-brand-50 hover:border-slate-300">
+                            <svg class="w-5 h-5 mx-auto mb-1.5 text-slate-400 peer-checked:text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="{{ icon }}"/>
+                            </svg>
+                            <p class="text-xs font-semibold text-slate-700">{{ lbl }}</p>
+                            <p class="text-[10px] text-slate-400 mt-0.5 leading-tight hidden sm:block">{{ desc }}</p>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Duration -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Duration</label>
+                <div class="inline-flex rounded-xl border border-slate-200 overflow-hidden">
+                    {% for mins, qs in [(15, '5 questions'), (30, '8 questions'), (45, '11 questions')] %}
+                    <label class="cursor-pointer">
+                        <input type="radio" name="duration" value="{{ mins }}" class="hidden peer" {% if mins == 30 %}checked{% endif %}>
+                        <div class="px-5 py-2.5 border-r border-slate-200 last:border-r-0 transition text-center
+                                    peer-checked:bg-brand-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-brand-500">
+                            <p class="text-sm font-bold">{{ mins }} min</p>
+                            <p class="text-[10px] opacity-70">{{ qs }}</p>
+                        </div>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+
+            <!-- Difficulty -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Difficulty</label>
+                <div class="inline-flex rounded-xl border border-slate-200 overflow-hidden">
+                    <label class="cursor-pointer">
+                        <input type="radio" name="difficulty" value="easy" class="hidden peer">
+                        <div class="px-6 py-2.5 border-r border-slate-200 transition text-center
+                                    peer-checked:bg-emerald-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-emerald-500">
+                            <p class="text-sm font-bold">Easy</p>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="difficulty" value="medium" class="hidden peer" checked>
+                        <div class="px-6 py-2.5 border-r border-slate-200 transition text-center
+                                    peer-checked:bg-amber-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-amber-500">
+                            <p class="text-sm font-bold">Medium</p>
+                        </div>
+                    </label>
+                    <label class="cursor-pointer">
+                        <input type="radio" name="difficulty" value="hard" class="hidden peer">
+                        <div class="px-6 py-2.5 transition text-center
+                                    peer-checked:bg-red-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-red-500">
+                            <p class="text-sm font-bold">Hard</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Interviewer Persona -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">Interviewer Persona</label>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <!-- Friendly -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="persona" value="friendly" class="hidden peer">
+                        <div class="border-2 border-slate-200 rounded-xl p-4 transition
+                                    peer-checked:border-emerald-500 peer-checked:bg-emerald-50 hover:border-slate-300">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                                    </svg>
+                                </div>
+                                <span class="text-sm font-bold text-slate-800">Friendly</span>
+                            </div>
+                            <p class="text-xs text-slate-500 leading-relaxed">Supportive and encouraging. Offers gentle guidance and positive reinforcement.</p>
+                        </div>
+                    </label>
+                    <!-- Professional -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="persona" value="neutral" class="hidden peer" checked>
+                        <div class="border-2 border-slate-200 rounded-xl p-4 transition
+                                    peer-checked:border-blue-500 peer-checked:bg-blue-50 hover:border-slate-300">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+                                    </svg>
+                                </div>
+                                <span class="text-sm font-bold text-slate-800">Professional</span>
+                            </div>
+                            <p class="text-xs text-slate-500 leading-relaxed">Balanced and fair. Standard corporate interview style.</p>
+                        </div>
+                    </label>
+                    <!-- Challenging -->
+                    <label class="cursor-pointer">
+                        <input type="radio" name="persona" value="tough" class="hidden peer">
+                        <div class="border-2 border-slate-200 rounded-xl p-4 transition
+                                    peer-checked:border-red-500 peer-checked:bg-red-50 hover:border-slate-300">
+                            <div class="flex items-center gap-2 mb-2">
+                                <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                                    <svg class="w-4 h-4 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"/>
+                                    </svg>
+                                </div>
+                                <span class="text-sm font-bold text-slate-800">Challenging</span>
+                            </div>
+                            <p class="text-xs text-slate-500 leading-relaxed">Direct and demanding. Pushes for depth and specifics.</p>
+                        </div>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Start Button -->
+            <div class="flex items-center gap-4 pt-2">
+                <button type="submit" id="start-btn"
+                        class="px-8 py-3 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-brand-500/25 transition-all duration-200 flex items-center gap-2">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                    Start Interview
+                </button>
+                <div id="credit-badge" class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold
+                    {% if completed_count < 1 %}bg-emerald-100 text-emerald-700{% else %}bg-amber-100 text-amber-700{% endif %}">
+                    <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.736 6.979C9.208 6.193 9.696 6 10 6c.304 0 .792.193 1.264.979a1 1 0 001.715-1.029C12.279 4.784 11.232 4 10 4s-2.279.784-2.979 1.95c-.285.475-.507 1-.67 1.55H6a1 1 0 000 2h.013a9.358 9.358 0 000 1H6a1 1 0 100 2h.351c.163.55.385 1.075.67 1.55C7.721 15.216 8.768 16 10 16s2.279-.784 2.979-1.95a1 1 0 10-1.715-1.029c-.472.786-.96.979-1.264.979-.304 0-.792-.193-1.264-.979a5.389 5.389 0 01-.421-.821h2.382a1 1 0 000-2H7.653a7.357 7.357 0 010-1h3.044a1 1 0 000-2H8.315c.134-.29.268-.545.421-.821z"/></svg>
+                    {% if completed_count < 1 %}Free — First Interview{% else %}3 Credits{% endif %}
+                </div>
+            </div>
+
+            <!-- Error display -->
+            <div id="start-error" class="hidden bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm"></div>
+
+        </form>
+    </div>
+
+    <!-- ═══════════ Right Sidebar ═══════════ -->
+    <div class="space-y-6">
+
+        <!-- Quick Stats -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">Your Stats</h3>
+            <div class="grid grid-cols-2 gap-3">
+                <div class="bg-slate-50 rounded-xl p-3 text-center">
+                    <p class="text-2xl font-bold text-brand-600">{{ past_sessions|length }}</p>
+                    <p class="text-[10px] text-slate-500 font-medium mt-0.5">Total Interviews</p>
+                </div>
+                <div class="bg-slate-50 rounded-xl p-3 text-center">
+                    {% set scored = past_sessions|selectattr('overall_score')|list %}
+                    <p class="text-2xl font-bold text-emerald-600">
+                        {% if scored %}{{ (scored|map(attribute='overall_score')|sum / scored|length)|round|int }}{% else %}-{% endif %}
+                    </p>
+                    <p class="text-[10px] text-slate-500 font-medium mt-0.5">Avg Score</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Interviews -->
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
+            <h3 class="text-sm font-bold text-slate-800 mb-3">Recent Interviews</h3>
+            {% if past_sessions %}
+            <div class="space-y-2">
+                {% for s in past_sessions[:6] %}
+                <a href="{% if s.status == 'completed' %}{{ url_for('career_services_interview_feedback', session_id=s.id) }}{% else %}{{ url_for('career_services_interview_session', session_id=s.id) }}{% endif %}"
+                   class="flex items-center gap-3 p-2.5 rounded-xl hover:bg-slate-50 transition group">
+                    <!-- Score circle -->
+                    <div class="w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold flex-shrink-0
+                        {% if s.overall_score and s.overall_score >= 75 %}bg-emerald-100 text-emerald-700
+                        {% elif s.overall_score and s.overall_score >= 50 %}bg-amber-100 text-amber-700
+                        {% elif s.overall_score %}bg-red-100 text-red-700
+                        {% else %}bg-slate-100 text-slate-400{% endif %}">
+                        {% if s.overall_score %}{{ s.overall_score }}{% else %}-{% endif %}
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <p class="text-xs font-semibold text-slate-700 truncate group-hover:text-brand-600 transition">{{ s.target_role }}</p>
+                        <p class="text-[10px] text-slate-400 mt-0.5">
+                            {{ s.interview_type|capitalize }} &middot; {{ s.difficulty|capitalize }} &middot; {{ s.duration_minutes }}min
+                        </p>
+                    </div>
+                    <!-- Status badge -->
+                    {% if s.status == 'completed' %}
+                    <span class="text-[10px] font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">Done</span>
+                    {% elif s.status == 'active' %}
+                    <span class="text-[10px] font-medium text-amber-600 bg-amber-50 px-2 py-0.5 rounded-full">In Progress</span>
+                    {% else %}
+                    <span class="text-[10px] font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">Abandoned</span>
+                    {% endif %}
+                </a>
+                {% endfor %}
+            </div>
+            {% else %}
+            <div class="text-center py-6">
+                <svg class="w-10 h-10 mx-auto text-slate-200 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                <p class="text-xs text-slate-400">No interviews yet</p>
+                <p class="text-[10px] text-slate-300 mt-1">Your first one is free!</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Tips -->
+        <div class="bg-gradient-to-br from-slate-800 to-slate-900 rounded-2xl p-5 text-white">
+            <h3 class="text-sm font-bold mb-3">Tips for Success</h3>
+            <ul class="space-y-2 text-xs text-slate-300 leading-relaxed">
+                <li class="flex gap-2"><span class="text-emerald-400 flex-shrink-0">1.</span> Use a quiet environment with a good mic</li>
+                <li class="flex gap-2"><span class="text-emerald-400 flex-shrink-0">2.</span> Structure behavioral answers with STAR method</li>
+                <li class="flex gap-2"><span class="text-emerald-400 flex-shrink-0">3.</span> Speak clearly and at a moderate pace</li>
+                <li class="flex gap-2"><span class="text-emerald-400 flex-shrink-0">4.</span> For technical rounds, think aloud before coding</li>
+                <li class="flex gap-2"><span class="text-emerald-400 flex-shrink-0">5.</span> Always ask the interviewer questions at the end</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<script>
+document.getElementById('interview-setup-form').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    const btn = document.getElementById('start-btn');
+    const errBox = document.getElementById('start-error');
+    errBox.classList.add('hidden');
+
+    const targetRole = document.getElementById('target-role').value.trim();
+    if (!targetRole) {
+        errBox.textContent = 'Please enter a target role.';
+        errBox.classList.remove('hidden');
+        return;
+    }
+
+    const getRadio = (name) => {
+        const el = document.querySelector(`input[name="${name}"]:checked`);
+        return el ? el.value : null;
+    };
+
+    btn.disabled = true;
+    btn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path></svg> Preparing Interview...';
+
+    try {
+        const resp = await fetch('/api/interview/start', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                target_role: targetRole,
+                interview_type: getRadio('interview_type') || 'behavioral',
+                difficulty: getRadio('difficulty') || 'medium',
+                duration_minutes: parseInt(getRadio('duration') || '30'),
+                persona: getRadio('persona') || 'neutral',
+            }),
+        });
+        const data = await resp.json();
+        if (!resp.ok) {
+            if (resp.status === 402) {
+                errBox.innerHTML = 'Not enough credits. You need ' + data.credits_needed +
+                    ' credits (you have ' + data.credits_available + '). <a href="/buy-credits" class="underline font-semibold">Buy Credits</a>';
+            } else {
+                errBox.textContent = data.error || 'Something went wrong. Please try again.';
+            }
+            errBox.classList.remove('hidden');
+            btn.disabled = false;
+            btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Start Interview';
+            return;
+        }
+        // Redirect to session page
+        window.location.href = '/career-services/mock-interviews/session/' + data.session_id;
+    } catch (err) {
+        errBox.textContent = 'Network error. Please check your connection and try again.';
+        errBox.classList.remove('hidden');
+        btn.disabled = false;
+        btn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> Start Interview';
+    }
+});
+</script>
+
+{% endblock %}

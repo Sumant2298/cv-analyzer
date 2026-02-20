@@ -33,6 +33,8 @@ CREDITS_PER_CV_ANALYSIS = 2    # Tier 1: CV-only analysis
 CREDITS_PER_JD_ANALYSIS = 3    # Tier 2: CV vs JD matching
 CREDITS_PER_CV_REWRITE = 5     # Tier 3: CV rewrite (same as CREDITS_PER_REWRITE)
 FREE_CV_ANALYSIS_LIMIT = 1     # First CV analysis is free (requires login)
+CREDITS_PER_MOCK_INTERVIEW = 3  # Mock AI interview session
+FREE_INTERVIEW_LIMIT = 1        # First interview is free
 
 _razorpay_client = None
 

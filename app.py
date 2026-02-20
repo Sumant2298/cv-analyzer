@@ -301,6 +301,22 @@ with app.app_context():
         logger.info('Migration check (user_profiles new cols): %s', e)
         db.session.rollback()
 
+    # Migration: create interview_sessions and interview_exchanges tables
+    try:
+        from sqlalchemy import inspect as _iv_inspect
+        from models import InterviewSession, InterviewExchange
+        _iv_insp = _iv_inspect(db.engine)
+        _iv_tables = _iv_insp.get_table_names()
+        if 'interview_sessions' not in _iv_tables:
+            InterviewSession.__table__.create(db.engine)
+            logger.info('Migration: created interview_sessions table')
+        if 'interview_exchanges' not in _iv_tables:
+            InterviewExchange.__table__.create(db.engine)
+            logger.info('Migration: created interview_exchanges table')
+    except Exception as e:
+        logger.info('Migration check (interview tables): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
@@ -3593,26 +3609,354 @@ def career_services_mentors():
 
 @app.route('/career-services/interview-prep')
 def career_services_interview_prep():
-    """Interview Prep with AI — coming soon."""
-    if not session.get('user_id'):
-        return redirect(url_for('login_page'))
-    return render_template('_coming_soon.html',
-                           coming_soon_title='Interview Prep with AI',
-                           coming_soon_desc='Practice with our AI interviewer tailored to your target role. Get instant feedback on your answers.',
-                           coming_soon_icon='M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z',
-                           active_category='career_services', active_page='interview_prep')
+    """Interview Prep — redirect to mock interviews."""
+    return redirect(url_for('career_services_mock_interviews'))
 
+
+# ---------------------------------------------------------------------------
+# Mock AI Interviews — pages & API
+# ---------------------------------------------------------------------------
 
 @app.route('/career-services/mock-interviews')
 def career_services_mock_interviews():
-    """Mock AI Interviews — coming soon."""
+    """Mock Interview setup page."""
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
-    return render_template('_coming_soon.html',
-                           coming_soon_title='Mock AI Interviews',
-                           coming_soon_desc='Experience realistic mock interviews with AI that adapts to your industry and seniority level.',
-                           coming_soon_icon='M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z',
-                           active_category='career_services', active_page='mock_interviews')
+    user = User.query.get(session['user_id'])
+    from models import InterviewSession
+    past_sessions = InterviewSession.query.filter_by(
+        user_id=user.id
+    ).order_by(InterviewSession.started_at.desc()).limit(10).all()
+    completed_count = InterviewSession.query.filter_by(
+        user_id=user.id, status='completed').count()
+    return render_template('interview/setup.html',
+                           user=user,
+                           past_sessions=past_sessions,
+                           completed_count=completed_count,
+                           active_category='career_services',
+                           active_page='mock_interviews')
+
+
+@app.route('/career-services/mock-interviews/session/<int:session_id>')
+def career_services_interview_session(session_id):
+    """Live interview session page."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    from models import InterviewSession
+    iv_session = InterviewSession.query.get_or_404(session_id)
+    if iv_session.user_id != session['user_id']:
+        return redirect(url_for('career_services_mock_interviews'))
+    if iv_session.status == 'completed':
+        return redirect(url_for('career_services_interview_feedback', session_id=session_id))
+    user = User.query.get(session['user_id'])
+    return render_template('interview/session.html',
+                           user=user,
+                           iv_session=iv_session,
+                           active_category='career_services',
+                           active_page='mock_interviews')
+
+
+@app.route('/career-services/mock-interviews/feedback/<int:session_id>')
+def career_services_interview_feedback(session_id):
+    """Post-interview feedback report."""
+    if not session.get('user_id'):
+        return redirect(url_for('login_page'))
+    from models import InterviewSession, InterviewExchange
+    iv_session = InterviewSession.query.get_or_404(session_id)
+    if iv_session.user_id != session['user_id']:
+        return redirect(url_for('career_services_mock_interviews'))
+    if iv_session.status != 'completed':
+        return redirect(url_for('career_services_interview_session', session_id=session_id))
+    user = User.query.get(session['user_id'])
+    exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
+    feedback = json.loads(iv_session.feedback_json) if iv_session.feedback_json else {}
+    return render_template('interview/feedback.html',
+                           user=user,
+                           iv_session=iv_session,
+                           exchanges=exchanges,
+                           feedback=feedback,
+                           active_category='career_services',
+                           active_page='mock_interviews')
+
+
+# --- Interview API Endpoints ---
+
+@app.route('/api/interview/start', methods=['POST'])
+def api_interview_start():
+    """Create a new interview session and return the first question."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    user = User.query.get(session['user_id'])
+    data = request.get_json(silent=True) or {}
+
+    # Validate required fields
+    target_role = (data.get('target_role') or '').strip()
+    interview_type = data.get('interview_type', 'behavioral')
+    difficulty = data.get('difficulty', 'medium')
+    duration_minutes = data.get('duration_minutes', 30)
+    persona = data.get('persona', 'neutral')
+
+    if not target_role:
+        return jsonify({'error': 'Target role is required'}), 400
+    if interview_type not in ('behavioral', 'technical', 'hr', 'case', 'mixed'):
+        return jsonify({'error': 'Invalid interview type'}), 400
+    if difficulty not in ('easy', 'medium', 'hard'):
+        return jsonify({'error': 'Invalid difficulty'}), 400
+    if duration_minutes not in (15, 30, 45):
+        return jsonify({'error': 'Duration must be 15, 30, or 45'}), 400
+    if persona not in ('friendly', 'neutral', 'tough'):
+        return jsonify({'error': 'Invalid persona'}), 400
+
+    # Credit check: first interview free, then 3 credits
+    from models import InterviewSession, InterviewExchange
+    from payments import deduct_credits, CREDITS_PER_MOCK_INTERVIEW, FREE_INTERVIEW_LIMIT
+
+    completed_count = InterviewSession.query.filter_by(
+        user_id=user.id, status='completed').count()
+    is_free = completed_count < FREE_INTERVIEW_LIMIT
+    credits_charged = 0
+
+    if not is_free:
+        if not deduct_credits(user.id, CREDITS_PER_MOCK_INTERVIEW, 'mock_interview'):
+            user = User.query.get(user.id)  # refresh
+            return jsonify({
+                'error': 'Insufficient credits',
+                'credits_needed': CREDITS_PER_MOCK_INTERVIEW,
+                'credits_available': user.credits,
+            }), 402
+        credits_charged = CREDITS_PER_MOCK_INTERVIEW
+
+    # Create session
+    iv_session = InterviewSession(
+        user_id=user.id,
+        target_role=target_role,
+        interview_type=interview_type,
+        difficulty=difficulty,
+        duration_minutes=duration_minutes,
+        persona=persona,
+        status='active',
+        credits_charged=credits_charged,
+    )
+    db.session.add(iv_session)
+    db.session.flush()  # get id
+
+    # Generate first question
+    try:
+        from interview_service import start_interview, get_expected_question_count
+        result = start_interview(iv_session)
+    except Exception as e:
+        logger.error('Interview start LLM error: %s', e)
+        db.session.rollback()
+        return jsonify({'error': 'Failed to start interview. Please try again.'}), 500
+
+    # Save first exchange
+    exchange = InterviewExchange(
+        session_id=iv_session.id,
+        sequence=1,
+        question_text=result['interviewer_message'],
+    )
+    db.session.add(exchange)
+    iv_session.question_count = 1
+    db.session.commit()
+
+    user = User.query.get(user.id)  # refresh credits
+    return jsonify({
+        'session_id': iv_session.id,
+        'interviewer_message': result['interviewer_message'],
+        'question_type': result.get('question_type', 'warmup'),
+        'requires_code': result.get('requires_code', False),
+        'code_language': result.get('code_language'),
+        'is_final_question': result.get('is_final_question', False),
+        'question_number': 1,
+        'total_expected': get_expected_question_count(duration_minutes),
+        'credits_remaining': user.credits,
+        'is_free': is_free,
+    })
+
+
+@app.route('/api/interview/answer', methods=['POST'])
+def api_interview_answer():
+    """Submit candidate answer and get next question."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json(silent=True) or {}
+    session_id = data.get('session_id')
+    answer_text = (data.get('answer_text') or '').strip()
+    code_text = (data.get('code_text') or '').strip() or None
+    answer_duration = data.get('answer_duration_seconds', 0)
+
+    if not session_id or not answer_text:
+        return jsonify({'error': 'session_id and answer_text are required'}), 400
+
+    from models import InterviewSession, InterviewExchange
+    iv_session = InterviewSession.query.get(session_id)
+    if not iv_session or iv_session.user_id != session['user_id']:
+        return jsonify({'error': 'Session not found'}), 404
+    if iv_session.status != 'active':
+        return jsonify({'error': 'Interview is not active'}), 400
+
+    # Find the latest unanswered exchange and save the answer
+    current_exchange = InterviewExchange.query.filter_by(
+        session_id=iv_session.id, answer_text=None
+    ).order_by(InterviewExchange.sequence.desc()).first()
+
+    if not current_exchange:
+        return jsonify({'error': 'No pending question to answer'}), 400
+
+    # Get all exchanges for context
+    all_exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
+
+    # Generate next question
+    try:
+        from interview_service import process_answer, get_expected_question_count
+        result = process_answer(iv_session, all_exchanges, answer_text, code_text)
+    except Exception as e:
+        logger.error('Interview answer LLM error: %s', e)
+        return jsonify({'error': 'Failed to process answer. Please try again.'}), 500
+
+    # Save the answer on current exchange
+    current_exchange.answer_text = answer_text
+    current_exchange.code_text = code_text
+    current_exchange.answer_duration_seconds = answer_duration
+    current_exchange.feedback_json = json.dumps(result.get('brief_feedback', {}))
+
+    # Create new exchange for the next question
+    next_seq = current_exchange.sequence + 1
+    next_exchange = InterviewExchange(
+        session_id=iv_session.id,
+        sequence=next_seq,
+        question_text=result['interviewer_message'],
+    )
+    db.session.add(next_exchange)
+    iv_session.question_count = next_seq
+    db.session.commit()
+
+    total_expected = get_expected_question_count(iv_session.duration_minutes)
+
+    return jsonify({
+        'interviewer_message': result['interviewer_message'],
+        'question_type': result.get('question_type', 'behavioral'),
+        'is_follow_up': result.get('is_follow_up', False),
+        'is_final_question': result.get('is_final_question', False),
+        'requires_code': result.get('requires_code', False),
+        'code_language': result.get('code_language'),
+        'brief_feedback': result.get('brief_feedback', {}),
+        'question_number': next_seq,
+        'total_expected': total_expected,
+    })
+
+
+@app.route('/api/interview/end', methods=['POST'])
+def api_interview_end():
+    """End interview and generate feedback report."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json(silent=True) or {}
+    session_id = data.get('session_id')
+
+    from models import InterviewSession, InterviewExchange
+    iv_session = InterviewSession.query.get(session_id)
+    if not iv_session or iv_session.user_id != session['user_id']:
+        return jsonify({'error': 'Session not found'}), 404
+    if iv_session.status == 'completed':
+        return jsonify({'redirect_url': url_for('career_services_interview_feedback',
+                                                 session_id=iv_session.id)})
+
+    # Mark as completed
+    iv_session.status = 'completed'
+    iv_session.ended_at = datetime.utcnow()
+
+    # Generate final feedback
+    exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
+    try:
+        from interview_service import generate_final_feedback
+        feedback = generate_final_feedback(iv_session, exchanges)
+        iv_session.overall_score = feedback.get('overall_score', 50)
+        iv_session.feedback_json = json.dumps(feedback)
+    except Exception as e:
+        logger.error('Interview feedback generation error: %s', e)
+        iv_session.feedback_json = json.dumps({
+            'overall_score': 0,
+            'summary': 'Feedback generation failed. Please try again.',
+            'dimensions': {},
+            'per_question_feedback': [],
+        })
+        iv_session.overall_score = 0
+
+    db.session.commit()
+
+    return jsonify({
+        'redirect_url': url_for('career_services_interview_feedback',
+                                 session_id=iv_session.id),
+    })
+
+
+@app.route('/api/interview/session/<int:session_id>')
+def api_interview_session_data(session_id):
+    """Get session data for resuming or reviewing."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    from models import InterviewSession, InterviewExchange
+    iv_session = InterviewSession.query.get(session_id)
+    if not iv_session or iv_session.user_id != session['user_id']:
+        return jsonify({'error': 'Session not found'}), 404
+
+    from interview_service import get_expected_question_count
+    exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
+
+    return jsonify({
+        'session': {
+            'id': iv_session.id,
+            'target_role': iv_session.target_role,
+            'interview_type': iv_session.interview_type,
+            'difficulty': iv_session.difficulty,
+            'duration_minutes': iv_session.duration_minutes,
+            'persona': iv_session.persona,
+            'status': iv_session.status,
+            'question_count': iv_session.question_count,
+            'total_expected': get_expected_question_count(iv_session.duration_minutes),
+            'started_at': iv_session.started_at.isoformat() if iv_session.started_at else None,
+        },
+        'exchanges': [{
+            'sequence': ex.sequence,
+            'question_text': ex.question_text,
+            'answer_text': ex.answer_text,
+            'code_text': ex.code_text,
+            'answer_duration_seconds': ex.answer_duration_seconds,
+            'feedback_json': json.loads(ex.feedback_json) if ex.feedback_json else None,
+        } for ex in exchanges],
+    })
+
+
+@app.route('/api/interview/history')
+def api_interview_history():
+    """Get user's past interview sessions."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    from models import InterviewSession
+    sessions = InterviewSession.query.filter_by(
+        user_id=session['user_id']
+    ).order_by(InterviewSession.started_at.desc()).limit(20).all()
+
+    return jsonify({
+        'sessions': [{
+            'id': s.id,
+            'target_role': s.target_role,
+            'interview_type': s.interview_type,
+            'difficulty': s.difficulty,
+            'duration_minutes': s.duration_minutes,
+            'persona': s.persona,
+            'status': s.status,
+            'overall_score': s.overall_score,
+            'question_count': s.question_count,
+            'started_at': s.started_at.isoformat() if s.started_at else None,
+        } for s in sessions],
+    })
 
 
 @app.route('/career-services/career-plan')
