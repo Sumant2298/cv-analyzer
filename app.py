@@ -317,6 +317,23 @@ with app.app_context():
         logger.info('Migration check (interview tables): %s', e)
         db.session.rollback()
 
+    # Migration: add new columns to interview_exchanges (v2 upgrade)
+    try:
+        _ix_cols = [c['name'] for c in _iv_insp.get_columns('interview_exchanges')]
+        if 'question_type' not in _ix_cols:
+            db.session.execute(text("ALTER TABLE interview_exchanges ADD COLUMN question_type VARCHAR(30)"))
+            logger.info('Migration: added question_type to interview_exchanges')
+        if 'requires_code' not in _ix_cols:
+            db.session.execute(text("ALTER TABLE interview_exchanges ADD COLUMN requires_code BOOLEAN DEFAULT FALSE"))
+            logger.info('Migration: added requires_code to interview_exchanges')
+        if 'code_language' not in _ix_cols:
+            db.session.execute(text("ALTER TABLE interview_exchanges ADD COLUMN code_language VARCHAR(20)"))
+            logger.info('Migration: added code_language to interview_exchanges')
+        db.session.commit()
+    except Exception as e:
+        logger.info('Migration check (interview_exchanges new cols): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
@@ -3649,11 +3666,9 @@ def career_services_interview_session(session_id):
     if iv_session.status == 'completed':
         return redirect(url_for('career_services_interview_feedback', session_id=session_id))
     user = User.query.get(session['user_id'])
-    return render_template('interview/session.html',
+    return render_template('interview/session_room.html',
                            user=user,
-                           iv_session=iv_session,
-                           active_category='career_services',
-                           active_page='mock_interviews')
+                           iv_session=iv_session)
 
 
 @app.route('/career-services/mock-interviews/feedback/<int:session_id>')
@@ -3755,6 +3770,9 @@ def api_interview_start():
         session_id=iv_session.id,
         sequence=1,
         question_text=result['interviewer_message'],
+        question_type=result.get('question_type', 'warmup'),
+        requires_code=result.get('requires_code', False),
+        code_language=result.get('code_language'),
     )
     db.session.add(exchange)
     iv_session.question_count = 1
@@ -3828,6 +3846,9 @@ def api_interview_answer():
         session_id=iv_session.id,
         sequence=next_seq,
         question_text=result['interviewer_message'],
+        question_type=result.get('question_type', 'behavioral'),
+        requires_code=result.get('requires_code', False),
+        code_language=result.get('code_language'),
     )
     db.session.add(next_exchange)
     iv_session.question_count = next_seq
@@ -3926,6 +3947,9 @@ def api_interview_session_data(session_id):
             'question_text': ex.question_text,
             'answer_text': ex.answer_text,
             'code_text': ex.code_text,
+            'question_type': ex.question_type,
+            'requires_code': ex.requires_code or False,
+            'code_language': ex.code_language,
             'answer_duration_seconds': ex.answer_duration_seconds,
             'feedback_json': json.loads(ex.feedback_json) if ex.feedback_json else None,
         } for ex in exchanges],
@@ -3957,6 +3981,126 @@ def api_interview_history():
             'started_at': s.started_at.isoformat() if s.started_at else None,
         } for s in sessions],
     })
+
+
+@app.route('/api/interview/run-code', methods=['POST'])
+def api_interview_run_code():
+    """Execute code in a sandboxed environment."""
+    if not session.get('user_id'):
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    data = request.get_json(silent=True) or {}
+    code = data.get('code', '')
+    language = data.get('language', 'python')
+    stdin_input = data.get('stdin', '')
+
+    if not code.strip():
+        return jsonify({'error': 'No code provided'}), 400
+
+    judge0_key = os.environ.get('JUDGE0_API_KEY')
+
+    if judge0_key:
+        import requests as http_requests
+        LANG_IDS = {'python': 71, 'javascript': 63, 'java': 62, 'cpp': 54, 'go': 60}
+        lang_id = LANG_IDS.get(language, 71)
+        try:
+            resp = http_requests.post(
+                'https://judge0-ce.p.rapidapi.com/submissions',
+                headers={
+                    'X-RapidAPI-Key': judge0_key,
+                    'Content-Type': 'application/json',
+                },
+                json={
+                    'source_code': code,
+                    'language_id': lang_id,
+                    'stdin': stdin_input,
+                },
+                params={'wait': 'true'},
+                timeout=15,
+            )
+            result = resp.json()
+            return jsonify({
+                'stdout': result.get('stdout', '') or '',
+                'stderr': result.get('stderr', '') or '',
+                'compile_output': result.get('compile_output', '') or '',
+                'status': result.get('status', {}).get('description', 'Unknown'),
+                'time': result.get('time', '0'),
+                'memory': result.get('memory', 0),
+            })
+        except Exception as e:
+            logger.error('Judge0 API error: %s', e)
+            return jsonify({'error': 'Code execution service unavailable'}), 503
+    else:
+        # Fallback: Python-only sandboxed exec
+        if language != 'python':
+            return jsonify({
+                'stdout': '',
+                'stderr': f'Code execution for {language} requires Judge0 API. Only Python is available in fallback mode.',
+                'status': 'Configuration Error',
+            })
+        import subprocess
+        try:
+            proc = subprocess.run(
+                ['python3', '-c', code],
+                capture_output=True, text=True, timeout=5,
+                input=stdin_input,
+            )
+            return jsonify({
+                'stdout': proc.stdout[:5000],
+                'stderr': proc.stderr[:2000],
+                'status': 'Accepted' if proc.returncode == 0 else 'Runtime Error',
+                'time': '< 5s',
+                'memory': 0,
+            })
+        except subprocess.TimeoutExpired:
+            return jsonify({
+                'stdout': '',
+                'stderr': 'Execution timed out (5s limit)',
+                'status': 'Time Limit Exceeded',
+            })
+        except Exception as e:
+            return jsonify({
+                'stdout': '',
+                'stderr': str(e),
+                'status': 'Internal Error',
+            }), 500
+
+
+@app.route('/api/interview/tts', methods=['POST'])
+def api_interview_tts():
+    """ElevenLabs TTS proxy — returns audio stream."""
+    elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
+    if not elevenlabs_key:
+        return '', 204  # No content — frontend falls back to Web Speech API
+
+    data = request.get_json(silent=True) or {}
+    text = data.get('text', '')
+    if not text:
+        return jsonify({'error': 'text is required'}), 400
+
+    import requests as http_requests
+    voice_id = data.get('voice_id', 'pNInz6obpgDQGcFmaJgB')  # "Adam" default
+
+    try:
+        resp = http_requests.post(
+            f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}',
+            headers={
+                'xi-api-key': elevenlabs_key,
+                'Content-Type': 'application/json',
+            },
+            json={
+                'text': text,
+                'model_id': 'eleven_turbo_v2',
+                'voice_settings': {'stability': 0.5, 'similarity_boost': 0.75},
+            },
+            timeout=15,
+        )
+        if resp.status_code != 200:
+            return '', 204  # Fallback
+        return Response(resp.content, mimetype='audio/mpeg')
+    except Exception as e:
+        logger.error('ElevenLabs TTS error: %s', e)
+        return '', 204
 
 
 @app.route('/career-services/career-plan')

@@ -653,6 +653,11 @@ class InterviewExchange(db.Model):
     code_text = db.Column(db.Text)                                   # Code submission for technical questions
     answer_duration_seconds = db.Column(db.Integer)
 
+    # Question metadata (persisted for session resume)
+    question_type = db.Column(db.String(30))                           # warmup, behavioral, technical, coding, etc.
+    requires_code = db.Column(db.Boolean, default=False)
+    code_language = db.Column(db.String(20))                           # python, javascript, java, etc.
+
     # Per-question feedback (populated when answer submitted)
     feedback_json = db.Column(db.Text)
 

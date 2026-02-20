@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ iv_session.target_role }} Interview — LevelUpX</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/output.css') }}">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { background: #020617; color: #e2e8f0; font-family: 'Inter', sans-serif; overflow: hidden; height: 100vh; margin: 0; }
+        .room-layout { display: flex; flex-direction: column; height: 100vh; }
+        .video-grid { display: flex; flex: 1; min-height: 0; }
+        .video-panel { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
+
+        #avatar-frame { width: 280px; height: 280px; border-radius: 50%; overflow: hidden; position: relative; box-shadow: 0 0 60px rgba(99,102,241,0.15); animation: avatar-idle 6s ease-in-out infinite; }
+        @keyframes avatar-idle { 0%,100%{transform:scale(1) translateY(0)} 25%{transform:scale(1.005) translateY(-1px)} 75%{transform:scale(0.995) translateY(1px)} }
+
+        #avatar-mouth { position:absolute; bottom:32%; left:50%; transform:translateX(-50%) scaleY(0.1); width:40px; height:20px; background:rgba(0,0,0,0.7); border-radius:50%; transition:transform 50ms ease; transform-origin:center top; }
+
+        #avatar-blink { position:absolute; top:28%; left:15%; right:15%; height:8%; display:flex; justify-content:space-between; pointer-events:none; }
+        .eyelid { width:30%; height:100%; background:#d4a574; border-radius:50%; transform:scaleY(0); transition:transform 80ms ease; }
+        .eyelid.blink { transform:scaleY(1.5); }
+
+        /* Expression classes applied to #avatar-frame */
+        #avatar-frame.thinking { transform:rotate(2deg); filter:brightness(0.97); }
+        #avatar-frame.smile { transform:translateY(-1px); filter:brightness(1.03); }
+        #avatar-frame.nod { animation: nod 400ms ease-in-out; }
+        @keyframes nod { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+
+        #webcam-video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
+
+        .name-plate { position:absolute; bottom:12px; left:12px; background:rgba(0,0,0,0.6); backdrop-filter:blur(8px); padding:4px 12px; border-radius:6px; display:flex; align-items:center; gap:8px; }
+        .name-plate span { font-size:12px; font-weight:600; color:white; }
+
+        .speaking-wave { display:flex; align-items:flex-end; gap:2px; height:14px; }
+        .speaking-wave .bar { width:3px; background:#10b981; border-radius:2px; }
+
+        #bottom-panel { height:35vh; max-height:50vh; min-height:40px; transition:height 300ms ease; display:flex; flex-direction:column; background:#0f172a; border-top:1px solid rgba(255,255,255,0.08); }
+        #bottom-panel.collapsed { height:40px; }
+
+        .panel-tab { padding:6px 14px; font-size:12px; font-weight:600; color:#64748b; border-radius:6px; cursor:pointer; transition:all 150ms; border:none; background:none; }
+        .panel-tab.active { color:white; background:#334155; }
+        .panel-content { flex:1; overflow-y:auto; display:none; }
+        .panel-content.active { display:flex; flex-direction:column; }
+
+        .control-btn { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#334155; color:white; transition:all 150ms; border:none; cursor:pointer; }
+        .control-btn:hover { background:#475569; }
+        .control-btn.active { background:#ef4444; animation:mic-pulse 1.5s ease-out infinite; }
+        .control-btn.off { background:#1e293b; color:#475569; }
+        @keyframes mic-pulse { 0%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)} 70%{box-shadow:0 0 0 12px rgba(239,68,68,0)} 100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} }
+
+        /* Speaking wave animation */
+        @keyframes eq1 { 0%,100%{height:4px} 50%{height:14px} }
+        @keyframes eq2 { 0%,100%{height:8px} 50%{height:10px} }
+        @keyframes eq3 { 0%,100%{height:10px} 50%{height:5px} }
+        @keyframes eq4 { 0%,100%{height:5px} 50%{height:12px} }
+        .wave-1 { animation:eq1 0.8s ease-in-out infinite; }
+        .wave-2 { animation:eq2 0.6s ease-in-out infinite 0.1s; }
+        .wave-3 { animation:eq3 0.7s ease-in-out infinite 0.2s; }
+        .wave-4 { animation:eq4 0.5s ease-in-out infinite 0.15s; }
+        .wave-5 { animation:eq3 0.65s ease-in-out infinite 0.05s; }
+
+        /* Typing dots */
+        .typing-dots span { display:inline-block; width:6px; height:6px; border-radius:50%; background:#64748b; animation:typing 1.2s ease-in-out infinite; }
+        .typing-dots span:nth-child(2) { animation-delay:0.2s; }
+        .typing-dots span:nth-child(3) { animation-delay:0.4s; }
+        @keyframes typing { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
+
+        #caption-bar { height:auto; min-height:32px; }
+
+        /* Type modal */
+        #type-modal { position:fixed; bottom:56px; left:50%; transform:translateX(-50%); width:90%; max-width:600px; z-index:50; }
+
+        /* Transcript messages */
+        .transcript-msg { padding: 10px 16px; display: flex; gap: 10px; }
+        .transcript-msg.ai { background: rgba(99,102,241,0.05); }
+        .transcript-msg .msg-sender { font-size: 11px; font-weight: 700; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.05em; min-width: 40px; padding-top: 2px; }
+        .transcript-msg .msg-text { font-size: 13px; line-height: 1.6; color: #cbd5e1; }
+
+        /* Code editor area */
+        #monaco-container { min-height: 200px; }
+        .output-panel { scrollbar-width: thin; scrollbar-color: #334155 transparent; }
+
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+
+        /* Responsive */
+        @media (max-width:768px) {
+            .video-grid { flex-direction:column; }
+            #avatar-frame { width:180px; height:180px; }
+            #bottom-panel { height:40vh; }
+            .control-btn { width:40px; height:40px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="room-layout">
+
+        <!-- ============================================================
+             LAYER 1: TOP BAR
+             ============================================================ -->
+        <header id="top-bar" class="h-12 bg-slate-900/95 backdrop-blur flex items-center px-4 gap-3 fixed top-0 left-0 right-0 z-40 border-b border-white/5">
+            <!-- Left cluster -->
+            <div class="flex items-center gap-3">
+                <!-- Timer -->
+                <div id="timer-display" class="flex items-center gap-1.5 text-sm text-slate-300">
+                    <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                    </svg>
+                    <span id="timer-text" class="font-semibold tabular-nums">{{ iv_session.duration_minutes }}:00</span>
+                </div>
+
+                <!-- Divider -->
+                <div class="w-px h-5 bg-white/10"></div>
+
+                <!-- Question counter -->
+                <div id="question-counter" class="text-xs font-semibold text-slate-400">
+                    <span id="q-counter-text">Q1/8</span>
+                </div>
+
+                <!-- Divider -->
+                <div class="w-px h-5 bg-white/10"></div>
+
+                <!-- Badges -->
+                <span class="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">{{ iv_session.interview_type }}</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full">{{ iv_session.difficulty }}</span>
+            </div>
+
+            <!-- Center: role title -->
+            <div class="flex-1 text-center">
+                <h1 class="text-sm font-semibold text-white truncate">{{ iv_session.target_role }}</h1>
+            </div>
+
+            <!-- Right: End Call -->
+            <button id="end-call-btn" class="flex items-center gap-2 bg-red-500 hover:bg-red-600 text-white text-xs font-semibold px-4 py-1.5 rounded-full transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M15.75 3.75 18 6m0 0 2.25 2.25M18 6l2.25-2.25M18 6l-2.25 2.25m1.5 13.5c-8.284 0-15-6.716-15-15V4.5A2.25 2.25 0 0 1 6.75 2.25h1.372c.516 0 .966.351 1.091.852l1.106 4.423c.11.44-.054.902-.417 1.173l-1.293.97a1.062 1.062 0 0 0-.38 1.21 12.035 12.035 0 0 0 7.143 7.143c.441.162.928-.004 1.21-.38l.97-1.293a1.125 1.125 0 0 1 1.173-.417l4.423 1.106c.5.125.852.575.852 1.091v1.372c0 1.243-1.007 2.25-2.25 2.25h-.75Z"/>
+                </svg>
+                End Call
+            </button>
+        </header>
+
+
+        <!-- ============================================================
+             LAYER 2: VIDEO AREA
+             ============================================================ -->
+        <div class="video-grid" style="margin-top:48px;">
+
+            <!-- LEFT: AI Interviewer Panel -->
+            <div class="video-panel bg-gradient-to-br from-slate-900 via-indigo-950/30 to-slate-900">
+                <!-- Avatar -->
+                <div id="avatar-frame">
+                    <img id="avatar-photo" src="/static/img/interviewer-alex.svg" alt="AI Interviewer" class="w-full h-full object-cover">
+                    <div id="avatar-mouth"></div>
+                    <div id="avatar-blink">
+                        <div class="eyelid"></div>
+                        <div class="eyelid"></div>
+                    </div>
+                </div>
+
+                <!-- AI Name Plate -->
+                <div class="name-plate">
+                    <span>Alex &middot; {{ iv_session.persona }} Interviewer</span>
+                    <div id="ai-speaking-wave" class="speaking-wave hidden">
+                        <div class="bar wave-1"></div>
+                        <div class="bar wave-2"></div>
+                        <div class="bar wave-3"></div>
+                        <div class="bar wave-4"></div>
+                        <div class="bar wave-5"></div>
+                    </div>
+                </div>
+
+                <!-- Not recording indicator -->
+                <div class="absolute top-3 right-3 flex items-center gap-1.5 text-[10px] text-slate-500">
+                    <svg class="w-3 h-3" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                    </svg>
+                    Not recording
+                </div>
+            </div>
+
+            <!-- RIGHT: Candidate Webcam Panel -->
+            <div class="video-panel bg-slate-800">
+                <!-- Live webcam -->
+                <video id="webcam-video" autoplay muted playsinline></video>
+
+                <!-- Fallback when camera is off -->
+                <div id="webcam-fallback" class="hidden flex flex-col items-center justify-center gap-3">
+                    <div class="w-24 h-24 rounded-full bg-slate-700 flex items-center justify-center">
+                        <span class="text-3xl font-bold text-slate-300">{{ (user.first_name or "Y")[0] | upper }}</span>
+                    </div>
+                    <span class="text-xs text-slate-500">Camera off</span>
+                </div>
+
+                <!-- User Name Plate -->
+                <div class="name-plate">
+                    <span>{{ user.first_name or "You" }}</span>
+                    <div id="user-speaking-wave" class="speaking-wave hidden">
+                        <div class="bar wave-1"></div>
+                        <div class="bar wave-2"></div>
+                        <div class="bar wave-3"></div>
+                        <div class="bar wave-4"></div>
+                        <div class="bar wave-5"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ============================================================
+             LAYER 3: CAPTION BAR
+             ============================================================ -->
+        <div id="caption-bar" class="bg-black/70 backdrop-blur-sm flex items-center justify-center px-6 py-1.5">
+            <p id="live-caption" class="text-white text-sm text-center max-w-3xl leading-relaxed">&nbsp;</p>
+        </div>
+
+
+        <!-- ============================================================
+             LAYER 4: BOTTOM PANEL (resizable, collapsible)
+             ============================================================ -->
+        <div id="bottom-panel">
+            <!-- Tab Bar -->
+            <div id="panel-tab-bar" class="h-10 flex items-center gap-1 px-3 border-b border-white/5 flex-shrink-0">
+                <button class="panel-tab active" data-tab="transcript">
+                    <svg class="w-3.5 h-3.5 inline-block mr-1 -mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.087.16 2.185.283 3.293.369V21l4.076-4.076a1.526 1.526 0 0 1 1.037-.443 48.282 48.282 0 0 0 5.68-.494c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0 0 12 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018Z"/>
+                    </svg>
+                    Transcript
+                </button>
+                <button class="panel-tab" data-tab="code">
+                    <svg class="w-3.5 h-3.5 inline-block mr-1 -mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+                    </svg>
+                    Code Editor
+                </button>
+                <button class="panel-tab" data-tab="notes">
+                    <svg class="w-3.5 h-3.5 inline-block mr-1 -mt-px" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10"/>
+                    </svg>
+                    Notes
+                </button>
+
+                <div class="flex-1"></div>
+
+                <!-- Collapse / Expand toggle -->
+                <button id="panel-collapse-btn" class="panel-tab" title="Collapse panel">
+                    <svg id="collapse-icon-down" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
+                    </svg>
+                    <svg id="collapse-icon-up" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5"/>
+                    </svg>
+                </button>
+            </div>
+
+            <!-- Tab Content -->
+            <div class="flex-1 min-h-0 relative">
+                <!-- Transcript Tab -->
+                <div id="tab-transcript" class="panel-content active bg-slate-950">
+                    <div id="transcript-messages" class="flex-1 overflow-y-auto px-2 py-2">
+                        <!-- Messages are appended here by JS -->
+                    </div>
+                    <!-- Typing indicator -->
+                    <div id="ai-typing-indicator" class="hidden px-4 py-2">
+                        <div class="typing-dots flex items-center gap-1">
+                            <span class="text-xs text-slate-500 mr-2">Alex is typing</span>
+                            <span></span><span></span><span></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Code Editor Tab -->
+                <div id="tab-code" class="panel-content" style="flex-direction:row;">
+                    <!-- Monaco Editor -->
+                    <div class="flex-1 min-w-0">
+                        <div id="monaco-container" class="w-full h-full"></div>
+                    </div>
+                    <!-- Output / Controls Panel -->
+                    <div class="output-panel w-72 border-l border-white/5 flex flex-col bg-slate-900/50">
+                        <!-- Language selector + buttons -->
+                        <div class="p-3 border-b border-white/5 flex flex-col gap-2">
+                            <select id="code-language" class="w-full bg-slate-800 text-slate-200 text-xs rounded-lg px-3 py-2 border border-white/10 focus:outline-none focus:border-indigo-500">
+                                <option value="javascript">JavaScript</option>
+                                <option value="python">Python</option>
+                                <option value="java">Java</option>
+                                <option value="cpp">C++</option>
+                                <option value="go">Go</option>
+                                <option value="typescript">TypeScript</option>
+                                <option value="sql">SQL</option>
+                            </select>
+                            <div class="flex gap-2">
+                                <button id="code-run-btn" class="flex-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors flex items-center justify-center gap-1">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/>
+                                    </svg>
+                                    Run
+                                </button>
+                                <button id="code-submit-btn" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold py-1.5 rounded-lg transition-colors">
+                                    Submit
+                                </button>
+                                <button id="code-reset-btn" class="bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors">
+                                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182"/>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        <!-- Output area -->
+                        <div class="flex-1 overflow-y-auto p-3">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Output</div>
+                            <pre id="code-output" class="text-xs text-slate-300 font-mono whitespace-pre-wrap leading-relaxed"></pre>
+                        </div>
+                        <!-- Test cases area -->
+                        <div id="test-cases" class="border-t border-white/5 p-3 overflow-y-auto max-h-32">
+                            <div class="text-[10px] uppercase tracking-wider text-slate-500 font-semibold mb-2">Test Cases</div>
+                            <div id="test-cases-list" class="space-y-1">
+                                <!-- Test case items appended by JS -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Notes Tab -->
+                <div id="tab-notes" class="panel-content">
+                    <textarea id="scratch-notes" class="w-full h-full bg-slate-950 text-slate-300 text-sm p-4 resize-none focus:outline-none placeholder:text-slate-600" placeholder="Jot down your thoughts, approach, or key points here..."></textarea>
+                </div>
+            </div>
+        </div>
+
+
+        <!-- ============================================================
+             LAYER 5: CONTROL BAR
+             ============================================================ -->
+        <div id="control-bar" class="h-14 bg-slate-900/95 backdrop-blur flex items-center justify-center gap-4 px-4 border-t border-white/5 flex-shrink-0">
+            <!-- Mic -->
+            <button id="mic-btn" class="control-btn" title="Toggle microphone">
+                <svg id="mic-icon-on" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"/>
+                </svg>
+                <svg id="mic-icon-off" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"/>
+                    <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+
+            <!-- Camera -->
+            <button id="cam-btn" class="control-btn" title="Toggle camera">
+                <svg id="cam-icon-on" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                </svg>
+                <svg id="cam-icon-off" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z"/>
+                    <line x1="2" y1="2" x2="22" y2="22" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                </svg>
+            </button>
+
+            <!-- Divider -->
+            <div class="w-px h-7 bg-white/10"></div>
+
+            <!-- Type -->
+            <button id="type-btn" class="control-btn" title="Type your answer">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6.75 7.5h10.5m-10.5 3h10.5M6.75 14.25h4.5m-1.774 5.59c-1.146.04-2.296.048-3.451.024a.627.627 0 0 1-.601-.623V4.262c0-.34.27-.62.608-.623a48.855 48.855 0 0 1 10.118.37.624.624 0 0 1 .535.617v1.124"/>
+                </svg>
+            </button>
+
+            <!-- Skip -->
+            <button id="skip-btn" class="control-btn" title="Skip question">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061A1.125 1.125 0 0 1 3 16.811V8.69ZM12.75 8.689c0-.864.933-1.406 1.683-.977l7.108 4.061a1.125 1.125 0 0 1 0 1.954l-7.108 4.061a1.125 1.125 0 0 1-1.683-.977V8.69Z"/>
+                </svg>
+            </button>
+        </div>
+
+    </div><!-- /.room-layout -->
+
+
+    <!-- ================================================================
+         TYPE MODAL (hidden overlay)
+         ================================================================ -->
+    <div id="type-modal" class="hidden">
+        <div class="bg-slate-800 border border-white/10 rounded-2xl shadow-2xl shadow-black/40 p-4">
+            <div class="flex items-center justify-between mb-3">
+                <span class="text-xs font-semibold text-slate-400 uppercase tracking-wider">Type your response</span>
+                <button id="type-modal-close" class="text-slate-500 hover:text-white transition-colors">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12"/>
+                    </svg>
+                </button>
+            </div>
+            <textarea id="type-input" class="w-full bg-slate-900 text-slate-200 text-sm rounded-xl p-3 border border-white/10 focus:outline-none focus:border-indigo-500 resize-none" rows="4" placeholder="Type your answer here..."></textarea>
+            <div class="flex justify-end mt-3">
+                <button id="type-send-btn" class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold px-5 py-2 rounded-lg transition-colors flex items-center gap-1.5">
+                    <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>
+                    </svg>
+                    Send
+                </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================================================================
+         SCRIPTS
+         ================================================================ -->
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.45.0/min/vs/loader.js"></script>
+    <script src="{{ url_for('static', filename='js/interview-room.js') }}"></script>
+    <script>
+    document.addEventListener('DOMContentLoaded', function() {
+        window.interviewRoom = new InterviewRoom({
+            sessionId: {{ iv_session.id }},
+            duration: {{ iv_session.duration_minutes }},
+            interviewType: '{{ iv_session.interview_type }}',
+            persona: '{{ iv_session.persona }}',
+            difficulty: '{{ iv_session.difficulty }}',
+            targetRole: '{{ iv_session.target_role|e }}',
+            userName: '{{ (user.first_name or "You")|e }}',
+        });
+
+        /* type-modal close button (not handled by InterviewRoom) */
+        document.getElementById('type-modal-close')?.addEventListener('click', function() {
+            document.getElementById('type-modal')?.classList.add('hidden');
+        });
+    });
+    </script>
+</body>
+</html>
