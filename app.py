@@ -45,6 +45,7 @@ if not _secret:
 app.secret_key = _secret
 app.config['PREFERRED_URL_SCHEME'] = 'https'
 app.config['MAX_CONTENT_LENGTH'] = 10 * 1024 * 1024  # 10 MB
+app.config['SEND_FILE_MAX_AGE_DEFAULT'] = 0  # No static-file caching (bust stale SVG/JS/CSS)
 app.config['UPLOAD_FOLDER'] = tempfile.mkdtemp()
 
 # CORS — only for Chrome Extension API endpoints
@@ -3701,11 +3702,13 @@ def career_services_interview_feedback(session_id):
     user = User.query.get(session['user_id'])
     exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
     feedback = json.loads(iv_session.feedback_json) if iv_session.feedback_json else {}
+    dims = feedback.get('dimensions', {})
     return render_template('interview/feedback.html',
                            user=user,
                            iv_session=iv_session,
                            exchanges=exchanges,
                            feedback=feedback,
+                           dims=dims,
                            active_category='career_services',
                            active_page='mock_interviews')
 
@@ -4177,7 +4180,7 @@ def api_interview_tts():
         return jsonify({'error': 'text is required'}), 400
 
     import requests as http_requests
-    voice_id = data.get('voice_id', 'EGQM7bHbTHTb7VUEcOHG')
+    voice_id = data.get('voice_id', '21m00Tcm4TlvDq8ikWAM')  # Rachel — free-tier premade voice
 
     try:
         # NON-streaming endpoint — returns complete MP3 in one response
