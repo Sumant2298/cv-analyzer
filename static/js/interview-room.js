@@ -1503,23 +1503,43 @@ class InterviewRoom {
         void el.offsetHeight;
         el.style.opacity = '1';
 
-        /* Split text into short lines (~5–7 words each) */
+        /* Split text into lines (~8–9 words each) */
         const allWords = text.split(/\s+/);
         if (!durationMs || durationMs <= 0 || allWords.length <= 1) {
             el.textContent = text;
             return;
         }
 
-        const WORDS_PER_LINE = 6;
+        const WORDS_PER_LINE = 8;
         const lines = [];
         for (let i = 0; i < allWords.length; i += WORDS_PER_LINE) {
             lines.push(allWords.slice(i, i + WORDS_PER_LINE).join(' '));
         }
 
-        const MAX_VISIBLE = 3;
-        const intervalMs = Math.max(300, durationMs / lines.length);
+        const MAX_VISIBLE = 4;
+        /* dim-3 = dimmest (oldest), dim-2, dim-1, active = brightest (current) */
+        const DIM_CLASSES = ['dim-3', 'dim-2', 'dim-1'];
+        const intervalMs = Math.max(400, durationMs / lines.length);
         let lineIdx = 0;
         const visibleLines = [];
+
+        /** Re-apply gradient opacity to all visible lines based on position */
+        const reapplyGradient = () => {
+            const count = visibleLines.length;
+            for (let i = 0; i < count; i++) {
+                const lineEl = visibleLines[i];
+                /* Remove all dim/active classes */
+                lineEl.classList.remove('active', 'dim-1', 'dim-2', 'dim-3');
+                const distFromBottom = count - 1 - i; /* 0 = current (bottom), 1 = one above, etc */
+                if (distFromBottom === 0) {
+                    lineEl.classList.add('active');
+                } else if (distFromBottom <= DIM_CLASSES.length) {
+                    lineEl.classList.add(DIM_CLASSES[distFromBottom - 1]);
+                } else {
+                    lineEl.classList.add(DIM_CLASSES[DIM_CLASSES.length - 1]);
+                }
+            }
+        };
 
         this._subtitleTimer = setInterval(() => {
             if (lineIdx >= lines.length) {
@@ -1528,16 +1548,9 @@ class InterviewRoom {
                 return;
             }
 
-            /* Dim previous "active" line */
-            const prevActive = el.querySelector('.subtitle-line.active');
-            if (prevActive) {
-                prevActive.classList.remove('active');
-                prevActive.classList.add('past');
-            }
-
             /* Create new line element */
             const lineEl = document.createElement('div');
-            lineEl.className = 'subtitle-line active';
+            lineEl.className = 'subtitle-line';
             lineEl.textContent = lines[lineIdx];
             el.appendChild(lineEl);
             visibleLines.push(lineEl);
@@ -1545,11 +1558,15 @@ class InterviewRoom {
             /* Remove oldest lines beyond visible window */
             if (visibleLines.length > MAX_VISIBLE) {
                 const oldest = visibleLines.shift();
+                oldest.classList.remove('active', 'dim-1', 'dim-2', 'dim-3');
                 oldest.classList.add('exiting');
                 setTimeout(() => {
                     if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
-                }, 600);
+                }, 900);
             }
+
+            /* Apply gradient to all visible lines */
+            reapplyGradient();
 
             lineIdx++;
         }, intervalMs);

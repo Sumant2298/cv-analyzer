@@ -83,20 +83,23 @@
         #caption-bar { height:auto; min-height:32px; }
 
         /* Subtitle overlay — Apple Music vertical lyrics style */
-        #avatar-subtitle { overflow:hidden; white-space:normal; }
+        #avatar-subtitle { overflow:hidden; white-space:normal; max-height:140px; }
         #avatar-subtitle .subtitle-line {
-            text-align:center; font-size:15px; font-weight:500; line-height:1.5;
-            padding:2px 0; transition:opacity 600ms ease, transform 600ms ease, color 400ms ease;
-            opacity:0.35; color:rgba(255,255,255,0.5); transform:translateY(0);
+            text-align:center; font-size:14px; font-weight:400; line-height:1.5;
+            padding:3px 0;
+            transition: opacity 1.2s ease-in-out, transform 1s ease-in-out, color 1.2s ease-in-out;
+            opacity:0; color:rgba(255,255,255,0.15); transform:translateY(4px);
         }
+        /* 4-level gradient: line-1 (oldest) dimmest → line-4 (current) brightest */
+        #avatar-subtitle .subtitle-line.dim-3 { opacity:0.15; color:rgba(255,255,255,0.2); }
+        #avatar-subtitle .subtitle-line.dim-2 { opacity:0.35; color:rgba(255,255,255,0.4); }
+        #avatar-subtitle .subtitle-line.dim-1 { opacity:0.6;  color:rgba(255,255,255,0.7); }
         #avatar-subtitle .subtitle-line.active {
             opacity:1; color:#ffffff; font-weight:600; transform:translateY(0);
         }
-        #avatar-subtitle .subtitle-line.past {
-            opacity:0.3; color:rgba(255,255,255,0.35); transform:translateY(-2px);
-        }
         #avatar-subtitle .subtitle-line.exiting {
-            opacity:0; transform:translateY(-10px);
+            opacity:0; transform:translateY(-8px);
+            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
         }
 
         /* Type modal */
@@ -182,10 +185,10 @@
                 <!-- Subtitle overlay — shows Priya's spoken text while she speaks -->
                 <div id="avatar-subtitle"
                      style="display:none; position:absolute; bottom:48px; left:12px; right:12px;
-                            background:rgba(0,0,0,0.7); backdrop-filter:blur(8px);
-                            border-radius:10px; padding:10px 16px;
-                            color:white; line-height:1.5;
-                            opacity:0; transition:opacity 300ms ease; pointer-events:none;
+                            background:rgba(0,0,0,0.65); backdrop-filter:blur(10px);
+                            border-radius:12px; padding:12px 18px;
+                            color:white; line-height:1.5; max-height:140px;
+                            opacity:0; transition:opacity 400ms ease; pointer-events:none;
                             overflow:hidden; z-index:10;">
                 </div>
 
