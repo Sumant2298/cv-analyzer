@@ -1477,120 +1477,116 @@ class InterviewRoom {
     }
 
     /**
-     * Apple Music lyrics-style vertical subtitle.
-     * Lines appear one at a time, scroll upward smoothly.
-     * The current line is highlighted, older lines fade out above.
+     * Apple Music-style lyrics.
+     *
+     * Design principles (from Apple Music research):
+     * - Depth-of-field illusion: current line = crisp + bright,
+     *   older lines progressively dim, blur, shrink.
+     * - Opacity is a continuous function of distance from current line.
+     * - Transition easing: cubic-bezier(0.42, 0, 0.58, 1) (ease-in-out), 500ms.
+     * - Edge fade via CSS mask-image gradient on container.
+     * - 5 visible lines; oldest exits with blur + scale-down.
      */
     showSubtitle(text, durationMs = 0) {
         const el = this.dom.avatarSubtitle;
         if (!el) return;
 
         /* Clear any previous animation */
-        if (this._subtitleTimer) {
-            clearInterval(this._subtitleTimer);
-            this._subtitleTimer = null;
-        }
+        this._clearSubtitleTimers();
 
-        /* Configure container for vertical scrolling lyrics */
+        /* Reset container */
+        el.innerHTML = '';
         el.style.display = 'flex';
         el.style.flexDirection = 'column';
-        el.style.alignItems = 'center';
         el.style.justifyContent = 'flex-end';
-        el.style.gap = '0';
+        el.style.alignItems = 'stretch';
         el.style.overflow = 'hidden';
-        el.style.whiteSpace = 'normal';
-        el.innerHTML = '';
         void el.offsetHeight;
         el.style.opacity = '1';
 
-        /* Split text into lines (~8–9 words each) */
-        const allWords = text.split(/\s+/);
-        if (!durationMs || durationMs <= 0 || allWords.length <= 1) {
-            el.textContent = text;
+        const allWords = text.split(/\s+/).filter(w => w.length > 0);
+        if (!allWords.length) return;
+
+        /* Short text — just show it */
+        if (!durationMs || durationMs <= 0 || allWords.length <= 3) {
+            const line = document.createElement('div');
+            line.className = 'lyric-line';
+            line.textContent = text;
+            line.setAttribute('data-dist', '0');
+            el.appendChild(line);
             return;
         }
 
-        const WORDS_PER_LINE = 8;
+        /* Split into ~8-word lines */
+        const WPL = 8;
         const lines = [];
-        for (let i = 0; i < allWords.length; i += WORDS_PER_LINE) {
-            lines.push(allWords.slice(i, i + WORDS_PER_LINE).join(' '));
+        for (let i = 0; i < allWords.length; i += WPL) {
+            lines.push(allWords.slice(i, i + WPL).join(' '));
         }
 
-        const MAX_VISIBLE = 4;
-        /* dim-3 = dimmest (oldest), dim-2, dim-1, active = brightest (current) */
-        const DIM_CLASSES = ['dim-3', 'dim-2', 'dim-1'];
-        const intervalMs = Math.max(400, durationMs / lines.length);
-        let lineIdx = 0;
-        const visibleLines = [];
+        const MAX_VIS = 5;
+        const intervalMs = Math.max(350, durationMs / lines.length);
+        let idx = 0;
+        const visible = [];
 
-        /** Re-apply gradient opacity to all visible lines based on position */
-        const reapplyGradient = () => {
-            const count = visibleLines.length;
-            for (let i = 0; i < count; i++) {
-                const lineEl = visibleLines[i];
-                /* Remove all dim/active classes */
-                lineEl.classList.remove('active', 'dim-1', 'dim-2', 'dim-3');
-                const distFromBottom = count - 1 - i; /* 0 = current (bottom), 1 = one above, etc */
-                if (distFromBottom === 0) {
-                    lineEl.classList.add('active');
-                } else if (distFromBottom <= DIM_CLASSES.length) {
-                    lineEl.classList.add(DIM_CLASSES[distFromBottom - 1]);
-                } else {
-                    lineEl.classList.add(DIM_CLASSES[DIM_CLASSES.length - 1]);
-                }
+        /** Recompute data-dist for every visible line (0 = current, 1..4 = older) */
+        const regrade = () => {
+            const n = visible.length;
+            for (let i = 0; i < n; i++) {
+                visible[i].setAttribute('data-dist', String(n - 1 - i));
             }
         };
 
         this._subtitleTimer = setInterval(() => {
-            if (lineIdx >= lines.length) {
+            if (idx >= lines.length) {
                 clearInterval(this._subtitleTimer);
                 this._subtitleTimer = null;
                 return;
             }
 
-            /* Create new line element */
-            const lineEl = document.createElement('div');
-            lineEl.className = 'subtitle-line';
-            lineEl.textContent = lines[lineIdx];
-            el.appendChild(lineEl);
-            visibleLines.push(lineEl);
+            /* Create new line */
+            const div = document.createElement('div');
+            div.className = 'lyric-line';
+            div.textContent = lines[idx];
+            el.appendChild(div);
+            visible.push(div);
 
-            /* Remove oldest lines beyond visible window */
-            if (visibleLines.length > MAX_VISIBLE) {
-                const oldest = visibleLines.shift();
-                oldest.classList.remove('active', 'dim-1', 'dim-2', 'dim-3');
-                oldest.classList.add('exiting');
-                setTimeout(() => {
-                    if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
-                }, 900);
+            /* Evict oldest beyond window */
+            while (visible.length > MAX_VIS) {
+                const old = visible.shift();
+                old.classList.add('exiting');
+                setTimeout(() => old.parentNode?.removeChild(old), 700);
             }
 
-            /* Apply gradient to all visible lines */
-            reapplyGradient();
-
-            lineIdx++;
+            /* Apply depth gradient */
+            regrade();
+            idx++;
         }, intervalMs);
+    }
+
+    /** Clear all subtitle timers */
+    _clearSubtitleTimers() {
+        if (this._subtitleTimer) {
+            clearInterval(this._subtitleTimer);
+            this._subtitleTimer = null;
+        }
     }
 
     /**
      * Fade out and hide the subtitle overlay.
      */
-    hideSubtitle(delay = 1500) {
+    hideSubtitle(delay = 1200) {
         const el = this.dom.avatarSubtitle;
         if (!el) return;
 
-        /* Clear lyrics timer */
-        if (this._subtitleTimer) {
-            clearInterval(this._subtitleTimer);
-            this._subtitleTimer = null;
-        }
+        this._clearSubtitleTimers();
 
         setTimeout(() => {
             el.style.opacity = '0';
             setTimeout(() => {
                 el.style.display = 'none';
                 el.innerHTML = '';
-            }, 400);
+            }, 600);
         }, delay);
     }
 

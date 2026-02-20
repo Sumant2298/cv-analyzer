@@ -80,26 +80,54 @@
         .typing-dots span:nth-child(3) { animation-delay:0.4s; }
         @keyframes typing { 0%,80%,100%{transform:translateY(0)} 40%{transform:translateY(-6px)} }
 
-        #caption-bar { height:auto; min-height:32px; }
+        /* caption-bar removed */
 
-        /* Subtitle overlay — Apple Music vertical lyrics style */
-        #avatar-subtitle { overflow:hidden; white-space:normal; max-height:140px; }
-        #avatar-subtitle .subtitle-line {
-            text-align:center; font-size:14px; font-weight:400; line-height:1.5;
-            padding:3px 0;
-            transition: opacity 1.2s ease-in-out, transform 1s ease-in-out, color 1.2s ease-in-out;
-            opacity:0; color:rgba(255,255,255,0.15); transform:translateY(4px);
+        /* ═══ Apple Music-style lyrics subtitle ═══
+           Depth-of-field illusion: active line is crisp + bright,
+           older lines progressively dim + blur + shrink upward.
+           Uses cubic-bezier(0.42,0,0.58,1) = CSS ease-in-out. */
+        #avatar-subtitle {
+            overflow:hidden; white-space:normal; max-height:160px;
+            display:flex; flex-direction:column; justify-content:flex-end;
+            /* Top/bottom edge fade via mask-image */
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 85%, transparent 100%);
+            mask-image: linear-gradient(to bottom, transparent 0%, black 20%, black 85%, transparent 100%);
         }
-        /* 4-level gradient: line-1 (oldest) dimmest → line-4 (current) brightest */
-        #avatar-subtitle .subtitle-line.dim-3 { opacity:0.15; color:rgba(255,255,255,0.2); }
-        #avatar-subtitle .subtitle-line.dim-2 { opacity:0.35; color:rgba(255,255,255,0.4); }
-        #avatar-subtitle .subtitle-line.dim-1 { opacity:0.6;  color:rgba(255,255,255,0.7); }
-        #avatar-subtitle .subtitle-line.active {
-            opacity:1; color:#ffffff; font-weight:600; transform:translateY(0);
+        #avatar-subtitle .lyric-line {
+            text-align:center; line-height:1.55; padding:3px 0; white-space:normal; word-break:break-word;
+            /* Start hidden — JS applies state classes */
+            opacity:0; font-size:13px; font-weight:400; color:rgba(255,255,255,0.15);
+            transform: translateY(6px) scale(0.94);
+            filter: blur(3px);
+            transition: opacity 0.5s cubic-bezier(0.42,0,0.58,1),
+                        transform 0.5s cubic-bezier(0.42,0,0.58,1),
+                        filter 0.5s cubic-bezier(0.42,0,0.58,1),
+                        font-weight 0.3s ease;
         }
-        #avatar-subtitle .subtitle-line.exiting {
-            opacity:0; transform:translateY(-8px);
-            transition: opacity 0.8s ease-out, transform 0.8s ease-out;
+        /* ── Gradient states ── distance 0 = current, 1..4 = past ── */
+        #avatar-subtitle .lyric-line[data-dist="0"] {
+            opacity:1; color:#fff; font-weight:700; font-size:14px;
+            transform: translateY(0) scale(1); filter: blur(0);
+        }
+        #avatar-subtitle .lyric-line[data-dist="1"] {
+            opacity:0.55; color:rgba(255,255,255,0.65); font-weight:500; font-size:13px;
+            transform: translateY(0) scale(0.97); filter: blur(0.5px);
+        }
+        #avatar-subtitle .lyric-line[data-dist="2"] {
+            opacity:0.3; color:rgba(255,255,255,0.4); font-weight:400; font-size:13px;
+            transform: translateY(0) scale(0.95); filter: blur(1.5px);
+        }
+        #avatar-subtitle .lyric-line[data-dist="3"] {
+            opacity:0.15; color:rgba(255,255,255,0.2); font-weight:400; font-size:12px;
+            transform: translateY(0) scale(0.93); filter: blur(2.5px);
+        }
+        #avatar-subtitle .lyric-line[data-dist="4"] {
+            opacity:0.06; color:rgba(255,255,255,0.1); font-weight:300; font-size:12px;
+            transform: translateY(-2px) scale(0.91); filter: blur(4px);
+        }
+        #avatar-subtitle .lyric-line.exiting {
+            opacity:0 !important; transform: translateY(-10px) scale(0.88) !important; filter: blur(6px) !important;
+            transition: all 0.6s cubic-bezier(0.42,0,0.58,1);
         }
 
         /* Type modal */
@@ -184,11 +212,11 @@
 
                 <!-- Subtitle overlay — shows Priya's spoken text while she speaks -->
                 <div id="avatar-subtitle"
-                     style="display:none; position:absolute; bottom:48px; left:12px; right:12px;
-                            background:rgba(0,0,0,0.65); backdrop-filter:blur(10px);
-                            border-radius:12px; padding:12px 18px;
-                            color:white; line-height:1.5; max-height:140px;
-                            opacity:0; transition:opacity 400ms ease; pointer-events:none;
+                     style="display:none; position:absolute; bottom:44px; left:10px; right:10px;
+                            background:rgba(0,0,0,0.55); backdrop-filter:blur(12px);
+                            border-radius:14px; padding:14px 20px;
+                            color:white; line-height:1.5; max-height:160px;
+                            opacity:0; transition:opacity 0.5s cubic-bezier(0.42,0,0.58,1); pointer-events:none;
                             overflow:hidden; z-index:10;">
                 </div>
 
@@ -241,12 +269,8 @@
         </div>
 
 
-        <!-- ============================================================
-             LAYER 3: CAPTION BAR
-             ============================================================ -->
-        <div id="caption-bar" class="bg-black/70 backdrop-blur-sm flex items-center justify-center px-6 py-1.5">
-            <p id="live-caption" class="text-white text-sm text-center max-w-3xl leading-relaxed">&nbsp;</p>
-        </div>
+        <!-- Caption bar removed — subtitles are shown on the avatar overlay -->
+        <p id="live-caption" class="hidden"></p>
 
 
         <!-- ============================================================
