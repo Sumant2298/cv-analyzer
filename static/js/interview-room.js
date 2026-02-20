@@ -235,7 +235,7 @@ class AudioPipeline {
         this.recognition = new SR();
         this.recognition.continuous = true;
         this.recognition.interimResults = true;
-        this.recognition.lang = 'en-US';
+        this.recognition.lang = 'en-IN';
 
         this.recognition.onresult = (event) => {
             let interim = '';
@@ -253,26 +253,41 @@ class AudioPipeline {
             this.silenceTimer = Date.now();
         };
 
+        this._noSpeechCount = 0;
         this.recognition.onerror = (e) => {
-            if (e.error === 'no-speech' || e.error === 'aborted') return;
+            if (e.error === 'aborted') return;
+            if (e.error === 'no-speech') {
+                this._noSpeechCount++;
+                if (this._noSpeechCount >= 3) {
+                    this._noSpeechCount = 0;
+                    this.onTranscript?.('Try speaking louder or use the Type button', false);
+                }
+                return;
+            }
             console.error('Speech recognition error:', e.error);
         };
 
         this.recognition.onend = () => {
             if (this.isListening) {
-                try { this.recognition.start(); } catch (_) { /* already started */ }
+                setTimeout(() => {
+                    if (this.isListening) {
+                        try { this.recognition.start(); } catch (_) { /* already started */ }
+                    }
+                }, 100);
             }
         };
     }
 
-    /* --- voice selection ------------------------------------------ */
+    /* --- voice selection (prefer Indian English) ------------------- */
     selectVoice() {
         const load = () => {
             const voices = this.synthesis.getVoices();
             this.preferredVoice =
+                voices.find(v => v.lang === 'en-IN' && v.name.includes('Google')) ||
+                voices.find(v => v.lang === 'en-IN') ||
+                voices.find(v => v.lang.startsWith('en-IN')) ||
                 voices.find(v => v.name.includes('Google') && v.lang.startsWith('en')) ||
                 voices.find(v => v.lang.startsWith('en-') && v.name.includes('Natural')) ||
-                voices.find(v => v.lang.startsWith('en-US')) ||
                 voices.find(v => v.lang.startsWith('en')) ||
                 null;
         };
@@ -285,9 +300,11 @@ class AudioPipeline {
     /* --- listening ------------------------------------------------ */
     startListening() {
         if (!this.recognition) return false;
+        this.ensureAudioContext();
         this.finalTranscript = '';
         this.interimTranscript = '';
         this.isListening = true;
+        this._noSpeechCount = 0;
         this.silenceTimer = Date.now();
         try { this.recognition.start(); } catch (_) { /* */ }
 
@@ -522,7 +539,7 @@ class TranscriptManager {
                 <div class="flex gap-2.5 max-w-[85%]">
                     <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-indigo-600
                                 flex items-center justify-center text-white text-[10px] font-bold
-                                flex-shrink-0 mt-1">A</div>
+                                flex-shrink-0 mt-1">P</div>
                     <div class="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-sm px-4 py-2.5">
                         ${badge}
                         <p class="text-sm text-slate-200 leading-relaxed">${displayText}</p>
@@ -541,6 +558,64 @@ class TranscriptManager {
         this.scrollToBottom();
     }
 
+    /**
+     * Typewriter effect — types out the message character-by-character.
+     * Returns a Promise that resolves when the typing animation is done.
+     */
+    addMessageTypewriter(role, text, metadata = {}, charDelay = 20) {
+        return new Promise((resolve) => {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'px-4 py-1.5';
+
+            const escaped = this.escapeHtml(text);
+
+            let badge = '';
+            if (metadata.questionType) {
+                const colors = {
+                    warmup: 'bg-emerald-500/20 text-emerald-400',
+                    behavioral: 'bg-blue-500/20 text-blue-400',
+                    technical: 'bg-violet-500/20 text-violet-400',
+                    coding: 'bg-amber-500/20 text-amber-400',
+                    situational: 'bg-rose-500/20 text-rose-400',
+                    follow_up: 'bg-slate-500/20 text-slate-400',
+                    closing: 'bg-indigo-500/20 text-indigo-400',
+                };
+                const cls = colors[metadata.questionType] || 'bg-slate-500/20 text-slate-400';
+                const label = metadata.questionType.replace('_', ' ').toUpperCase();
+                badge =
+                    `<span class="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded-full mb-1 ${cls}">${label}</span><br>`;
+            }
+
+            wrapper.innerHTML = `
+                <div class="flex gap-2.5 max-w-[85%]">
+                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-indigo-600
+                                flex items-center justify-center text-white text-[10px] font-bold
+                                flex-shrink-0 mt-1">P</div>
+                    <div class="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-sm px-4 py-2.5">
+                        ${badge}
+                        <p class="text-sm text-slate-200 leading-relaxed typewriter-target"></p>
+                    </div>
+                </div>`;
+            this.container.appendChild(wrapper);
+
+            const target = wrapper.querySelector('.typewriter-target');
+            const chars = text.split('');
+            let idx = 0;
+
+            const typeNext = () => {
+                if (idx < chars.length) {
+                    target.textContent += chars[idx];
+                    idx++;
+                    this.scrollToBottom();
+                    setTimeout(typeNext, charDelay);
+                } else {
+                    resolve();
+                }
+            };
+            typeNext();
+        });
+    }
+
     addTypingIndicator() {
         if (document.getElementById('typing-indicator')) return;
         const el = document.createElement('div');
@@ -550,7 +625,7 @@ class TranscriptManager {
             <div class="flex gap-2.5">
                 <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-indigo-600
                             flex items-center justify-center text-white text-[10px] font-bold
-                            flex-shrink-0 mt-1">A</div>
+                            flex-shrink-0 mt-1">P</div>
                 <div class="bg-slate-800 border border-slate-700 rounded-2xl rounded-tl-sm px-4 py-3">
                     <div class="typing-dots"><span></span><span></span><span></span></div>
                 </div>
@@ -755,7 +830,6 @@ class InterviewRoom {
             textInput: document.getElementById('type-input'),
             typeModal: document.getElementById('type-modal'),
             liveCaption: document.getElementById('live-caption'),
-            qCounter: document.getElementById('q-counter-text'),
             aiWave: document.getElementById('ai-speaking-wave'),
             userWave: document.getElementById('user-speaking-wave'),
             codeLang: document.getElementById('code-language'),
@@ -998,7 +1072,7 @@ class InterviewRoom {
             await this.sleep(400);
             this.avatar.setExpression('neutral');
 
-            /* 6. remove typing indicator, add interviewer message */
+            /* 6. remove typing indicator, typewriter + TTS concurrently */
             this.transcript.removeTypingIndicator();
 
             const message = data.interviewer_message || data.message || '';
@@ -1006,19 +1080,19 @@ class InterviewRoom {
             this.state.totalExpected = data.total_expected || this.state.totalExpected;
             this.updateQuestionCounter();
 
-            /* show brief feedback if present */
-            if (data.brief_feedback) {
+            /* show brief feedback if present (instant, not typewritered) */
+            if (data.brief_feedback && typeof data.brief_feedback === 'string') {
                 this.transcript.addMessage('interviewer', data.brief_feedback, {
                     questionType: 'follow_up',
                 });
             }
 
-            this.transcript.addMessage('interviewer', message, {
-                questionType: data.question_type,
-            });
-
-            /* 7. speak the message */
-            await this.speakInterviewerMessage(message);
+            /* 7. run typewriter + TTS concurrently */
+            const typewriterPromise = this.transcript.addMessageTypewriter(
+                'interviewer', message, { questionType: data.question_type }, 20
+            );
+            const speakPromise = this.speakInterviewerMessage(message);
+            await Promise.all([typewriterPromise, speakPromise]);
 
             /* 8. if requires_code, switch to code tab */
             if (data.requires_code) {
@@ -1087,19 +1161,26 @@ class InterviewRoom {
         this.timer.stop();
         this.disableControls(true);
 
+        const fallbackUrl = `/interview/feedback/${this.config.sessionId}`;
         try {
             const resp = await fetch('/api/interview/end', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ session_id: this.config.sessionId }),
             });
+            if (!resp.ok) {
+                console.error('End interview HTTP error:', resp.status);
+                this.cleanup();
+                window.location.href = fallbackUrl;
+                return;
+            }
             const data = await resp.json();
             this.cleanup();
-            window.location.href = data.redirect_url || `/interview/feedback/${this.config.sessionId}`;
+            window.location.href = data.redirect_url || fallbackUrl;
         } catch (e) {
             console.error('End interview error:', e);
             this.cleanup();
-            window.location.href = `/interview/feedback/${this.config.sessionId}`;
+            window.location.href = fallbackUrl;
         }
     }
 
@@ -1243,10 +1324,7 @@ class InterviewRoom {
     /*  UI HELPERS                                                     */
     /* ============================================================== */
     updateQuestionCounter() {
-        if (this.dom.qCounter) {
-            const total = this.state.totalExpected || '?';
-            this.dom.qCounter.textContent = `Q${this.state.questionNumber}/${total}`;
-        }
+        /* no-op: question counter removed — flow is dynamic */
     }
 
     setCaption(text) {

@@ -51,9 +51,8 @@ _PERSONA_DESCRIPTIONS = {
 
 def build_system_prompt(target_role: str, interview_type: str,
                         difficulty: str, persona: str,
-                        duration_minutes: int) -> str:
+                        duration_minutes: int, resume_text: str = None) -> str:
     """Build the AI interviewer system prompt."""
-    q_count = get_expected_question_count(duration_minutes)
     persona_desc = _PERSONA_DESCRIPTIONS.get(persona, _PERSONA_DESCRIPTIONS['neutral'])
 
     technical_instructions = ''
@@ -70,17 +69,33 @@ TECHNICAL / CODING QUESTIONS:
 - Also include verbal technical questions (system design, architecture concepts) — these do NOT need requires_code.
 """
 
-    return f"""You are an experienced interviewer named Alex conducting a {interview_type} interview for the role of **{target_role}**. Difficulty level: {difficulty}.
+    cv_context = ''
+    if resume_text:
+        truncated_cv = resume_text[:3000]
+        cv_context = f"""
+CANDIDATE'S RESUME/CV:
+{truncated_cv}
+
+CV-BASED INSTRUCTIONS:
+- Tailor your questions to the candidate's actual experience from their CV.
+- Ask about specific projects, roles, skills, and achievements mentioned in their resume.
+- Probe gaps in experience or areas where the CV is vague.
+- At least 40% of your questions should directly reference their CV content.
+- Compare their stated experience against what the {target_role} role typically requires.
+- For technical candidates, ask about technologies and tools listed on their resume.
+"""
+
+    return f"""You are an experienced interviewer named Professor X conducting a {interview_type} interview for the role of **{target_role}**. Difficulty level: {difficulty}.
 
 PERSONA:
 {persona_desc}
-
+{cv_context}
 INTERVIEW STRUCTURE:
 1. Start with a brief introduction (who you are, the interview format) and a warm-up question.
-2. Proceed through {q_count} total questions for this {duration_minutes}-minute interview.
-3. Include at least 1-2 follow-up questions based on the candidate's actual answers.
+2. This is a {duration_minutes}-minute interview. Ask questions naturally based on the conversation flow. Decide when to move to a new topic versus asking a follow-up based on the depth and quality of the candidate's answers.
+3. Include follow-up questions when the candidate's answer is vague, incomplete, or particularly interesting.
 4. For behavioral questions, notice if the candidate uses STAR format (Situation, Task, Action, Result) — if not, gently guide them.
-5. End with "Do you have any questions for me?" as the final question.
+5. End with "Do you have any questions for me?" as the final question. Use your judgment on when the interview has covered enough ground.
 6. Match difficulty to: easy = standard questions, accept shorter answers; medium = expect structured answers with examples; hard = curveball questions, deep probing, challenge assumptions.
 {technical_instructions}
 QUESTION DISTRIBUTION for {interview_type}:
@@ -126,11 +141,12 @@ FEEDBACK RULES for "brief_feedback":
 # Start Interview
 # ---------------------------------------------------------------------------
 
-def start_interview(session) -> dict:
+def start_interview(session, resume_text: str = None) -> dict:
     """Generate the interviewer's opening message and first question.
 
     Args:
         session: InterviewSession model object with setup params populated.
+        resume_text: Optional extracted text from candidate's resume/CV.
 
     Returns:
         dict with keys: interviewer_message, question_type, requires_code, etc.
@@ -141,6 +157,7 @@ def start_interview(session) -> dict:
         difficulty=session.difficulty,
         persona=session.persona,
         duration_minutes=session.duration_minutes,
+        resume_text=resume_text,
     )
 
     messages = [
@@ -151,7 +168,7 @@ def start_interview(session) -> dict:
     result = _call_llm_chat(messages, max_tokens=1000, temperature=0.6, timeout=30.0)
 
     # Ensure required fields have defaults
-    result.setdefault('interviewer_message', 'Hello! I am Alex, and I will be your interviewer today.')
+    result.setdefault('interviewer_message', 'Hello! I am Professor X, and I will be your interviewer today.')
     result.setdefault('question_type', 'warmup')
     result.setdefault('is_follow_up', False)
     result.setdefault('is_final_question', False)
@@ -167,7 +184,7 @@ def start_interview(session) -> dict:
 # ---------------------------------------------------------------------------
 
 def process_answer(session, exchanges: list, answer_text: str,
-                   code_text: str | None = None) -> dict:
+                   code_text: str | None = None, resume_text: str = None) -> dict:
     """Process a candidate's answer and generate the next interviewer response.
 
     Args:
@@ -175,6 +192,7 @@ def process_answer(session, exchanges: list, answer_text: str,
         exchanges: List of InterviewExchange objects (ordered by sequence).
         answer_text: The candidate's spoken/typed answer.
         code_text: Optional code submission for technical questions.
+        resume_text: Optional extracted text from candidate's resume/CV.
 
     Returns:
         dict with: interviewer_message, question_type, brief_feedback, etc.
@@ -185,6 +203,7 @@ def process_answer(session, exchanges: list, answer_text: str,
         difficulty=session.difficulty,
         persona=session.persona,
         duration_minutes=session.duration_minutes,
+        resume_text=resume_text,
     )
 
     # Reconstruct conversation history
@@ -219,15 +238,15 @@ def process_answer(session, exchanges: list, answer_text: str,
         new_ans += f'\n\n[CODE SUBMISSION]\n```\n{code_text}\n```'
     messages.append({'role': 'user', 'content': new_ans})
 
-    # Determine if this should be the last question
-    q_count = get_expected_question_count(session.duration_minutes)
-    current_q = len(exchanges) + 1  # +1 because we're generating the next one
-    if current_q >= q_count:
+    # Soft hint to wrap up when enough questions have been asked
+    current_q = len(exchanges) + 1
+    if current_q >= 6:
         messages.append({
             'role': 'user',
-            'content': f'[SYSTEM NOTE: This is question {current_q} of {q_count}. '
-                       f'Please wrap up with your closing question ("Do you have any questions for me?"). '
-                       f'Set is_final_question to true.]',
+            'content': f'[SYSTEM NOTE: This is question {current_q}. The interview has been going for a while. '
+                       f'If you feel the conversation has covered enough ground, you may wrap up with your '
+                       f'closing question ("Do you have any questions for me?"). Set is_final_question to true '
+                       f'when you ask your closing question. Use your judgment on when to end.]',
         })
 
     result = _call_llm_chat(messages, max_tokens=1500, temperature=0.5, timeout=45.0)

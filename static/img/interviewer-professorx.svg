@@ -1,0 +1,149 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 280 280" width="280" height="280">
+  <defs>
+    <clipPath id="circle-clip">
+      <circle cx="140" cy="140" r="140"/>
+    </clipPath>
+    <linearGradient id="bg-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e293b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="shirt-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1e3a5f"/>
+      <stop offset="100%" stop-color="#162d4a"/>
+    </linearGradient>
+    <linearGradient id="tie-grad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#5b21b6"/>
+    </linearGradient>
+    <linearGradient id="skin-grad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#D4A574"/>
+      <stop offset="100%" stop-color="#C68B59"/>
+    </linearGradient>
+    <linearGradient id="hair-grad" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#0d0d1a"/>
+    </linearGradient>
+    <radialGradient id="cheek-l" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#D4846A" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#D4846A" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="cheek-r" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#D4846A" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#D4846A" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+
+  <g clip-path="url(#circle-clip)">
+    <!-- Background -->
+    <rect width="280" height="280" fill="url(#bg-grad)"/>
+
+    <!-- Suit / Shoulders -->
+    <ellipse cx="140" cy="310" rx="130" ry="90" fill="#1e293b"/>
+    <!-- Suit lapels -->
+    <path d="M80 280 L120 240 L140 280 Z" fill="#253549"/>
+    <path d="M200 280 L160 240 L140 280 Z" fill="#253549"/>
+
+    <!-- Shirt collar (V-neck) -->
+    <path d="M115 225 L140 260 L165 225" fill="white" stroke="white" stroke-width="1"/>
+    <!-- Inner collar lines -->
+    <path d="M118 228 L140 255 L162 228" fill="none" stroke="#e2e8f0" stroke-width="0.5"/>
+
+    <!-- Tie -->
+    <path d="M135 248 L140 280 L145 248 Z" fill="url(#tie-grad)"/>
+    <rect x="136" y="243" width="8" height="6" rx="1" fill="url(#tie-grad)"/>
+
+    <!-- Neck -->
+    <rect x="123" y="195" width="34" height="40" rx="8" fill="url(#skin-grad)"/>
+    <!-- Neck shadow -->
+    <ellipse cx="140" cy="210" rx="14" ry="3" fill="#B8784D" opacity="0.25"/>
+
+    <!-- Head / Face shape -->
+    <ellipse cx="140" cy="145" rx="62" ry="72" fill="url(#skin-grad)"/>
+
+    <!-- Jaw / chin refinement -->
+    <ellipse cx="140" cy="185" rx="42" ry="20" fill="url(#skin-grad)"/>
+
+    <!-- Ears -->
+    <ellipse cx="78" cy="145" rx="10" ry="16" fill="#C68B59"/>
+    <ellipse cx="78" cy="145" rx="6" ry="10" fill="#B8784D" opacity="0.3"/>
+    <ellipse cx="202" cy="145" rx="10" ry="16" fill="#C68B59"/>
+    <ellipse cx="202" cy="145" rx="6" ry="10" fill="#B8784D" opacity="0.3"/>
+
+    <!-- Hair -->
+    <ellipse cx="140" cy="105" rx="65" ry="50" fill="url(#hair-grad)"/>
+    <!-- Hair top volume -->
+    <ellipse cx="140" cy="85" rx="55" ry="30" fill="#1a1a2e"/>
+    <!-- Side hair -->
+    <rect x="75" y="100" width="12" height="45" rx="6" fill="#1a1a2e"/>
+    <rect x="193" y="100" width="12" height="45" rx="6" fill="#1a1a2e"/>
+    <!-- Slight grey at temples -->
+    <rect x="77" y="115" width="8" height="15" rx="4" fill="#374151" opacity="0.4"/>
+    <rect x="195" y="115" width="8" height="15" rx="4" fill="#374151" opacity="0.4"/>
+    <!-- Hair texture lines -->
+    <path d="M100 80 Q120 70 140 75 Q160 70 180 80" fill="none" stroke="#0d0d1a" stroke-width="1.5" opacity="0.5"/>
+    <path d="M95 90 Q120 78 140 82 Q160 78 185 90" fill="none" stroke="#0d0d1a" stroke-width="1" opacity="0.3"/>
+
+    <!-- Eyebrows -->
+    <path d="M103 122 Q115 115 130 120" fill="none" stroke="#1a1a2e" stroke-width="3" stroke-linecap="round"/>
+    <path d="M150 120 Q165 115 177 122" fill="none" stroke="#1a1a2e" stroke-width="3" stroke-linecap="round"/>
+
+    <!-- Eyes: whites -->
+    <ellipse cx="117" cy="135" rx="14" ry="10" fill="white"/>
+    <ellipse cx="163" cy="135" rx="14" ry="10" fill="white"/>
+
+    <!-- Eyes: iris -->
+    <circle cx="117" cy="135" r="7" fill="#3B2507"/>
+    <circle cx="163" cy="135" r="7" fill="#3B2507"/>
+
+    <!-- Eyes: pupils -->
+    <circle cx="117" cy="135" r="3.5" fill="#0d0d0d"/>
+    <circle cx="163" cy="135" r="3.5" fill="#0d0d0d"/>
+
+    <!-- Eyes: light reflection -->
+    <circle cx="119" cy="133" r="1.5" fill="white" opacity="0.85"/>
+    <circle cx="165" cy="133" r="1.5" fill="white" opacity="0.85"/>
+
+    <!-- Eyelids (upper) — subtle crease -->
+    <path d="M103 130 Q117 123 131 130" fill="none" stroke="#B8784D" stroke-width="1" opacity="0.5"/>
+    <path d="M149 130 Q163 123 177 130" fill="none" stroke="#B8784D" stroke-width="1" opacity="0.5"/>
+
+    <!-- Lower eyelid line -->
+    <path d="M105 139 Q117 144 129 139" fill="none" stroke="#B8784D" stroke-width="0.7" opacity="0.3"/>
+    <path d="M151 139 Q163 144 175 139" fill="none" stroke="#B8784D" stroke-width="0.7" opacity="0.3"/>
+
+    <!-- Nose -->
+    <path d="M140 140 L137 162 Q134 168 140 168 Q146 168 143 162 Z" fill="#B8784D" opacity="0.35"/>
+    <!-- Nose tip highlight -->
+    <ellipse cx="140" cy="165" rx="5" ry="3" fill="#D4A574" opacity="0.5"/>
+    <!-- Nostrils -->
+    <ellipse cx="135" cy="166" rx="2.5" ry="1.5" fill="#A06D42" opacity="0.4"/>
+    <ellipse cx="145" cy="166" rx="2.5" ry="1.5" fill="#A06D42" opacity="0.4"/>
+
+    <!-- Cheeks (warm blush) -->
+    <ellipse cx="100" cy="155" rx="12" ry="8" fill="url(#cheek-l)"/>
+    <ellipse cx="180" cy="155" rx="12" ry="8" fill="url(#cheek-r)"/>
+
+    <!-- Mouth — slight professional smile -->
+    <path d="M125 180 Q132 186 140 186 Q148 186 155 180" fill="none" stroke="#A06D42" stroke-width="2" stroke-linecap="round"/>
+    <!-- Upper lip -->
+    <path d="M125 180 Q133 178 140 180 Q147 178 155 180" fill="none" stroke="#B8784D" stroke-width="1" opacity="0.5"/>
+
+    <!-- Glasses (thin, professional) -->
+    <rect x="99" y="125" width="36" height="22" rx="4" fill="none" stroke="#374151" stroke-width="2"/>
+    <rect x="145" y="125" width="36" height="22" rx="4" fill="none" stroke="#374151" stroke-width="2"/>
+    <!-- Bridge -->
+    <path d="M135 136 Q140 132 145 136" fill="none" stroke="#374151" stroke-width="1.5"/>
+    <!-- Temple arms -->
+    <line x1="99" y1="132" x2="82" y2="130" stroke="#374151" stroke-width="1.5"/>
+    <line x1="181" y1="132" x2="198" y2="130" stroke="#374151" stroke-width="1.5"/>
+    <!-- Lens reflection -->
+    <ellipse cx="112" cy="132" rx="5" ry="3" fill="white" opacity="0.06"/>
+    <ellipse cx="158" cy="132" rx="5" ry="3" fill="white" opacity="0.06"/>
+
+    <!-- Stubble shadow (subtle) -->
+    <ellipse cx="140" cy="188" rx="30" ry="12" fill="#1a1a2e" opacity="0.06"/>
+  </g>
+
+  <!-- Outer glow ring -->
+  <circle cx="140" cy="140" r="139" fill="none" stroke="url(#tie-grad)" stroke-width="2" opacity="0.3"/>
+</svg>

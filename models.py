@@ -619,6 +619,7 @@ class InterviewSession(db.Model):
     difficulty = db.Column(db.String(20), nullable=False)            # easy, medium, hard
     duration_minutes = db.Column(db.Integer, nullable=False)         # 15, 30, 45
     persona = db.Column(db.String(20), nullable=False)               # friendly, neutral, tough
+    resume_id = db.Column(db.Integer, db.ForeignKey('user_resumes.id'), nullable=True)
 
     # Session state
     status = db.Column(db.String(20), default='active', nullable=False)  # active, completed, abandoned
@@ -634,6 +635,7 @@ class InterviewSession(db.Model):
     credits_charged = db.Column(db.Integer, default=0)
 
     user = db.relationship('User', backref=db.backref('interview_sessions', lazy='dynamic'))
+    resume = db.relationship('UserResume', backref='interview_sessions')
 
     def __repr__(self):
         return f'<InterviewSession id={self.id} user={self.user_id} status={self.status}>'

@@ -14,20 +14,21 @@
         .video-grid { display: flex; flex: 1; min-height: 0; }
         .video-panel { flex: 1; position: relative; display: flex; align-items: center; justify-content: center; overflow: hidden; }
 
-        #avatar-frame { width: 280px; height: 280px; border-radius: 50%; overflow: hidden; position: relative; box-shadow: 0 0 60px rgba(99,102,241,0.15); animation: avatar-idle 6s ease-in-out infinite; }
-        @keyframes avatar-idle { 0%,100%{transform:scale(1) translateY(0)} 25%{transform:scale(1.005) translateY(-1px)} 75%{transform:scale(0.995) translateY(1px)} }
+        #avatar-frame { width: 280px; height: 280px; border-radius: 50%; overflow: hidden; position: relative; box-shadow: 0 0 60px rgba(99,102,241,0.15); animation: avatar-idle 6s ease-in-out infinite; transition: filter 300ms ease, transform 300ms ease; }
+        @keyframes avatar-idle { 0%,100%{transform:scale(1) translateY(0) rotate(0deg)} 25%{transform:scale(1.006) translateY(-1.5px) rotate(0.3deg)} 50%{transform:scale(1) translateY(0) rotate(-0.2deg)} 75%{transform:scale(0.994) translateY(1.5px) rotate(0.1deg)} }
 
         #avatar-mouth { position:absolute; bottom:32%; left:50%; transform:translateX(-50%) scaleY(0.1); width:40px; height:20px; background:rgba(0,0,0,0.7); border-radius:50%; transition:transform 50ms ease; transform-origin:center top; }
 
         #avatar-blink { position:absolute; top:28%; left:15%; right:15%; height:8%; display:flex; justify-content:space-between; pointer-events:none; }
-        .eyelid { width:30%; height:100%; background:#d4a574; border-radius:50%; transform:scaleY(0); transition:transform 80ms ease; }
+        .eyelid { width:30%; height:100%; background:#C68B59; border-radius:50%; transform:scaleY(0); transition:transform 80ms ease; }
         .eyelid.blink { transform:scaleY(1.5); }
 
         /* Expression classes applied to #avatar-frame */
-        #avatar-frame.thinking { transform:rotate(2deg); filter:brightness(0.97); }
-        #avatar-frame.smile { transform:translateY(-1px); filter:brightness(1.03); }
+        #avatar-frame.thinking { transform:rotate(2.5deg) translateY(-1px); filter:brightness(0.95) saturate(0.95); animation: think-sway 3s ease-in-out infinite; }
+        @keyframes think-sway { 0%,100%{transform:rotate(2.5deg) translateY(-1px)} 50%{transform:rotate(1deg) translateY(1px)} }
+        #avatar-frame.smile { transform:translateY(-2px) scale(1.01); filter:brightness(1.05); }
         #avatar-frame.nod { animation: nod 400ms ease-in-out; }
-        @keyframes nod { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-3px)} }
+        @keyframes nod { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-4px) rotate(-0.5deg)} }
 
         #webcam-video { width:100%; height:100%; object-fit:cover; transform:scaleX(-1); }
 
@@ -118,14 +119,6 @@
                 <!-- Divider -->
                 <div class="w-px h-5 bg-white/10"></div>
 
-                <!-- Question counter -->
-                <div id="question-counter" class="text-xs font-semibold text-slate-400">
-                    <span id="q-counter-text">Q1/8</span>
-                </div>
-
-                <!-- Divider -->
-                <div class="w-px h-5 bg-white/10"></div>
-
                 <!-- Badges -->
                 <span class="text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded-full">{{ iv_session.interview_type }}</span>
                 <span class="text-[10px] font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full">{{ iv_session.difficulty }}</span>
@@ -155,7 +148,7 @@
             <div class="video-panel bg-gradient-to-br from-slate-900 via-indigo-950/30 to-slate-900">
                 <!-- Avatar -->
                 <div id="avatar-frame">
-                    <img id="avatar-photo" src="/static/img/interviewer-alex.svg" alt="AI Interviewer" class="w-full h-full object-cover">
+                    <img id="avatar-photo" src="/static/img/interviewer-professorx.svg" alt="AI Interviewer" class="w-full h-full object-cover">
                     <div id="avatar-mouth"></div>
                     <div id="avatar-blink">
                         <div class="eyelid"></div>
@@ -165,7 +158,7 @@
 
                 <!-- AI Name Plate -->
                 <div class="name-plate">
-                    <span>Alex &middot; {{ iv_session.persona }} Interviewer</span>
+                    <span>Professor X &middot; {{ iv_session.persona }} Interviewer</span>
                     <div id="ai-speaking-wave" class="speaking-wave hidden">
                         <div class="bar wave-1"></div>
                         <div class="bar wave-2"></div>
@@ -268,7 +261,7 @@
                     <!-- Typing indicator -->
                     <div id="ai-typing-indicator" class="hidden px-4 py-2">
                         <div class="typing-dots flex items-center gap-1">
-                            <span class="text-xs text-slate-500 mr-2">Alex is typing</span>
+                            <span class="text-xs text-slate-500 mr-2">Professor X is thinking</span>
                             <span></span><span></span><span></span>
                         </div>
                     </div>

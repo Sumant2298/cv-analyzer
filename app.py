@@ -334,6 +334,17 @@ with app.app_context():
         logger.info('Migration check (interview_exchanges new cols): %s', e)
         db.session.rollback()
 
+    # Migration: add resume_id to interview_sessions (v3 — CV-based interviews)
+    try:
+        _is_cols = [c['name'] for c in _iv_insp.get_columns('interview_sessions')]
+        if 'resume_id' not in _is_cols:
+            db.session.execute(text("ALTER TABLE interview_sessions ADD COLUMN resume_id INTEGER REFERENCES user_resumes(id)"))
+            logger.info('Migration: added resume_id to interview_sessions')
+            db.session.commit()
+    except Exception as e:
+        logger.info('Migration check (interview_sessions resume_id): %s', e)
+        db.session.rollback()
+
     # Cleanup: remove expired job_search_cache entries older than 7 days
     try:
         from models import JobSearchCache
@@ -3640,16 +3651,20 @@ def career_services_mock_interviews():
     if not session.get('user_id'):
         return redirect(url_for('login_page'))
     user = User.query.get(session['user_id'])
-    from models import InterviewSession
+    from models import InterviewSession, UserResume
     past_sessions = InterviewSession.query.filter_by(
         user_id=user.id
     ).order_by(InterviewSession.started_at.desc()).limit(10).all()
     completed_count = InterviewSession.query.filter_by(
         user_id=user.id, status='completed').count()
+    user_resumes = UserResume.query.filter_by(user_id=user.id).order_by(
+        UserResume.is_primary.desc(), UserResume.updated_at.desc()
+    ).all()
     return render_template('interview/setup.html',
                            user=user,
                            past_sessions=past_sessions,
                            completed_count=completed_count,
+                           user_resumes=user_resumes,
                            active_category='career_services',
                            active_page='mock_interviews')
 
@@ -3723,6 +3738,17 @@ def api_interview_start():
     if persona not in ('friendly', 'neutral', 'tough'):
         return jsonify({'error': 'Invalid persona'}), 400
 
+    # Resume / CV (optional)
+    resume_id = data.get('resume_id')
+    resume_text = None
+    if resume_id:
+        from models import UserResume as _UR
+        _resume = _UR.query.filter_by(id=int(resume_id), user_id=user.id).first()
+        if _resume and _resume.extracted_text:
+            resume_text = _resume.extracted_text
+        else:
+            resume_id = None  # invalid resume, proceed without
+
     # Credit check: first interview free, then 3 credits
     from models import InterviewSession, InterviewExchange
     from payments import deduct_credits, CREDITS_PER_MOCK_INTERVIEW, FREE_INTERVIEW_LIMIT
@@ -3750,6 +3776,7 @@ def api_interview_start():
         difficulty=difficulty,
         duration_minutes=duration_minutes,
         persona=persona,
+        resume_id=int(resume_id) if resume_id else None,
         status='active',
         credits_charged=credits_charged,
     )
@@ -3759,7 +3786,7 @@ def api_interview_start():
     # Generate first question
     try:
         from interview_service import start_interview, get_expected_question_count
-        result = start_interview(iv_session)
+        result = start_interview(iv_session, resume_text=resume_text)
     except Exception as e:
         logger.error('Interview start LLM error: %s', e)
         db.session.rollback()
@@ -3826,10 +3853,18 @@ def api_interview_answer():
     # Get all exchanges for context
     all_exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
 
+    # Fetch resume text if linked
+    _resume_text = None
+    if iv_session.resume_id:
+        from models import UserResume as _UR2
+        _linked_resume = _UR2.query.get(iv_session.resume_id)
+        if _linked_resume:
+            _resume_text = _linked_resume.extracted_text
+
     # Generate next question
     try:
         from interview_service import process_answer, get_expected_question_count
-        result = process_answer(iv_session, all_exchanges, answer_text, code_text)
+        result = process_answer(iv_session, all_exchanges, answer_text, code_text, resume_text=_resume_text)
     except Exception as e:
         logger.error('Interview answer LLM error: %s', e)
         return jsonify({'error': 'Failed to process answer. Please try again.'}), 500
@@ -3892,22 +3927,42 @@ def api_interview_end():
 
     # Generate final feedback
     exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
-    try:
-        from interview_service import generate_final_feedback
-        feedback = generate_final_feedback(iv_session, exchanges)
-        iv_session.overall_score = feedback.get('overall_score', 50)
-        iv_session.feedback_json = json.dumps(feedback)
-    except Exception as e:
-        logger.error('Interview feedback generation error: %s', e)
+    answered = [ex for ex in exchanges if ex.answer_text]
+
+    if not answered:
+        # No answers given — skip LLM call, use placeholder
+        iv_session.overall_score = 0
         iv_session.feedback_json = json.dumps({
             'overall_score': 0,
-            'summary': 'Feedback generation failed. Please try again.',
+            'summary': 'Interview ended before any questions were answered.',
             'dimensions': {},
+            'top_strengths': [],
+            'key_improvements': ['Complete at least a few questions for meaningful feedback.'],
             'per_question_feedback': [],
         })
-        iv_session.overall_score = 0
+    else:
+        try:
+            from interview_service import generate_final_feedback
+            feedback = generate_final_feedback(iv_session, exchanges)
+            iv_session.overall_score = feedback.get('overall_score', 50)
+            iv_session.feedback_json = json.dumps(feedback)
+        except Exception as e:
+            logger.error('Interview feedback generation error: %s', e)
+            iv_session.feedback_json = json.dumps({
+                'overall_score': 0,
+                'summary': 'Feedback generation failed. Please try again.',
+                'dimensions': {},
+                'top_strengths': [],
+                'key_improvements': [],
+                'per_question_feedback': [],
+            })
+            iv_session.overall_score = 0
 
-    db.session.commit()
+    try:
+        db.session.commit()
+    except Exception as e:
+        logger.error('Interview end commit error: %s', e)
+        db.session.rollback()
 
     return jsonify({
         'redirect_url': url_for('career_services_interview_feedback',
@@ -4079,7 +4134,7 @@ def api_interview_tts():
         return jsonify({'error': 'text is required'}), 400
 
     import requests as http_requests
-    voice_id = data.get('voice_id', 'pNInz6obpgDQGcFmaJgB')  # "Adam" default
+    voice_id = data.get('voice_id', 'pqHfZKP75CvOlQylNhV4')  # Indian English professional voice
 
     try:
         resp = http_requests.post(
