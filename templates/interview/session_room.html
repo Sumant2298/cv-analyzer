@@ -45,10 +45,12 @@
 
         .control-btn { width:48px; height:48px; border-radius:50%; display:flex; align-items:center; justify-content:center; background:#334155; color:white; transition:all 150ms; border:none; cursor:pointer; }
         .control-btn:hover { background:#475569; }
-        .control-btn.active { background:#ef4444; animation:mic-pulse 1.5s ease-out infinite; }
+        .control-btn.active { background:#10b981; animation:mic-pulse 1.5s ease-out infinite; }
+        .control-btn.muted { background:#ef4444; }
+        .control-btn.muted:hover { background:#dc2626; }
         .control-btn.off { background:#1e293b; color:#475569; }
         .control-btn.error-state { background:#78350f; color:#fbbf24; animation:none; }
-        @keyframes mic-pulse { 0%{box-shadow:0 0 0 0 rgba(239,68,68,0.4)} 70%{box-shadow:0 0 0 12px rgba(239,68,68,0)} 100%{box-shadow:0 0 0 0 rgba(239,68,68,0)} }
+        @keyframes mic-pulse { 0%{box-shadow:0 0 0 0 rgba(16,185,129,0.4)} 70%{box-shadow:0 0 0 12px rgba(16,185,129,0)} 100%{box-shadow:0 0 0 0 rgba(16,185,129,0)} }
 
         /* Speaking animations for avatar */
         #avatar-frame.speaking-tilt { animation: speak-tilt 4s ease-in-out infinite; }
@@ -81,9 +83,10 @@
 
         #caption-bar { height:auto; min-height:32px; }
 
-        /* Subtitle overlay on avatar panel */
-        #avatar-subtitle { word-wrap:break-word; scrollbar-width:none; }
-        #avatar-subtitle::-webkit-scrollbar { display:none; }
+        /* Subtitle overlay on avatar panel — Spotify karaoke style */
+        #avatar-subtitle { overflow:hidden; white-space:nowrap; }
+        #avatar-subtitle .subtitle-word { display:inline-block; transition:opacity 400ms ease, transform 400ms ease; flex-shrink:0; font-size:15px; font-weight:500; }
+        #avatar-subtitle .subtitle-word.fading { opacity:0; transform:translateX(-20px); }
 
         /* Type modal */
         #type-modal { position:fixed; bottom:56px; left:50%; transform:translateX(-50%); width:90%; max-width:600px; z-index:50; }
@@ -170,9 +173,9 @@
                      style="display:none; position:absolute; bottom:48px; left:12px; right:12px;
                             background:rgba(0,0,0,0.7); backdrop-filter:blur(8px);
                             border-radius:10px; padding:10px 16px;
-                            color:white; font-size:14px; line-height:1.5; text-align:center;
+                            color:white; line-height:1.5;
                             opacity:0; transition:opacity 300ms ease; pointer-events:none;
-                            max-height:40%; overflow-y:auto; z-index:10;">
+                            overflow:hidden; white-space:nowrap; z-index:10;">
                 </div>
 
                 <!-- AI Name Plate -->
@@ -350,11 +353,11 @@
              ============================================================ -->
         <div id="control-bar" class="h-14 bg-slate-900/95 backdrop-blur flex items-center justify-center gap-4 px-4 border-t border-white/5 flex-shrink-0">
             <!-- Mic -->
-            <button id="mic-btn" class="control-btn" title="Toggle microphone">
-                <svg id="mic-icon-on" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+            <button id="mic-btn" class="control-btn muted" title="Toggle microphone">
+                <svg id="mic-icon-on" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"/>
                 </svg>
-                <svg id="mic-icon-off" class="w-5 h-5 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <svg id="mic-icon-off" class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" d="M12 18.75a6 6 0 0 0 6-6v-1.5m-6 7.5a6 6 0 0 1-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 0 1-3-3V4.5a3 3 0 1 1 6 0v8.25a3 3 0 0 1-3 3Z"/>
                     <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
                 </svg>

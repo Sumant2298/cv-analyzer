@@ -1048,6 +1048,9 @@ class InterviewRoom {
             const transcript = this.audio.stopListening();
             this.state.isRecording = false;
             micBtn.classList.remove('active');
+            micBtn.classList.add('muted');
+            document.getElementById('mic-icon-on').classList.add('hidden');
+            document.getElementById('mic-icon-off').classList.remove('hidden');
             this.avatar.stopNodding();
             this.dom.userWave?.classList.add('hidden');
             this.stopMicLevelAnimation();
@@ -1070,6 +1073,9 @@ class InterviewRoom {
             this.state.isRecording = true;
             this.state.answerStartTime = Date.now();
             micBtn.classList.add('active');
+            micBtn.classList.remove('muted');
+            document.getElementById('mic-icon-on').classList.remove('hidden');
+            document.getElementById('mic-icon-off').classList.add('hidden');
             this.avatar.startNodding();
             this.dom.userWave?.classList.remove('hidden');
             this.startMicLevelAnimation();
@@ -1084,7 +1090,7 @@ class InterviewRoom {
             const opacity = 0.15 + level * 0.5;
             this.dom.micBtn.style.boxShadow =
                 level > 0.02
-                    ? `0 0 0 ${spread}px rgba(239, 68, 68, ${opacity})`
+                    ? `0 0 0 ${spread}px rgba(16, 185, 129, ${opacity})`
                     : 'none';
             this.state.micLevelRAF = requestAnimationFrame(animate);
         };
@@ -1426,6 +1432,9 @@ class InterviewRoom {
     toggleCamera() {
         const enabled = this.webcam.toggleCamera();
         this.dom.camBtn.classList.toggle('active', enabled);
+        this.dom.camBtn.classList.toggle('muted', !enabled);
+        document.getElementById('cam-icon-on').classList.toggle('hidden', !enabled);
+        document.getElementById('cam-icon-off').classList.toggle('hidden', enabled);
     }
 
     /* ============================================================== */
@@ -1480,8 +1489,9 @@ class InterviewRoom {
     }
 
     /**
-     * Show Priya's spoken text as a subtitle overlay on the avatar panel.
-     * Progressive word-by-word reveal synced to speech duration.
+     * Spotify / Apple Music karaoke-style subtitle.
+     * Shows a sliding window of ~5 words — new words appear,
+     * old words fade-slide left and disappear.
      */
     showSubtitle(text, durationMs = 0) {
         const el = this.dom.avatarSubtitle;
@@ -1493,7 +1503,14 @@ class InterviewRoom {
             this._subtitleTimer = null;
         }
 
-        el.style.display = 'block';
+        /* Set up flex container for sliding words */
+        el.style.display = 'flex';
+        el.style.alignItems = 'center';
+        el.style.justifyContent = 'center';
+        el.style.gap = '6px';
+        el.style.overflow = 'hidden';
+        el.style.whiteSpace = 'nowrap';
+        el.innerHTML = '';
         void el.offsetHeight;
         el.style.opacity = '1';
 
@@ -1503,18 +1520,35 @@ class InterviewRoom {
             return;
         }
 
-        /* Reveal word-by-word synced to speech duration */
+        const WINDOW_SIZE = 5;
         const intervalMs = Math.max(80, durationMs / words.length);
         let idx = 0;
-        el.textContent = '';
+        const activeSpans = [];
+
         this._subtitleTimer = setInterval(() => {
-            if (idx < words.length) {
-                el.textContent += (idx > 0 ? ' ' : '') + words[idx];
-                idx++;
-            } else {
+            if (idx >= words.length) {
                 clearInterval(this._subtitleTimer);
                 this._subtitleTimer = null;
+                return;
             }
+
+            /* Create new word span */
+            const span = document.createElement('span');
+            span.className = 'subtitle-word';
+            span.textContent = words[idx];
+            el.appendChild(span);
+            activeSpans.push(span);
+
+            /* If window exceeded, fade-slide oldest word out */
+            if (activeSpans.length > WINDOW_SIZE) {
+                const oldest = activeSpans.shift();
+                oldest.classList.add('fading');
+                setTimeout(() => {
+                    if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
+                }, 450);
+            }
+
+            idx++;
         }, intervalMs);
     }
 
@@ -1525,7 +1559,7 @@ class InterviewRoom {
         const el = this.dom.avatarSubtitle;
         if (!el) return;
 
-        /* Clear progressive reveal timer */
+        /* Clear karaoke timer */
         if (this._subtitleTimer) {
             clearInterval(this._subtitleTimer);
             this._subtitleTimer = null;
@@ -1535,7 +1569,7 @@ class InterviewRoom {
             el.style.opacity = '0';
             setTimeout(() => {
                 el.style.display = 'none';
-                el.textContent = '';
+                el.innerHTML = '';
             }, 350);
         }, delay);
     }
