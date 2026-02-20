@@ -864,7 +864,6 @@ class InterviewRoom {
             submitTextBtn: document.getElementById('type-send-btn'),
             textInput: document.getElementById('type-input'),
             typeModal: document.getElementById('type-modal'),
-            liveCaption: document.getElementById('live-caption'),
             aiWave: document.getElementById('ai-speaking-wave'),
             userWave: document.getElementById('user-speaking-wave'),
             codeLang: document.getElementById('code-language'),
@@ -1469,11 +1468,9 @@ class InterviewRoom {
         /* no-op: question counter removed — flow is dynamic */
     }
 
-    setCaption(text) {
-        if (this.dom.liveCaption) {
-            this.dom.liveCaption.textContent = text || '';
-            this.dom.liveCaption.classList.toggle('hidden', !text);
-        }
+    setCaption(/* text */) {
+        /* Caption bar removed — all visual feedback is via subtitle overlay.
+           Method kept as no-op so callers don't need changing. */
     }
 
     /**
