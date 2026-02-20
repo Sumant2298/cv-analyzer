@@ -827,7 +827,7 @@ class InterviewRoom {
             isSpeaking: false,
             currentRequiresCode: false,
             activeTab: 'transcript',
-            panelCollapsed: true,
+            panelCollapsed: false,
             answerStartTime: null,
             micLevelRAF: null,
         };
@@ -882,9 +882,12 @@ class InterviewRoom {
         this.avatar.startIdleAnimation();
         this.timer.start(() => this.endInterview());
 
-        /* Sync collapse icons with initial collapsed state */
-        document.getElementById('collapse-icon-down')?.classList.add('hidden');
-        document.getElementById('collapse-icon-up')?.classList.remove('hidden');
+        /* Hide code editor tab for non-coding interviews */
+        const isCoding = ['technical', 'mixed'].includes(this.config.interviewType);
+        if (!isCoding) {
+            const codeTab = document.querySelector('[data-tab="code"]');
+            if (codeTab) codeTab.style.display = 'none';
+        }
 
         const stream = await this.webcam.requestCamera();
         if (stream) {
@@ -1545,7 +1548,7 @@ class InterviewRoom {
                 oldest.classList.add('fading');
                 setTimeout(() => {
                     if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
-                }, 450);
+                }, 850);
             }
 
             idx++;

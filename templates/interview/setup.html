@@ -27,48 +27,38 @@
             <!-- Target Role -->
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-2">Target Role</label>
-                <input type="text" id="target-role" list="role-suggestions" required
+                <input type="text" id="target-role" required
                        class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition"
-                       placeholder="e.g., Software Engineer, Product Manager, Data Analyst...">
-                <datalist id="role-suggestions">
-                    <option value="Software Engineer">
-                    <option value="Senior Software Engineer">
-                    <option value="Frontend Developer">
-                    <option value="Backend Developer">
-                    <option value="Full Stack Developer">
-                    <option value="DevOps Engineer">
-                    <option value="Data Scientist">
-                    <option value="Data Analyst">
-                    <option value="Machine Learning Engineer">
-                    <option value="Product Manager">
-                    <option value="Technical Program Manager">
-                    <option value="Engineering Manager">
-                    <option value="UX Designer">
-                    <option value="Business Analyst">
-                    <option value="Consultant">
-                    <option value="Marketing Manager">
-                    <option value="Financial Analyst">
-                    <option value="Operations Manager">
-                    <option value="HR Manager">
-                    <option value="Sales Executive">
-                </datalist>
+                       placeholder="e.g., Software Engineer at Google, Product Manager, Data Analyst...">
+                <p class="text-xs text-slate-400 mt-1">Type the role you're preparing for, or paste the job title from a listing.</p>
+            </div>
+
+            <!-- Job Description (optional) -->
+            <div>
+                <label class="block text-sm font-semibold text-slate-700 mb-2">
+                    Job Description <span class="text-slate-400 font-normal text-xs">(optional — paste JD for tailored questions)</span>
+                </label>
+                <textarea id="jd-text" rows="3"
+                          class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition resize-y"
+                          placeholder="Paste the job description here for questions tailored to the specific role requirements..."></textarea>
+                <p class="text-xs text-slate-400 mt-1">The interviewer will ask questions based on the JD requirements.</p>
             </div>
 
             <!-- Resume / CV Selection -->
             <div>
                 <label class="block text-sm font-semibold text-slate-700 mb-2">
-                    Resume / CV <span class="text-slate-400 font-normal text-xs">(optional — for personalized questions)</span>
+                    Resume / CV <span class="text-red-400 font-normal text-xs">*required</span>
                 </label>
-                <select id="resume-select"
+                <select id="resume-select" required
                         class="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-brand-500 focus:border-brand-500 transition">
-                    <option value="">No resume — general questions only</option>
+                    <option value="">— Select your resume —</option>
                     {% for resume in user_resumes %}
                     <option value="{{ resume.id }}" {% if resume.is_primary %}selected{% endif %}>
                         {{ resume.label }}{% if resume.is_primary %} (Primary){% endif %}
                     </option>
                     {% endfor %}
                 </select>
-                <p class="text-xs text-slate-400 mt-1">Select a resume to get questions based on your actual experience.</p>
+                <p class="text-xs text-slate-400 mt-1">A good interviewer always reviews your CV — upload one in <a href="{{ url_for('career_services_dashboard') }}" class="text-brand-500 underline">Dashboard</a> if you haven't.</p>
             </div>
 
             <!-- Interview Type -->
@@ -98,48 +88,51 @@
                 </div>
             </div>
 
-            <!-- Duration -->
-            <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">Duration</label>
-                <div class="inline-flex rounded-xl border border-slate-200 overflow-hidden">
-                    {% for mins, qs in [(15, '5 questions'), (30, '8 questions'), (45, '11 questions')] %}
-                    <label class="cursor-pointer">
-                        <input type="radio" name="duration" value="{{ mins }}" class="hidden peer" {% if mins == 30 %}checked{% endif %}>
-                        <div class="px-5 py-2.5 border-r border-slate-200 last:border-r-0 transition text-center
-                                    peer-checked:bg-brand-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-brand-500">
-                            <p class="text-sm font-bold">{{ mins }} min</p>
-                            <p class="text-[10px] opacity-70">{{ qs }}</p>
-                        </div>
-                    </label>
-                    {% endfor %}
+            <!-- Duration + Difficulty (side by side) -->
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <!-- Duration -->
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Duration</label>
+                    <div class="inline-flex rounded-xl border border-slate-200 overflow-hidden">
+                        {% for mins, qs in [(15, '5 Qs'), (30, '8 Qs'), (45, '11 Qs')] %}
+                        <label class="cursor-pointer">
+                            <input type="radio" name="duration" value="{{ mins }}" class="hidden peer" {% if mins == 30 %}checked{% endif %}>
+                            <div class="px-4 py-2.5 border-r border-slate-200 last:border-r-0 transition text-center
+                                        peer-checked:bg-brand-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-brand-500">
+                                <p class="text-sm font-bold">{{ mins }}m</p>
+                                <p class="text-[10px] opacity-70">{{ qs }}</p>
+                            </div>
+                        </label>
+                        {% endfor %}
+                    </div>
                 </div>
-            </div>
 
-            <!-- Difficulty -->
-            <div>
-                <label class="block text-sm font-semibold text-slate-700 mb-2">Difficulty</label>
-                <div class="inline-flex rounded-xl border border-slate-200 overflow-hidden">
-                    <label class="cursor-pointer">
-                        <input type="radio" name="difficulty" value="easy" class="hidden peer">
-                        <div class="px-6 py-2.5 border-r border-slate-200 transition text-center
-                                    peer-checked:bg-emerald-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-emerald-500">
-                            <p class="text-sm font-bold">Easy</p>
-                        </div>
-                    </label>
-                    <label class="cursor-pointer">
-                        <input type="radio" name="difficulty" value="medium" class="hidden peer" checked>
-                        <div class="px-6 py-2.5 border-r border-slate-200 transition text-center
-                                    peer-checked:bg-amber-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-amber-500">
-                            <p class="text-sm font-bold">Medium</p>
-                        </div>
-                    </label>
-                    <label class="cursor-pointer">
-                        <input type="radio" name="difficulty" value="hard" class="hidden peer">
-                        <div class="px-6 py-2.5 transition text-center
-                                    peer-checked:bg-red-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-red-500">
-                            <p class="text-sm font-bold">Hard</p>
-                        </div>
-                    </label>
+                <!-- Difficulty -->
+                <div>
+                    <label class="block text-sm font-semibold text-slate-700 mb-2">Difficulty</label>
+                    <div class="inline-flex rounded-xl border border-slate-200 overflow-hidden">
+                        <label class="cursor-pointer">
+                            <input type="radio" name="difficulty" value="easy" class="hidden peer">
+                            <div class="px-5 py-2.5 border-r border-slate-200 transition text-center
+                                        peer-checked:bg-emerald-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-emerald-500">
+                                <p class="text-sm font-bold">Easy</p>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="difficulty" value="medium" class="hidden peer" checked>
+                            <div class="px-5 py-2.5 border-r border-slate-200 transition text-center
+                                        peer-checked:bg-amber-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-amber-500">
+                                <p class="text-sm font-bold">Medium</p>
+                            </div>
+                        </label>
+                        <label class="cursor-pointer">
+                            <input type="radio" name="difficulty" value="hard" class="hidden peer">
+                            <div class="px-5 py-2.5 transition text-center
+                                        peer-checked:bg-red-500 peer-checked:text-white hover:bg-slate-50 peer-checked:hover:bg-red-500">
+                                <p class="text-sm font-bold">Hard</p>
+                            </div>
+                        </label>
+                    </div>
                 </div>
             </div>
 
@@ -466,6 +459,13 @@ document.getElementById('interview-setup-form').addEventListener('submit', async
         return;
     }
 
+    const resumeId = document.getElementById('resume-select')?.value;
+    if (!resumeId) {
+        errBox.textContent = 'Please select a resume. A good interviewer always reviews your CV for personalized questions.';
+        errBox.classList.remove('hidden');
+        return;
+    }
+
     const getRadio = (name) => {
         const el = document.querySelector(`input[name="${name}"]:checked`);
         return el ? el.value : null;
@@ -485,6 +485,7 @@ document.getElementById('interview-setup-form').addEventListener('submit', async
                 duration_minutes: parseInt(getRadio('duration') || '30'),
                 persona: getRadio('persona') || 'neutral',
                 resume_id: document.getElementById('resume-select')?.value || null,
+                jd_text: (document.getElementById('jd-text')?.value || '').trim() || null,
             }),
         });
         const data = await resp.json();

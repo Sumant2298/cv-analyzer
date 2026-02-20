@@ -51,7 +51,8 @@ _PERSONA_DESCRIPTIONS = {
 
 def build_system_prompt(target_role: str, interview_type: str,
                         difficulty: str, persona: str,
-                        duration_minutes: int, resume_text: str = None) -> str:
+                        duration_minutes: int, resume_text: str = None,
+                        jd_text: str = None) -> str:
     """Build the AI interviewer system prompt."""
     persona_desc = _PERSONA_DESCRIPTIONS.get(persona, _PERSONA_DESCRIPTIONS['neutral'])
 
@@ -85,11 +86,26 @@ CV-BASED INSTRUCTIONS:
 - For technical candidates, ask about technologies and tools listed on their resume.
 """
 
+    jd_context = ''
+    if jd_text:
+        truncated_jd = jd_text[:3000]
+        jd_context = f"""
+JOB DESCRIPTION:
+{truncated_jd}
+
+JD-BASED INSTRUCTIONS:
+- Tailor your questions to the specific requirements and responsibilities in this job description.
+- Ask questions that assess the skills, qualifications, and experience the JD demands.
+- Evaluate the candidate's fit for this specific role based on JD requirements.
+- At least 30% of your questions should directly relate to the JD content.
+"""
+
     return f"""You are an experienced interviewer named Priya conducting a {interview_type} interview for the role of **{target_role}**. Difficulty level: {difficulty}.
 
 PERSONA:
 {persona_desc}
 {cv_context}
+{jd_context}
 INTERVIEW STRUCTURE:
 1. Start with a brief introduction (who you are, the interview format) and a warm-up question.
 2. This is a {duration_minutes}-minute interview. Ask questions naturally based on the conversation flow. Decide when to move to a new topic versus asking a follow-up based on the depth and quality of the candidate's answers.
@@ -141,12 +157,13 @@ FEEDBACK RULES for "brief_feedback":
 # Start Interview
 # ---------------------------------------------------------------------------
 
-def start_interview(session, resume_text: str = None) -> dict:
+def start_interview(session, resume_text: str = None, jd_text: str = None) -> dict:
     """Generate the interviewer's opening message and first question.
 
     Args:
         session: InterviewSession model object with setup params populated.
         resume_text: Optional extracted text from candidate's resume/CV.
+        jd_text: Optional job description text for tailored questions.
 
     Returns:
         dict with keys: interviewer_message, question_type, requires_code, etc.
@@ -158,6 +175,7 @@ def start_interview(session, resume_text: str = None) -> dict:
         persona=session.persona,
         duration_minutes=session.duration_minutes,
         resume_text=resume_text,
+        jd_text=jd_text,
     )
 
     messages = [

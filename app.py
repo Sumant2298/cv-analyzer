@@ -3753,6 +3753,9 @@ def api_interview_start():
         else:
             resume_id = None  # invalid resume, proceed without
 
+    # Job Description (optional)
+    jd_text = (data.get('jd_text') or '').strip() or None
+
     # Credit check: first interview free, then 3 credits
     from models import InterviewSession, InterviewExchange
     from payments import deduct_credits, CREDITS_PER_MOCK_INTERVIEW, FREE_INTERVIEW_LIMIT
@@ -3790,7 +3793,7 @@ def api_interview_start():
     # Generate first question
     try:
         from interview_service import start_interview, get_expected_question_count
-        result = start_interview(iv_session, resume_text=resume_text)
+        result = start_interview(iv_session, resume_text=resume_text, jd_text=jd_text)
     except Exception as e:
         logger.error('Interview start LLM error: %s', e)
         db.session.rollback()

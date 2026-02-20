@@ -35,8 +35,7 @@
         .speaking-wave { display:flex; align-items:flex-end; gap:2px; height:14px; }
         .speaking-wave .bar { width:3px; background:#10b981; border-radius:2px; }
 
-        #bottom-panel { height:35vh; max-height:50vh; min-height:40px; transition:height 300ms ease; display:flex; flex-direction:column; background:#0f172a; border-top:1px solid rgba(255,255,255,0.08); }
-        #bottom-panel.collapsed { height:40px; }
+        #bottom-panel { height:30vh; max-height:40vh; min-height:120px; display:flex; flex-direction:column; background:#0f172a; border-top:1px solid rgba(255,255,255,0.08); }
 
         .panel-tab { padding:6px 14px; font-size:12px; font-weight:600; color:#64748b; border-radius:6px; cursor:pointer; transition:all 150ms; border:none; background:none; }
         .panel-tab.active { color:white; background:#334155; }
@@ -85,8 +84,8 @@
 
         /* Subtitle overlay on avatar panel — Spotify karaoke style */
         #avatar-subtitle { overflow:hidden; white-space:nowrap; }
-        #avatar-subtitle .subtitle-word { display:inline-block; transition:opacity 400ms ease, transform 400ms ease; flex-shrink:0; font-size:15px; font-weight:500; }
-        #avatar-subtitle .subtitle-word.fading { opacity:0; transform:translateX(-20px); }
+        #avatar-subtitle .subtitle-word { display:inline-block; transition:opacity 800ms ease-out, transform 800ms ease-out; flex-shrink:0; font-size:15px; font-weight:500; }
+        #avatar-subtitle .subtitle-word.fading { opacity:0; transform:translateX(-15px); }
 
         /* Type modal */
         #type-modal { position:fixed; bottom:56px; left:50%; transform:translateX(-50%); width:90%; max-width:600px; z-index:50; }
@@ -238,7 +237,7 @@
         <!-- ============================================================
              LAYER 4: BOTTOM PANEL (resizable, collapsible)
              ============================================================ -->
-        <div id="bottom-panel" class="collapsed">
+        <div id="bottom-panel">
             <!-- Tab Bar -->
             <div id="panel-tab-bar" class="h-10 flex items-center gap-1 px-3 border-b border-white/5 flex-shrink-0">
                 <button class="panel-tab active" data-tab="transcript">
@@ -262,15 +261,7 @@
 
                 <div class="flex-1"></div>
 
-                <!-- Collapse / Expand toggle -->
-                <button id="panel-collapse-btn" class="panel-tab" title="Collapse panel">
-                    <svg id="collapse-icon-down" class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5"/>
-                    </svg>
-                    <svg id="collapse-icon-up" class="w-4 h-4 hidden" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5"/>
-                    </svg>
-                </button>
+                <!-- Collapse/expand removed — panel is always visible -->
             </div>
 
             <!-- Tab Content -->
