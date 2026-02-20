@@ -913,8 +913,10 @@ class InterviewRoom {
             btn.onclick = () => this.switchTab(btn.dataset.tab);
         });
 
-        /* panel toggle */
-        this.dom.panelToggle.onclick = () => this.togglePanel();
+        /* panel toggle (removed from UI — guard against null) */
+        if (this.dom.panelToggle) {
+            this.dom.panelToggle.onclick = () => this.togglePanel();
+        }
 
         /* code buttons */
         this.dom.runCodeBtn.onclick = () => this.runCode();
@@ -1405,28 +1407,11 @@ class InterviewRoom {
     }
 
     togglePanel() {
-        this.state.panelCollapsed = !this.state.panelCollapsed;
-        const panel = this.dom.bottomPanel;
-        if (!panel) return;
-
-        const iconDown = document.getElementById('collapse-icon-down');
-        const iconUp = document.getElementById('collapse-icon-up');
-
-        if (this.state.panelCollapsed) {
-            panel.classList.add('collapsed');
-            if (iconDown) iconDown.classList.add('hidden');
-            if (iconUp) iconUp.classList.remove('hidden');
-        } else {
-            panel.classList.remove('collapsed');
-            if (iconDown) iconDown.classList.remove('hidden');
-            if (iconUp) iconUp.classList.add('hidden');
-        }
+        /* Panel is always visible — no-op */
     }
 
     expandPanel() {
-        if (this.state.panelCollapsed) {
-            this.togglePanel();
-        }
+        /* Panel is always visible — no-op */
     }
 
     /* ============================================================== */
@@ -1492,9 +1477,9 @@ class InterviewRoom {
     }
 
     /**
-     * Spotify / Apple Music karaoke-style subtitle.
-     * Shows a sliding window of ~5 words — new words appear,
-     * old words fade-slide left and disappear.
+     * Apple Music lyrics-style vertical subtitle.
+     * Lines appear one at a time, scroll upward smoothly.
+     * The current line is highlighted, older lines fade out above.
      */
     showSubtitle(text, durationMs = 0) {
         const el = this.dom.avatarSubtitle;
@@ -1506,52 +1491,67 @@ class InterviewRoom {
             this._subtitleTimer = null;
         }
 
-        /* Set up flex container for sliding words */
+        /* Configure container for vertical scrolling lyrics */
         el.style.display = 'flex';
+        el.style.flexDirection = 'column';
         el.style.alignItems = 'center';
-        el.style.justifyContent = 'center';
-        el.style.gap = '6px';
+        el.style.justifyContent = 'flex-end';
+        el.style.gap = '0';
         el.style.overflow = 'hidden';
-        el.style.whiteSpace = 'nowrap';
+        el.style.whiteSpace = 'normal';
         el.innerHTML = '';
         void el.offsetHeight;
         el.style.opacity = '1';
 
-        const words = text.split(/\s+/);
-        if (!durationMs || durationMs <= 0 || words.length <= 1) {
+        /* Split text into short lines (~5–7 words each) */
+        const allWords = text.split(/\s+/);
+        if (!durationMs || durationMs <= 0 || allWords.length <= 1) {
             el.textContent = text;
             return;
         }
 
-        const WINDOW_SIZE = 5;
-        const intervalMs = Math.max(80, durationMs / words.length);
-        let idx = 0;
-        const activeSpans = [];
+        const WORDS_PER_LINE = 6;
+        const lines = [];
+        for (let i = 0; i < allWords.length; i += WORDS_PER_LINE) {
+            lines.push(allWords.slice(i, i + WORDS_PER_LINE).join(' '));
+        }
+
+        const MAX_VISIBLE = 3;
+        const intervalMs = Math.max(300, durationMs / lines.length);
+        let lineIdx = 0;
+        const visibleLines = [];
 
         this._subtitleTimer = setInterval(() => {
-            if (idx >= words.length) {
+            if (lineIdx >= lines.length) {
                 clearInterval(this._subtitleTimer);
                 this._subtitleTimer = null;
                 return;
             }
 
-            /* Create new word span */
-            const span = document.createElement('span');
-            span.className = 'subtitle-word';
-            span.textContent = words[idx];
-            el.appendChild(span);
-            activeSpans.push(span);
-
-            /* If window exceeded, fade-slide oldest word out */
-            if (activeSpans.length > WINDOW_SIZE) {
-                const oldest = activeSpans.shift();
-                oldest.classList.add('fading');
-                setTimeout(() => {
-                    if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
-                }, 850);
+            /* Dim previous "active" line */
+            const prevActive = el.querySelector('.subtitle-line.active');
+            if (prevActive) {
+                prevActive.classList.remove('active');
+                prevActive.classList.add('past');
             }
 
-            idx++;
+            /* Create new line element */
+            const lineEl = document.createElement('div');
+            lineEl.className = 'subtitle-line active';
+            lineEl.textContent = lines[lineIdx];
+            el.appendChild(lineEl);
+            visibleLines.push(lineEl);
+
+            /* Remove oldest lines beyond visible window */
+            if (visibleLines.length > MAX_VISIBLE) {
+                const oldest = visibleLines.shift();
+                oldest.classList.add('exiting');
+                setTimeout(() => {
+                    if (oldest.parentNode) oldest.parentNode.removeChild(oldest);
+                }, 600);
+            }
+
+            lineIdx++;
         }, intervalMs);
     }
 
@@ -1562,7 +1562,7 @@ class InterviewRoom {
         const el = this.dom.avatarSubtitle;
         if (!el) return;
 
-        /* Clear karaoke timer */
+        /* Clear lyrics timer */
         if (this._subtitleTimer) {
             clearInterval(this._subtitleTimer);
             this._subtitleTimer = null;
@@ -1573,7 +1573,7 @@ class InterviewRoom {
             setTimeout(() => {
                 el.style.display = 'none';
                 el.innerHTML = '';
-            }, 350);
+            }, 400);
         }, delay);
     }
 

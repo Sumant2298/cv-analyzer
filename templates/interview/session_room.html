@@ -82,10 +82,22 @@
 
         #caption-bar { height:auto; min-height:32px; }
 
-        /* Subtitle overlay on avatar panel — Spotify karaoke style */
-        #avatar-subtitle { overflow:hidden; white-space:nowrap; }
-        #avatar-subtitle .subtitle-word { display:inline-block; transition:opacity 800ms ease-out, transform 800ms ease-out; flex-shrink:0; font-size:15px; font-weight:500; }
-        #avatar-subtitle .subtitle-word.fading { opacity:0; transform:translateX(-15px); }
+        /* Subtitle overlay — Apple Music vertical lyrics style */
+        #avatar-subtitle { overflow:hidden; white-space:normal; }
+        #avatar-subtitle .subtitle-line {
+            text-align:center; font-size:15px; font-weight:500; line-height:1.5;
+            padding:2px 0; transition:opacity 600ms ease, transform 600ms ease, color 400ms ease;
+            opacity:0.35; color:rgba(255,255,255,0.5); transform:translateY(0);
+        }
+        #avatar-subtitle .subtitle-line.active {
+            opacity:1; color:#ffffff; font-weight:600; transform:translateY(0);
+        }
+        #avatar-subtitle .subtitle-line.past {
+            opacity:0.3; color:rgba(255,255,255,0.35); transform:translateY(-2px);
+        }
+        #avatar-subtitle .subtitle-line.exiting {
+            opacity:0; transform:translateY(-10px);
+        }
 
         /* Type modal */
         #type-modal { position:fixed; bottom:56px; left:50%; transform:translateX(-50%); width:90%; max-width:600px; z-index:50; }
@@ -174,7 +186,7 @@
                             border-radius:10px; padding:10px 16px;
                             color:white; line-height:1.5;
                             opacity:0; transition:opacity 300ms ease; pointer-events:none;
-                            overflow:hidden; white-space:nowrap; z-index:10;">
+                            overflow:hidden; z-index:10;">
                 </div>
 
                 <!-- AI Name Plate -->
