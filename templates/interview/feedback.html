@@ -3,240 +3,106 @@
 {% block page_title %}Interview Feedback{% endblock %}
 {% block content %}
 
-<div class="max-w-5xl mx-auto space-y-6">
+{% set score = feedback.get('overall_score', 0)|int %}
+{% if score >= 75 %}{% set score_color = '#10b981' %}{% set score_label = 'Strong' %}
+{% elif score >= 50 %}{% set score_color = '#f59e0b' %}{% set score_label = 'Adequate' %}
+{% else %}{% set score_color = '#ef4444' %}{% set score_label = 'Needs Work' %}{% endif %}
 
-    <!-- ═══════════ Header with Overall Score ═══════════ -->
+{% set dim_meta = [
+    ('communication',       'Communication',      '#6366f1', '💬'),
+    ('content_depth',       'Content Depth',       '#8b5cf6', '📚'),
+    ('structure',           'Structure & STAR',    '#10b981', '📋'),
+    ('technical_accuracy',  'Technical Accuracy',  '#f59e0b', '⚙️'),
+    ('problem_solving',     'Problem Solving',     '#ef4444', '💡'),
+    ('confidence_presence', 'Confidence',          '#ec4899', '🎯')
+] %}
+
+<style>
+    .score-ring { position:relative; width:120px; height:120px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+    .score-ring-inner { width:92px; height:92px; border-radius:50%; background:#0f172a; display:flex; flex-direction:column; align-items:center; justify-content:center; }
+    .dim-bar-track { width:100%; height:10px; background:#f1f5f9; border-radius:99px; overflow:hidden; }
+    .dim-bar-fill { height:100%; border-radius:99px; transition:width 1.2s cubic-bezier(.22,1,.36,1); }
+    .q-badge { min-width:40px; height:40px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-weight:800; font-size:14px; flex-shrink:0; }
+    details summary::-webkit-details-marker { display:none; }
+    details summary { list-style:none; }
+    .chevron { transition:transform 0.2s ease; }
+    details[open] .chevron { transform:rotate(180deg); }
+</style>
+
+<div class="max-w-4xl mx-auto space-y-6 pb-8">
+
+    <!-- ═══════ HEADER ═══════ -->
     <div class="bg-gradient-to-br from-slate-800 via-slate-900 to-indigo-950 rounded-2xl p-6 text-white shadow-xl">
-        <div class="flex flex-col sm:flex-row items-start sm:items-center gap-6">
-            <!-- Score Circle -->
-            <div class="relative flex-shrink-0">
-                {% set score = feedback.get('overall_score', 0)|int %}
-                {% set pct = score * 3.6 %}
-                {% if score >= 75 %}{% set score_color = '#10b981' %}{% set score_label = 'Strong' %}
-                {% elif score >= 50 %}{% set score_color = '#f59e0b' %}{% set score_label = 'Adequate' %}
-                {% else %}{% set score_color = '#ef4444' %}{% set score_label = 'Needs Work' %}{% endif %}
-                <div class="w-28 h-28 rounded-full flex items-center justify-center"
-                     style="background: conic-gradient({{ score_color }} {{ pct }}deg, rgba(255,255,255,0.08) 0deg);">
-                    <div class="w-[88px] h-[88px] rounded-full bg-slate-900 flex flex-col items-center justify-center">
-                        <span class="text-3xl font-black leading-none" style="color: {{ score_color }}">{{ score }}</span>
-                        <span class="text-[10px] font-semibold mt-0.5" style="color: {{ score_color }}; opacity:0.8">{{ score_label }}</span>
-                    </div>
+        <div class="flex flex-col sm:flex-row items-center gap-6">
+            <div class="score-ring" style="background:conic-gradient({{ score_color }} {{ (score * 3.6)|int }}deg, rgba(255,255,255,0.08) 0deg);">
+                <div class="score-ring-inner">
+                    <span class="text-3xl font-black leading-none" style="color:{{ score_color }}">{{ score }}</span>
+                    <span class="text-[10px] font-semibold mt-1 opacity-80" style="color:{{ score_color }}">{{ score_label }}</span>
                 </div>
             </div>
-            <!-- Info -->
-            <div class="flex-1">
-                <h1 class="text-xl font-bold tracking-tight">{{ iv_session.target_role }}</h1>
-                <div class="flex flex-wrap gap-2 mt-2">
-                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full font-medium">{{ iv_session.interview_type|capitalize }}</span>
-                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full font-medium">{{ iv_session.difficulty|capitalize }}</span>
-                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full font-medium">{{ iv_session.duration_minutes }} min</span>
-                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full font-medium">{{ iv_session.persona|capitalize }} Persona</span>
+            <div class="flex-1 text-center sm:text-left">
+                <h1 class="text-xl font-bold">{{ iv_session.target_role }}</h1>
+                <div class="flex flex-wrap justify-center sm:justify-start gap-2 mt-2">
+                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full">{{ iv_session.interview_type|capitalize }}</span>
+                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full">{{ iv_session.difficulty|capitalize }}</span>
+                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full">{{ iv_session.duration_minutes }} min</span>
+                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full">{{ iv_session.persona|capitalize }}</span>
                     {% if iv_session.started_at %}
-                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full font-medium">{{ iv_session.started_at.strftime('%d %b %Y') }}</span>
+                    <span class="text-[11px] bg-white/10 px-2.5 py-0.5 rounded-full">{{ iv_session.started_at.strftime('%d %b %Y') }}</span>
                     {% endif %}
                 </div>
-                <p class="text-sm text-white/60 mt-3 leading-relaxed">{{ feedback.get('summary', 'Interview completed. Feedback is being generated.') }}</p>
+                <p class="text-sm text-white/60 mt-3 leading-relaxed">{{ feedback.get('summary', 'Interview completed.') }}</p>
             </div>
         </div>
     </div>
 
-    <!-- ═══════════ Radar Chart + Dimension Bars (side by side) ═══════════ -->
-    <div class="grid grid-cols-1 lg:grid-cols-5 gap-4">
-        <!-- Radar Chart (3/5 width) -->
-        <div class="lg:col-span-3 bg-white rounded-2xl shadow-sm border border-slate-200 p-5">
-            <h2 class="text-sm font-bold text-slate-800 mb-3 text-center">Performance Overview</h2>
-            <div class="flex justify-center">
-                <canvas id="radar-chart" width="500" height="460" style="max-width:100%; height:auto;"></canvas>
-            </div>
-        </div>
-
-        <!-- Dimension Bars (2/5 width) -->
-        <div class="lg:col-span-2 bg-white rounded-2xl shadow-sm border border-slate-200 p-5 flex flex-col justify-center">
-            <h2 class="text-sm font-bold text-slate-800 mb-4">Dimension Scores</h2>
-            {% set dim_list = [
-                ('communication', 'Communication', '#6366f1'),
-                ('content_depth', 'Content Depth', '#8b5cf6'),
-                ('structure', 'Structure', '#10b981'),
-                ('technical_accuracy', 'Technical', '#f59e0b'),
-                ('problem_solving', 'Problem Solving', '#ef4444'),
-                ('confidence_presence', 'Confidence', '#ec4899')
-            ] %}
-            <div class="space-y-3.5">
-                {% for key, label, color in dim_list %}
-                {% set dscore = dims.get(key, {}).get('score', 0)|int %}
-                <div>
-                    <div class="flex items-center justify-between mb-1">
-                        <span class="text-xs font-semibold text-slate-600">{{ label }}</span>
-                        <span class="text-xs font-black {% if dscore >= 75 %}text-emerald-600{% elif dscore >= 50 %}text-amber-600{% else %}text-red-500{% endif %}">{{ dscore }}/100</span>
-                    </div>
-                    <div class="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
-                        <div class="h-2.5 rounded-full transition-all duration-1000 ease-out" style="width:{{ dscore }}%; background:{{ color }};"></div>
-                    </div>
+    <!-- ═══════ DIMENSION SCORES (horizontal bars — clean, no canvas) ═══════ -->
+    <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+        <h2 class="text-base font-bold text-slate-800 mb-5">Performance Breakdown</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
+            {% for key, label, color, emoji in dim_meta %}
+            {% set dscore = dims.get(key, {}).get('score', 0)|int %}
+            <div>
+                <div class="flex items-center justify-between mb-1.5">
+                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
+                        <span class="text-base">{{ emoji }}</span> {{ label }}
+                    </span>
+                    <span class="text-sm font-black tabular-nums" style="color:{{ color }}">{{ dscore }}</span>
                 </div>
-                {% endfor %}
+                <div class="dim-bar-track">
+                    <div class="dim-bar-fill" style="width:{{ dscore }}%; background:{{ color }};"></div>
+                </div>
             </div>
+            {% endfor %}
         </div>
     </div>
 
-    <script>
-    (function() {
-        const canvas = document.getElementById('radar-chart');
-        if (!canvas) return;
-        const dpr = window.devicePixelRatio || 1;
-        const logW = 500, logH = 460;
-        canvas.width = logW * dpr;
-        canvas.height = logH * dpr;
-        canvas.style.width = logW + 'px';
-        canvas.style.height = logH + 'px';
-        const ctx = canvas.getContext('2d');
-        ctx.scale(dpr, dpr);
-
-        const cx = logW / 2, cy = logH / 2;
-        const R = 155;
-
-        const labels = ['Communication', 'Content Depth', 'Structure', 'Technical', 'Problem Solving', 'Confidence'];
-        const colors = ['#6366f1', '#8b5cf6', '#10b981', '#f59e0b', '#ef4444', '#ec4899'];
-        const scores = [
-            {{ dims.get('communication', {}).get('score', 0)|int }},
-            {{ dims.get('content_depth', {}).get('score', 0)|int }},
-            {{ dims.get('structure', {}).get('score', 0)|int }},
-            {{ dims.get('technical_accuracy', {}).get('score', 0)|int }},
-            {{ dims.get('problem_solving', {}).get('score', 0)|int }},
-            {{ dims.get('confidence_presence', {}).get('score', 0)|int }}
-        ];
-        const n = labels.length;
-        const step = (2 * Math.PI) / n;
-
-        function polar(angle, r) {
-            return [cx + r * Math.cos(angle - Math.PI / 2), cy + r * Math.sin(angle - Math.PI / 2)];
-        }
-
-        /* Background fill */
-        ctx.fillStyle = '#fafbfc';
-        ctx.beginPath();
-        for (let i = 0; i <= n; i++) { const [x,y] = polar(i * step, R); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); }
-        ctx.closePath();
-        ctx.fill();
-
-        /* Grid rings at 20, 40, 60, 80, 100 */
-        for (let ring = 1; ring <= 5; ring++) {
-            const r = (R * ring) / 5;
-            ctx.beginPath();
-            for (let i = 0; i <= n; i++) { const [x,y] = polar(i * step, r); i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y); }
-            ctx.closePath();
-            ctx.strokeStyle = ring === 5 ? 'rgba(99,102,241,0.2)' : 'rgba(148,163,184,0.15)';
-            ctx.lineWidth = ring === 5 ? 1.5 : 0.8;
-            ctx.stroke();
-        }
-
-        /* Axis lines */
-        for (let i = 0; i < n; i++) {
-            const [x,y] = polar(i * step, R);
-            ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(x, y);
-            ctx.strokeStyle = 'rgba(148,163,184,0.15)';
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-        }
-
-        /* Score polygon — gradient fill */
-        ctx.beginPath();
-        for (let i = 0; i < n; i++) {
-            const r = (R * Math.max(scores[i], 2)) / 100;
-            const [x,y] = polar(i * step, r);
-            i===0 ? ctx.moveTo(x,y) : ctx.lineTo(x,y);
-        }
-        ctx.closePath();
-        const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, R);
-        grad.addColorStop(0, 'rgba(99,102,241,0.08)');
-        grad.addColorStop(1, 'rgba(99,102,241,0.25)');
-        ctx.fillStyle = grad;
-        ctx.fill();
-        ctx.strokeStyle = 'rgba(99,102,241,0.6)';
-        ctx.lineWidth = 2.5;
-        ctx.stroke();
-
-        /* Score dots + colored glow */
-        for (let i = 0; i < n; i++) {
-            const r = (R * Math.max(scores[i], 2)) / 100;
-            const [x,y] = polar(i * step, r);
-            /* glow */
-            ctx.beginPath(); ctx.arc(x, y, 8, 0, 2*Math.PI);
-            ctx.fillStyle = colors[i] + '30';
-            ctx.fill();
-            /* dot */
-            ctx.beginPath(); ctx.arc(x, y, 4.5, 0, 2*Math.PI);
-            ctx.fillStyle = colors[i];
-            ctx.fill();
-            ctx.strokeStyle = '#fff'; ctx.lineWidth = 2; ctx.stroke();
-        }
-
-        /* Labels + scores — positioned well outside the chart */
-        for (let i = 0; i < n; i++) {
-            const angle = i * step - Math.PI / 2;
-            const labelR = R + 42;
-            const [x, y] = [cx + labelR * Math.cos(angle), cy + labelR * Math.sin(angle)];
-
-            /* Determine text alignment based on position */
-            let align = 'center';
-            if (Math.cos(angle) < -0.15) align = 'right';
-            else if (Math.cos(angle) > 0.15) align = 'left';
-            ctx.textAlign = align;
-            ctx.textBaseline = Math.sin(angle) < -0.15 ? 'bottom' : Math.sin(angle) > 0.15 ? 'top' : 'middle';
-
-            /* Label */
-            ctx.fillStyle = '#475569';
-            ctx.font = '600 12px Inter, system-ui, sans-serif';
-            ctx.fillText(labels[i], x, y);
-
-            /* Score value below label */
-            ctx.fillStyle = colors[i];
-            ctx.font = 'bold 13px Inter, system-ui, sans-serif';
-            const scoreY = Math.sin(angle) < -0.15 ? y - 15 : y + 16;
-            ctx.fillText(scores[i] + '/100', x, scoreY);
-        }
-
-        /* Center text */
-        const avg = Math.round(scores.reduce((a,b) => a+b, 0) / n);
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillStyle = 'rgba(100,116,139,0.15)';
-        ctx.font = 'bold 36px Inter, system-ui, sans-serif';
-        ctx.fillText(avg, cx, cy - 4);
-        ctx.fillStyle = 'rgba(100,116,139,0.3)';
-        ctx.font = '500 10px Inter, system-ui, sans-serif';
-        ctx.fillText('AVG SCORE', cx, cy + 16);
-    })();
-    </script>
-
-    <!-- ═══════════ Top Strengths & Improvements ═══════════ -->
+    <!-- ═══════ STRENGTHS + IMPROVEMENTS ═══════ -->
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <div class="bg-gradient-to-br from-emerald-50 to-white rounded-2xl shadow-sm border border-emerald-100 p-5">
+        <!-- Strengths -->
+        <div class="bg-emerald-50 rounded-2xl border border-emerald-100 p-5">
             <h3 class="text-sm font-bold text-emerald-700 flex items-center gap-2 mb-3">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.857-9.809a.75.75 0 00-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 10-1.06 1.061l2.5 2.5a.75.75 0 001.137-.089l4-5.5z" clip-rule="evenodd"/></svg>
+                <span class="w-6 h-6 bg-emerald-100 rounded-full flex items-center justify-center text-xs">✓</span>
                 Top Strengths
             </h3>
-            <ul class="space-y-2.5">
+            <ul class="space-y-2">
                 {% for s in feedback.get('top_strengths', []) %}
-                <li class="flex gap-2.5 text-sm text-slate-700 leading-relaxed">
-                    <span class="text-emerald-500 flex-shrink-0 mt-0.5 text-lg leading-none">&#10003;</span>
-                    {{ s }}
-                </li>
+                <li class="text-sm text-slate-700 leading-relaxed pl-1">• {{ s }}</li>
                 {% endfor %}
                 {% if not feedback.get('top_strengths') %}
                 <li class="text-sm text-slate-400 italic">Complete the interview to see strengths</li>
                 {% endif %}
             </ul>
         </div>
-        <div class="bg-gradient-to-br from-amber-50 to-white rounded-2xl shadow-sm border border-amber-100 p-5">
+        <!-- Improvements -->
+        <div class="bg-amber-50 rounded-2xl border border-amber-100 p-5">
             <h3 class="text-sm font-bold text-amber-700 flex items-center gap-2 mb-3">
-                <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.485 2.495c.673-1.167 2.357-1.167 3.03 0l6.28 10.875c.673 1.167-.168 2.625-1.516 2.625H3.72c-1.347 0-2.189-1.458-1.515-2.625L8.485 2.495zM10 6a.75.75 0 01.75.75v3.5a.75.75 0 01-1.5 0v-3.5A.75.75 0 0110 6zm0 9a1 1 0 100-2 1 1 0 000 2z" clip-rule="evenodd"/></svg>
+                <span class="w-6 h-6 bg-amber-100 rounded-full flex items-center justify-center text-xs">!</span>
                 Key Improvements
             </h3>
-            <ul class="space-y-2.5">
+            <ul class="space-y-2">
                 {% for imp in feedback.get('key_improvements', []) %}
-                <li class="flex gap-2.5 text-sm text-slate-700 leading-relaxed">
-                    <span class="text-amber-500 flex-shrink-0 mt-0.5 text-lg leading-none">&#9888;</span>
-                    {{ imp }}
-                </li>
+                <li class="text-sm text-slate-700 leading-relaxed pl-1">• {{ imp }}</li>
                 {% endfor %}
                 {% if not feedback.get('key_improvements') %}
                 <li class="text-sm text-slate-400 italic">Complete the interview to see improvements</li>
@@ -245,46 +111,31 @@
         </div>
     </div>
 
-    <!-- ═══════════ Detailed Dimension Cards ═══════════ -->
+    <!-- ═══════ DETAILED DIMENSION CARDS ═══════ -->
     <div>
-        <h2 class="text-base font-bold text-slate-800 mb-3">Detailed Scoring</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {% set dim_cards = [
-                ('communication', 'Communication', '#6366f1', 'M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z'),
-                ('content_depth', 'Content Depth', '#8b5cf6', 'M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253'),
-                ('structure', 'Structure & STAR', '#10b981', 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01'),
-                ('technical_accuracy', 'Technical Accuracy', '#f59e0b', 'M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4'),
-                ('problem_solving', 'Problem Solving', '#ef4444', 'M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z'),
-                ('confidence_presence', 'Confidence & Presence', '#ec4899', 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z')
-            ] %}
-            {% for key, label, color, icon in dim_cards %}
+        <h2 class="text-base font-bold text-slate-800 mb-3">Detailed Analysis</h2>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {% for key, label, color, emoji in dim_meta %}
             {% set dim = dims.get(key, {}) %}
             {% set dscore = dim.get('score', 0)|int %}
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-5 hover:shadow-md transition-shadow">
-                <div class="flex items-center gap-2.5 mb-3">
-                    <div class="w-8 h-8 rounded-lg flex items-center justify-center" style="background:{{ color }}15;">
-                        <svg class="w-4 h-4" style="color:{{ color }}" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="{{ icon }}"/>
-                        </svg>
+                <div class="flex items-center gap-3 mb-3">
+                    <span class="text-2xl">{{ emoji }}</span>
+                    <div class="flex-1">
+                        <span class="text-sm font-bold text-slate-700">{{ label }}</span>
                     </div>
-                    <span class="text-xs font-bold text-slate-700 flex-1">{{ label }}</span>
-                    <span class="text-lg font-black {% if dscore >= 75 %}text-emerald-600{% elif dscore >= 50 %}text-amber-600{% else %}text-red-500{% endif %}">{{ dscore }}</span>
+                    <span class="text-xl font-black tabular-nums {% if dscore >= 75 %}text-emerald-600{% elif dscore >= 50 %}text-amber-600{% else %}text-red-500{% endif %}">{{ dscore }}</span>
                 </div>
-                <!-- Score bar -->
-                <div class="w-full bg-slate-100 rounded-full h-2 mb-3">
-                    <div class="h-2 rounded-full transition-all duration-1000 ease-out" style="width:{{ dscore }}%; background:{{ color }};"></div>
+                <div class="dim-bar-track mb-3">
+                    <div class="dim-bar-fill" style="width:{{ dscore }}%; background:{{ color }};"></div>
                 </div>
-                <p class="text-xs text-slate-500 leading-relaxed">{{ dim.get('feedback', 'Complete the interview to receive detailed feedback.') }}</p>
+                <p class="text-xs text-slate-500 leading-relaxed">{{ dim.get('feedback', 'Complete the interview to receive feedback.') }}</p>
                 {% if dim.get('tips') %}
                 <div class="mt-3 pt-3 border-t border-slate-100">
                     <p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5">Tips</p>
-                    <ul class="space-y-1.5">
-                        {% for tip in dim.get('tips', [])[:2] %}
-                        <li class="text-[11px] text-slate-500 flex gap-1.5 leading-relaxed">
-                            <span style="color:{{ color }};" class="flex-shrink-0 mt-0.5">&#8250;</span> {{ tip }}
-                        </li>
-                        {% endfor %}
-                    </ul>
+                    {% for tip in dim.get('tips', [])[:2] %}
+                    <p class="text-[11px] text-slate-500 leading-relaxed mb-1" style="padding-left:10px; border-left:2px solid {{ color }};">{{ tip }}</p>
+                    {% endfor %}
                 </div>
                 {% endif %}
             </div>
@@ -292,16 +143,15 @@
         </div>
     </div>
 
-    <!-- ═══════════ Per-Question Breakdown ═══════════ -->
+    <!-- ═══════ PER-QUESTION BREAKDOWN ═══════ -->
     <div>
-        <h2 class="text-base font-bold text-slate-800 mb-3">Question-by-Question Analysis</h2>
+        <h2 class="text-base font-bold text-slate-800 mb-3">Question-by-Question</h2>
         <div class="space-y-3">
             {% for pq in feedback.get('per_question_feedback', []) %}
-            <details class="bg-white rounded-2xl shadow-sm border border-slate-200 group hover:shadow-md transition-shadow">
-                <summary class="flex items-center gap-3 px-5 py-4 cursor-pointer list-none">
-                    <!-- Score badge -->
-                    {% set qs = pq.get('score', 0)|int %}
-                    <div class="w-10 h-10 rounded-xl flex items-center justify-center text-sm font-bold flex-shrink-0 shadow-sm
+            {% set qs = pq.get('score', 0)|int %}
+            <details class="bg-white rounded-2xl shadow-sm border border-slate-200 hover:shadow-md transition-shadow">
+                <summary class="flex items-center gap-3 px-5 py-4 cursor-pointer">
+                    <div class="q-badge
                         {% if qs >= 75 %}bg-emerald-100 text-emerald-700
                         {% elif qs >= 50 %}bg-amber-100 text-amber-700
                         {% else %}bg-red-100 text-red-700{% endif %}">
@@ -311,77 +161,60 @@
                         <p class="text-sm font-semibold text-slate-700 truncate">{{ pq.get('question', 'Question') }}</p>
                         <p class="text-xs text-slate-400 mt-0.5 truncate">{{ pq.get('answer_summary', '') }}</p>
                     </div>
-                    <!-- STAR indicators (behavioral) -->
                     {% if pq.get('star_analysis') %}
                     <div class="hidden sm:flex items-center gap-1 flex-shrink-0">
                         {% for part in ['situation', 'task', 'action', 'result'] %}
-                        <span class="text-[9px] font-bold px-1.5 py-0.5 rounded
+                        <span class="text-[9px] font-bold w-5 h-5 rounded flex items-center justify-center
                             {% if pq.star_analysis.get(part) %}bg-emerald-100 text-emerald-600{% else %}bg-slate-100 text-slate-300{% endif %}">
                             {{ part[0]|upper }}
                         </span>
                         {% endfor %}
                     </div>
                     {% endif %}
-                    <svg class="w-4 h-4 text-slate-300 transition-transform group-open:rotate-180 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    <svg class="chevron w-4 h-4 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
                 </summary>
                 <div class="px-5 pb-5 border-t border-slate-100 pt-4 space-y-3">
-                    <!-- Strengths & Improvements -->
                     <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                         {% if pq.get('strengths') %}
-                        <div class="bg-emerald-50/50 rounded-xl p-3">
+                        <div class="bg-emerald-50/60 rounded-xl p-3">
                             <p class="text-[11px] font-bold text-emerald-600 mb-1.5">Strengths</p>
-                            <ul class="space-y-1.5">
-                                {% for s in pq.strengths %}
-                                <li class="text-xs text-slate-600 flex gap-1.5 leading-relaxed"><span class="text-emerald-400">+</span> {{ s }}</li>
-                                {% endfor %}
-                            </ul>
+                            {% for s in pq.strengths %}
+                            <p class="text-xs text-slate-600 leading-relaxed mb-1">+ {{ s }}</p>
+                            {% endfor %}
                         </div>
                         {% endif %}
                         {% if pq.get('improvements') %}
-                        <div class="bg-amber-50/50 rounded-xl p-3">
+                        <div class="bg-amber-50/60 rounded-xl p-3">
                             <p class="text-[11px] font-bold text-amber-600 mb-1.5">Improvements</p>
-                            <ul class="space-y-1.5">
-                                {% for imp in pq.improvements %}
-                                <li class="text-xs text-slate-600 flex gap-1.5 leading-relaxed"><span class="text-amber-400">!</span> {{ imp }}</li>
-                                {% endfor %}
-                            </ul>
+                            {% for imp in pq.improvements %}
+                            <p class="text-xs text-slate-600 leading-relaxed mb-1">→ {{ imp }}</p>
+                            {% endfor %}
                         </div>
                         {% endif %}
                     </div>
-                    <!-- Sample Answer -->
                     {% if pq.get('sample_answer') %}
-                    <div class="bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-100 rounded-xl p-4">
-                        <p class="text-[11px] font-bold text-emerald-700 mb-1.5 flex items-center gap-1">
-                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6z"/></svg>
-                            Model Answer
-                        </p>
+                    <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
+                        <p class="text-[11px] font-bold text-indigo-600 mb-1.5">💡 Model Answer</p>
                         <p class="text-xs text-slate-600 leading-relaxed">{{ pq.sample_answer }}</p>
                     </div>
                     {% endif %}
-                    <!-- Code Review -->
                     {% if pq.get('code_review') %}
                     <div class="bg-slate-50 border border-slate-200 rounded-xl p-4">
                         <p class="text-[11px] font-bold text-slate-700 mb-2">Code Review</p>
-                        <div class="grid grid-cols-3 gap-2 text-xs mb-3">
+                        <div class="grid grid-cols-3 gap-2 text-xs">
                             <div class="bg-white rounded-lg p-2 text-center">
-                                <p class="text-[10px] text-slate-400 mb-0.5">Correctness</p>
+                                <p class="text-[10px] text-slate-400">Correctness</p>
                                 <p class="font-semibold text-slate-700">{{ pq.code_review.get('correctness', 'N/A') }}</p>
                             </div>
                             <div class="bg-white rounded-lg p-2 text-center">
-                                <p class="text-[10px] text-slate-400 mb-0.5">Time</p>
+                                <p class="text-[10px] text-slate-400">Time</p>
                                 <p class="font-semibold text-slate-700">{{ pq.code_review.get('time_complexity', 'N/A') }}</p>
                             </div>
                             <div class="bg-white rounded-lg p-2 text-center">
-                                <p class="text-[10px] text-slate-400 mb-0.5">Space</p>
+                                <p class="text-[10px] text-slate-400">Space</p>
                                 <p class="font-semibold text-slate-700">{{ pq.code_review.get('space_complexity', 'N/A') }}</p>
                             </div>
                         </div>
-                        {% if pq.code_review.get('optimal_solution') %}
-                        <div>
-                            <p class="text-[10px] font-bold text-slate-500 mb-1">Optimal Solution</p>
-                            <pre class="bg-slate-900 text-emerald-300 p-3 rounded-lg text-[11px] overflow-x-auto"><code>{{ pq.code_review.optimal_solution }}</code></pre>
-                        </div>
-                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -389,7 +222,6 @@
             {% endfor %}
             {% if not feedback.get('per_question_feedback') %}
             <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-8 text-center">
-                <svg class="w-10 h-10 mx-auto text-slate-200 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                 <p class="text-sm text-slate-400">No per-question feedback available</p>
                 <p class="text-xs text-slate-300 mt-1">Answer at least one question to get detailed analysis</p>
             </div>
@@ -397,26 +229,26 @@
         </div>
     </div>
 
-    <!-- ═══════════ Transcript (collapsible) ═══════════ -->
+    <!-- ═══════ TRANSCRIPT (collapsed by default) ═══════ -->
     <details class="bg-white rounded-2xl shadow-sm border border-slate-200">
-        <summary class="flex items-center gap-2 px-5 py-4 cursor-pointer text-sm font-bold text-slate-700 list-none hover:bg-slate-50 rounded-2xl transition">
-            <svg class="w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
+        <summary class="flex items-center gap-2 px-5 py-4 cursor-pointer text-sm font-bold text-slate-700 hover:bg-slate-50 rounded-2xl transition">
+            <span>📝</span>
             View Full Transcript ({{ exchanges|length }} exchanges)
-            <svg class="w-4 h-4 text-slate-300 ml-auto transition-transform group-open:rotate-180" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+            <svg class="chevron w-4 h-4 text-slate-300 ml-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
         </summary>
         <div class="px-5 pb-5 border-t border-slate-100 pt-4 space-y-3 max-h-[500px] overflow-y-auto">
             {% for ex in exchanges %}
             <div class="space-y-2">
                 <div class="flex gap-2">
-                    <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-500 to-indigo-600 flex items-center justify-center text-white text-[9px] font-bold flex-shrink-0 mt-0.5">P</div>
+                    <div class="w-7 h-7 rounded-full bg-indigo-600 flex items-center justify-center text-white text-[10px] font-bold flex-shrink-0 mt-0.5">P</div>
                     <div class="bg-slate-50 rounded-xl rounded-tl-sm px-3.5 py-2.5 text-xs text-slate-700 leading-relaxed max-w-[85%]">
-                        <span class="text-[10px] font-bold text-brand-500">Q{{ ex.sequence }}</span><br>
+                        <span class="text-[10px] font-bold text-indigo-500">Q{{ ex.sequence }}</span><br>
                         {{ ex.question_text }}
                     </div>
                 </div>
                 {% if ex.answer_text %}
                 <div class="flex justify-end">
-                    <div class="bg-brand-50 border border-brand-100 rounded-xl rounded-br-sm px-3.5 py-2.5 text-xs text-brand-800 leading-relaxed max-w-[80%]">
+                    <div class="bg-indigo-50 border border-indigo-100 rounded-xl rounded-br-sm px-3.5 py-2.5 text-xs text-slate-700 leading-relaxed max-w-[80%]">
                         {{ ex.answer_text }}
                     </div>
                 </div>
@@ -431,17 +263,15 @@
         </div>
     </details>
 
-    <!-- ═══════════ Actions ═══════════ -->
-    <div class="flex flex-wrap gap-3 pb-6">
+    <!-- ═══════ ACTIONS ═══════ -->
+    <div class="flex flex-wrap gap-3">
         <a href="{{ url_for('career_services_mock_interviews') }}"
-           class="px-6 py-3 bg-gradient-to-r from-brand-600 to-emerald-500 hover:from-brand-700 hover:to-emerald-600 text-white font-bold text-sm rounded-xl shadow-lg shadow-brand-500/25 transition-all duration-200 flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
-            Practice Again
+           class="px-6 py-3 bg-gradient-to-r from-indigo-600 to-emerald-500 hover:from-indigo-700 hover:to-emerald-600 text-white font-bold text-sm rounded-xl shadow-lg transition-all flex items-center gap-2">
+            ↻ Practice Again
         </a>
         <a href="{{ url_for('career_services_mock_interviews') }}"
            class="px-6 py-3 bg-white hover:bg-slate-50 text-slate-700 font-semibold text-sm rounded-xl border border-slate-200 transition flex items-center gap-2">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1h-2z"/></svg>
-            Back to Interviews
+            ← Back to Interviews
         </a>
     </div>
 

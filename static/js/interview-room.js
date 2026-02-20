@@ -544,6 +544,7 @@ class TranscriptManager {
     }
 
     addMessage(role, text, metadata = {}) {
+        if (!this.container) return;
         const wrapper = document.createElement('div');
         wrapper.className = 'px-4 py-1.5';
 
@@ -599,6 +600,7 @@ class TranscriptManager {
      */
     addMessageTypewriter(role, text, metadata = {}, charDelay = 20) {
         return new Promise((resolve) => {
+            if (!this.container) { resolve(); return; }
             const wrapper = document.createElement('div');
             wrapper.className = 'px-4 py-1.5';
 
@@ -652,6 +654,7 @@ class TranscriptManager {
     }
 
     addTypingIndicator() {
+        if (!this.container) return;
         if (document.getElementById('typing-indicator')) return;
         const el = document.createElement('div');
         el.id = 'typing-indicator';
@@ -674,7 +677,7 @@ class TranscriptManager {
     }
 
     scrollToBottom() {
-        this.container.scrollTop = this.container.scrollHeight;
+        if (this.container) this.container.scrollTop = this.container.scrollHeight;
     }
 
     escapeHtml(text) {
@@ -917,10 +920,10 @@ class InterviewRoom {
             this.dom.panelToggle.onclick = () => this.togglePanel();
         }
 
-        /* code buttons */
-        this.dom.runCodeBtn.onclick = () => this.runCode();
-        this.dom.submitCodeBtn.onclick = () => this.submitCode();
-        this.dom.resetCodeBtn.onclick = () => this.codeEditor.reset();
+        /* code buttons (may be absent if bottom panel removed) */
+        if (this.dom.runCodeBtn) this.dom.runCodeBtn.onclick = () => this.runCode();
+        if (this.dom.submitCodeBtn) this.dom.submitCodeBtn.onclick = () => this.submitCode();
+        if (this.dom.resetCodeBtn) this.dom.resetCodeBtn.onclick = () => this.codeEditor.reset();
 
         /* language dropdown */
         if (this.dom.codeLang) {
