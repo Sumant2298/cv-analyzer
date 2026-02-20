@@ -824,7 +824,7 @@ class InterviewRoom {
             isSpeaking: false,
             currentRequiresCode: false,
             activeTab: 'transcript',
-            panelCollapsed: false,
+            panelCollapsed: true,
             answerStartTime: null,
             micLevelRAF: null,
         };
@@ -865,6 +865,7 @@ class InterviewRoom {
             aiWave: document.getElementById('ai-speaking-wave'),
             userWave: document.getElementById('user-speaking-wave'),
             codeLang: document.getElementById('code-language'),
+            avatarSubtitle: document.getElementById('avatar-subtitle'),
         };
 
         this.init();
@@ -877,6 +878,10 @@ class InterviewRoom {
         this.bindEvents();
         this.avatar.startIdleAnimation();
         this.timer.start(() => this.endInterview());
+
+        /* Sync collapse icons with initial collapsed state */
+        document.getElementById('collapse-icon-down')?.classList.add('hidden');
+        document.getElementById('collapse-icon-up')?.classList.remove('hidden');
 
         const stream = await this.webcam.requestCamera();
         if (stream) {
@@ -1013,17 +1018,14 @@ class InterviewRoom {
                     }
                 }
                 const qText = lastUnanswered.question_text;
-                const wc = qText.split(/\s+/).length;
-                const estMs = (wc / 2.5) * 1000;
-                const cDelay = Math.max(25, Math.min(80, Math.round(estMs / qText.length)));
-                const typewriterP = this.transcript.addMessageTypewriter(
-                    'interviewer',
-                    qText,
-                    { questionType: lastUnanswered.question_type },
-                    cDelay
-                );
-                const speakP = this.speakInterviewerMessage(lastUnanswered.question_text);
-                await Promise.all([typewriterP, speakP]);
+                this.transcript.addMessage('interviewer', qText, { questionType: lastUnanswered.question_type });
+                await this.speakInterviewerMessage(qText);
+
+                /* Auto-start mic after Priya's first question */
+                await this.sleep(600);
+                if (!this.state.isRecording && !this.state.isProcessing && !this.state.isSpeaking) {
+                    this.toggleMic();
+                }
             }
         } catch (e) {
             console.error('Failed to load session:', e);
@@ -1154,15 +1156,9 @@ class InterviewRoom {
                 });
             }
 
-            /* 7. run typewriter + TTS concurrently — sync speed to estimated speech duration */
-            const wordCount = message.split(/\s+/).length;
-            const estimatedSpeechMs = (wordCount / 2.5) * 1000; // ~150 wpm
-            const charDelay = Math.max(25, Math.min(80, Math.round(estimatedSpeechMs / message.length)));
-            const typewriterPromise = this.transcript.addMessageTypewriter(
-                'interviewer', message, { questionType: data.question_type }, charDelay
-            );
-            const speakPromise = this.speakInterviewerMessage(message);
-            await Promise.all([typewriterPromise, speakPromise]);
+            /* 7. Add message to transcript (hidden in collapsed panel) + speak with subtitle overlay */
+            this.transcript.addMessage('interviewer', message, { questionType: data.question_type });
+            await this.speakInterviewerMessage(message);
 
             /* 8. if requires_code, switch to code tab */
             if (data.requires_code) {
@@ -1176,14 +1172,27 @@ class InterviewRoom {
             } else {
                 this.state.currentRequiresCode = false;
             }
+
+            /* 9. Re-enable controls before auto-unmute */
+            this.state.isProcessing = false;
+            this.disableControls(false);
+
+            /* 10. Auto-start mic for user's turn */
+            await this.sleep(600);
+            if (!this.state.isRecording && !this.state.isProcessing && !this.state.isSpeaking) {
+                this.toggleMic();
+            }
         } catch (e) {
             console.error('Submit answer error:', e);
             this.transcript.removeTypingIndicator();
             this.transcript.addMessage('interviewer',
                 'Sorry, there was a connection issue. Please try again.', {});
         } finally {
-            this.state.isProcessing = false;
-            this.disableControls(false);
+            /* Guard: only clean up if still processing (error path) */
+            if (this.state.isProcessing) {
+                this.state.isProcessing = false;
+                this.disableControls(false);
+            }
         }
     }
 
@@ -1199,20 +1208,30 @@ class InterviewRoom {
             this.avatar.frame.classList.remove('speaking-tilt', 'speaking-glow');
             this.dom.aiWave?.classList.add('hidden');
             this.setCaption('');
+            this.hideSubtitle(1000);
         };
+
+        /* Fallback: if onSpeakStart doesn't fire within 3s, show subtitle anyway */
+        const subtitleFallback = setTimeout(() => {
+            if (!this.state.isSpeaking) {
+                this.showSubtitle(text);
+            }
+        }, 3000);
 
         const origOnStart = this.audio.onSpeakStart;
         this.audio.onSpeakStart = () => {
+            clearTimeout(subtitleFallback);
             this.state.isSpeaking = true;
             this.dom.aiWave?.classList.remove('hidden');
             this.avatar.frame.classList.add('speaking-tilt', 'speaking-glow');
+            /* Show text as subtitle exactly when audio starts playing */
+            this.showSubtitle(text);
         };
 
         const origOnEnd = this.audio.onSpeakEnd;
         this.audio.onSpeakEnd = () => resetSpeakingState();
 
-        /* HARD TIMEOUT: If TTS hangs for any reason, force-cancel after 45s.
-           This prevents isSpeaking from being stuck true forever. */
+        /* HARD TIMEOUT: If TTS hangs for any reason, force-cancel after 45s. */
         const hardTimeout = setTimeout(() => {
             console.warn('[TTS] Hard timeout — forcing speech end');
             this.audio.synthesis.cancel();
@@ -1225,6 +1244,7 @@ class InterviewRoom {
             console.error('[TTS] speak() threw:', e);
         } finally {
             clearTimeout(hardTimeout);
+            clearTimeout(subtitleFallback);
             resetSpeakingState();
             this.audio.onSpeakStart = origOnStart;
             this.audio.onSpeakEnd = origOnEnd;
@@ -1455,6 +1475,33 @@ class InterviewRoom {
             this.dom.liveCaption.textContent = text || '';
             this.dom.liveCaption.classList.toggle('hidden', !text);
         }
+    }
+
+    /**
+     * Show Priya's spoken text as a subtitle overlay on the avatar panel.
+     */
+    showSubtitle(text) {
+        const el = this.dom.avatarSubtitle;
+        if (!el) return;
+        el.textContent = text;
+        el.style.display = 'block';
+        void el.offsetHeight; // force reflow for CSS transition
+        el.style.opacity = '1';
+    }
+
+    /**
+     * Fade out and hide the subtitle overlay.
+     */
+    hideSubtitle(delay = 1500) {
+        const el = this.dom.avatarSubtitle;
+        if (!el) return;
+        setTimeout(() => {
+            el.style.opacity = '0';
+            setTimeout(() => {
+                el.style.display = 'none';
+                el.textContent = '';
+            }, 350);
+        }, delay);
     }
 
     disableControls(disabled) {

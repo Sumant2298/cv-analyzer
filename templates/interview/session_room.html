@@ -81,6 +81,10 @@
 
         #caption-bar { height:auto; min-height:32px; }
 
+        /* Subtitle overlay on avatar panel */
+        #avatar-subtitle { word-wrap:break-word; scrollbar-width:none; }
+        #avatar-subtitle::-webkit-scrollbar { display:none; }
+
         /* Type modal */
         #type-modal { position:fixed; bottom:56px; left:50%; transform:translateX(-50%); width:90%; max-width:600px; z-index:50; }
 
@@ -158,7 +162,17 @@
             <div class="video-panel bg-gradient-to-br from-slate-900 via-indigo-950/30 to-slate-900">
                 <!-- Avatar -->
                 <div id="avatar-frame">
-                    <img id="avatar-photo" src="/static/img/interviewer-priya.svg?v=3" alt="AI Interviewer" class="w-full h-full object-cover">
+                    <img id="avatar-photo" src="/static/img/priya-avatar.svg" alt="AI Interviewer" class="w-full h-full object-cover">
+                </div>
+
+                <!-- Subtitle overlay — shows Priya's spoken text while she speaks -->
+                <div id="avatar-subtitle"
+                     style="display:none; position:absolute; bottom:48px; left:12px; right:12px;
+                            background:rgba(0,0,0,0.7); backdrop-filter:blur(8px);
+                            border-radius:10px; padding:10px 16px;
+                            color:white; font-size:14px; line-height:1.5; text-align:center;
+                            opacity:0; transition:opacity 300ms ease; pointer-events:none;
+                            max-height:40%; overflow-y:auto; z-index:10;">
                 </div>
 
                 <!-- AI Name Plate -->
@@ -221,7 +235,7 @@
         <!-- ============================================================
              LAYER 4: BOTTOM PANEL (resizable, collapsible)
              ============================================================ -->
-        <div id="bottom-panel">
+        <div id="bottom-panel" class="collapsed">
             <!-- Tab Bar -->
             <div id="panel-tab-bar" class="h-10 flex items-center gap-1 px-3 border-b border-white/5 flex-shrink-0">
                 <button class="panel-tab active" data-tab="transcript">
