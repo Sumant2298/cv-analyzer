@@ -751,7 +751,7 @@ class CodeEditorManager {
         if (this.editor) {
             monaco.editor.setModelLanguage(this.editor.getModel(), lang);
         }
-        const sel = document.getElementById('code-language');
+        const sel = document.getElementById('code-overlay-language');
         if (sel) sel.value = lang;
     }
 
@@ -833,6 +833,7 @@ class InterviewRoom {
             panelCollapsed: false,
             answerStartTime: null,
             micLevelRAF: null,
+            codeOverlayOpen: false,
         };
 
         /* sub-systems */
@@ -844,8 +845,8 @@ class InterviewRoom {
         );
         this.transcript = new TranscriptManager(document.getElementById('transcript-messages'));
         this.codeEditor = new CodeEditorManager(
-            document.getElementById('monaco-container'),
-            document.getElementById('code-output'),
+            document.getElementById('code-overlay-editor'),
+            document.getElementById('code-overlay-output'),
         );
         this.timer = new TimerManager(
             document.getElementById('timer-text'),
@@ -861,16 +862,20 @@ class InterviewRoom {
             endBtn: document.getElementById('end-call-btn'),
             panelToggle: document.getElementById('panel-collapse-btn'),
             bottomPanel: document.getElementById('bottom-panel'),
-            runCodeBtn: document.getElementById('code-run-btn'),
-            submitCodeBtn: document.getElementById('code-submit-btn'),
-            resetCodeBtn: document.getElementById('code-reset-btn'),
             submitTextBtn: document.getElementById('type-send-btn'),
             textInput: document.getElementById('type-input'),
             typeModal: document.getElementById('type-modal'),
             aiWave: document.getElementById('ai-speaking-wave'),
             userWave: document.getElementById('user-speaking-wave'),
-            codeLang: document.getElementById('code-language'),
             avatarSubtitle: document.getElementById('avatar-subtitle'),
+            /* Code editor overlay refs */
+            codeOverlay: document.getElementById('code-overlay'),
+            codeBtn: document.getElementById('code-btn'),
+            codeOverlayClose: document.getElementById('code-overlay-close'),
+            codeOverlayRun: document.getElementById('code-overlay-run'),
+            codeOverlaySubmit: document.getElementById('code-overlay-submit'),
+            codeOverlayReset: document.getElementById('code-overlay-reset'),
+            codeOverlayLang: document.getElementById('code-overlay-language'),
         };
 
         this.init();
@@ -884,11 +889,10 @@ class InterviewRoom {
         this.avatar.startIdleAnimation();
         this.timer.start(() => this.endInterview());
 
-        /* Hide code editor tab for non-coding interviews */
+        /* Show code overlay button for coding-capable interviews */
         const isCoding = ['technical', 'mixed'].includes(this.config.interviewType);
-        if (!isCoding) {
-            const codeTab = document.querySelector('[data-tab="code"]');
-            if (codeTab) codeTab.style.display = 'none';
+        if (isCoding && this.dom.codeBtn) {
+            this.dom.codeBtn.classList.remove('hidden');
         }
 
         const stream = await this.webcam.requestCamera();
@@ -910,27 +914,28 @@ class InterviewRoom {
         this.dom.skipBtn.onclick = () => this.skipQuestion();
         this.dom.endBtn.onclick = () => this.endInterview();
 
-        /* tab switching (only tabs with data-tab attribute) */
-        document.querySelectorAll('.panel-tab[data-tab]').forEach((btn) => {
-            btn.onclick = () => this.switchTab(btn.dataset.tab);
-        });
-
-        /* panel toggle (removed from UI — guard against null) */
-        if (this.dom.panelToggle) {
-            this.dom.panelToggle.onclick = () => this.togglePanel();
+        /* code overlay button in control bar */
+        if (this.dom.codeBtn) {
+            this.dom.codeBtn.onclick = () => this.toggleCodeOverlay();
         }
 
-        /* code buttons (may be absent if bottom panel removed) */
-        if (this.dom.runCodeBtn) this.dom.runCodeBtn.onclick = () => this.runCode();
-        if (this.dom.submitCodeBtn) this.dom.submitCodeBtn.onclick = () => this.submitCode();
-        if (this.dom.resetCodeBtn) this.dom.resetCodeBtn.onclick = () => this.codeEditor.reset();
-
-        /* language dropdown */
-        if (this.dom.codeLang) {
-            this.dom.codeLang.onchange = () => {
-                this.codeEditor.setLanguage(this.dom.codeLang.value);
+        /* code overlay internal buttons */
+        if (this.dom.codeOverlayClose) this.dom.codeOverlayClose.onclick = () => this.hideCodeOverlay();
+        if (this.dom.codeOverlayRun) this.dom.codeOverlayRun.onclick = () => this.runCode();
+        if (this.dom.codeOverlaySubmit) this.dom.codeOverlaySubmit.onclick = () => this.submitCode();
+        if (this.dom.codeOverlayReset) this.dom.codeOverlayReset.onclick = () => this.codeEditor.reset();
+        if (this.dom.codeOverlayLang) {
+            this.dom.codeOverlayLang.onchange = () => {
+                this.codeEditor.setLanguage(this.dom.codeOverlayLang.value);
             };
         }
+
+        /* Escape key closes code overlay */
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape' && this.state.codeOverlayOpen) {
+                this.hideCodeOverlay();
+            }
+        });
 
         /* text answer modal */
         this.dom.submitTextBtn.onclick = () => this.submitTextAnswer();
@@ -1021,15 +1026,20 @@ class InterviewRoom {
             if (lastUnanswered) {
                 if (lastUnanswered.requires_code) {
                     this.state.currentRequiresCode = true;
-                    this.switchTab('code');
+                    await this.codeEditor.init();
                     if (lastUnanswered.code_language) {
-                        await this.codeEditor.init();
                         this.codeEditor.setLanguage(lastUnanswered.code_language);
+                        if (this.dom.codeOverlayLang) this.dom.codeOverlayLang.value = lastUnanswered.code_language;
                     }
                 }
                 const qText = lastUnanswered.question_text;
                 this.transcript.addMessage('interviewer', qText, { questionType: lastUnanswered.question_type });
                 await this.speakInterviewerMessage(qText);
+
+                /* Auto-open code overlay after speaking if coding question */
+                if (this.state.currentRequiresCode) {
+                    this.showCodeOverlay();
+                }
 
                 /* Auto-start mic after Priya's first question */
                 await this.sleep(600);
@@ -1172,17 +1182,19 @@ class InterviewRoom {
             this.transcript.addMessage('interviewer', message, { questionType: data.question_type });
             await this.speakInterviewerMessage(message);
 
-            /* 8. if requires_code, switch to code tab */
+            /* 8. if requires_code, open code overlay */
             if (data.requires_code) {
                 this.state.currentRequiresCode = true;
-                this.switchTab('code');
-                this.expandPanel();
                 await this.codeEditor.init();
                 if (data.code_language) {
                     this.codeEditor.setLanguage(data.code_language);
+                    if (this.dom.codeOverlayLang) this.dom.codeOverlayLang.value = data.code_language;
                 }
+                this.codeEditor.reset();
+                this.showCodeOverlay();
             } else {
                 this.state.currentRequiresCode = false;
+                if (this.state.codeOverlayOpen) this.hideCodeOverlay();
             }
 
             /* 9. Re-enable controls before auto-unmute */
@@ -1349,11 +1361,13 @@ class InterviewRoom {
         const code = this.codeEditor.getValue();
         if (!code.trim()) return;
 
-        const lang = this.dom.codeLang ? this.dom.codeLang.value : 'python';
-        this.dom.runCodeBtn.disabled = true;
-        this.dom.runCodeBtn.textContent = 'Running...';
-        this.codeEditor.output.innerHTML =
-            '<p class="text-xs text-slate-500 animate-pulse">Executing...</p>';
+        const lang = this.dom.codeOverlayLang ? this.dom.codeOverlayLang.value : 'python';
+        const runBtn = this.dom.codeOverlayRun;
+        if (runBtn) { runBtn.disabled = true; runBtn.textContent = 'Running...'; }
+        if (this.codeEditor.output) {
+            this.codeEditor.output.innerHTML =
+                '<p style="font-size:11px; color:#475569;" class="animate-pulse">Executing...</p>';
+        }
 
         try {
             const resp = await fetch('/api/interview/run-code', {
@@ -1369,8 +1383,12 @@ class InterviewRoom {
                 stderr: 'Network error: could not execute code.',
             });
         } finally {
-            this.dom.runCodeBtn.disabled = false;
-            this.dom.runCodeBtn.textContent = 'Run';
+            if (runBtn) {
+                runBtn.disabled = false;
+                runBtn.innerHTML = `<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/>
+                </svg> Run`;
+            }
         }
     }
 
@@ -1380,6 +1398,7 @@ class InterviewRoom {
         const elapsed = this.state.answerStartTime
             ? Math.round((Date.now() - this.state.answerStartTime) / 1000)
             : 0;
+        this.hideCodeOverlay();
         this.submitAnswer('Here is my code solution:', code, elapsed);
     }
 
@@ -1414,6 +1433,59 @@ class InterviewRoom {
 
     expandPanel() {
         /* Panel is always visible — no-op */
+    }
+
+    /* ============================================================== */
+    /*  CODE EDITOR OVERLAY                                            */
+    /* ============================================================== */
+
+    /** Show the code editor overlay with slide-up animation. */
+    async showCodeOverlay() {
+        const overlay = this.dom.codeOverlay;
+        if (!overlay) return;
+
+        overlay.classList.remove('hidden');
+        void overlay.offsetHeight; /* force reflow so transition fires */
+        overlay.classList.add('visible');
+
+        /* Lazy-init Monaco */
+        await this.codeEditor.init();
+
+        if (this.dom.codeBtn) this.dom.codeBtn.classList.add('active');
+        this.state.codeOverlayOpen = true;
+
+        /* Focus editor after slide-up transition */
+        setTimeout(() => {
+            if (this.codeEditor.editor) {
+                this.codeEditor.editor.layout();
+                this.codeEditor.editor.focus();
+            }
+        }, 400);
+    }
+
+    /** Hide the code editor overlay with slide-down animation. */
+    hideCodeOverlay() {
+        const overlay = this.dom.codeOverlay;
+        if (!overlay) return;
+
+        overlay.classList.remove('visible');
+        if (this.dom.codeBtn) this.dom.codeBtn.classList.remove('active');
+        this.state.codeOverlayOpen = false;
+
+        setTimeout(() => {
+            if (!this.state.codeOverlayOpen) {
+                overlay.classList.add('hidden');
+            }
+        }, 400);
+    }
+
+    /** Toggle code editor overlay visibility. */
+    toggleCodeOverlay() {
+        if (this.state.codeOverlayOpen) {
+            this.hideCodeOverlay();
+        } else {
+            this.showCodeOverlay();
+        }
     }
 
     /* ============================================================== */
@@ -1595,7 +1667,7 @@ class InterviewRoom {
             this.dom.micBtn,
             this.dom.typeBtn,
             this.dom.skipBtn,
-            this.dom.submitCodeBtn,
+            this.dom.codeOverlaySubmit,
         ].forEach((btn) => {
             if (btn) {
                 btn.disabled = disabled;

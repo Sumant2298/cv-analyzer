@@ -128,6 +128,9 @@
         /* Type modal */
         #type-modal { position:fixed; bottom:56px; left:50%; transform:translateX(-50%); width:90%; max-width:600px; z-index:50; }
 
+        /* Code editor overlay — slide-up panel */
+        #code-overlay.visible { transform:translateY(0) !important; opacity:1 !important; }
+
         /* Custom scrollbar for dark theme */
         ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: transparent; }
@@ -139,6 +142,7 @@
             .video-grid { flex-direction:column; }
             #avatar-frame { width:180px; height:180px; }
             .control-btn { width:40px; height:40px; }
+            #code-overlay { height:92vh !important; }
         }
     </style>
 </head>
@@ -293,6 +297,13 @@
             <!-- Divider -->
             <div class="w-px h-7 bg-white/10"></div>
 
+            <!-- Code (hidden by default, shown for technical/mixed interviews via JS) -->
+            <button id="code-btn" class="control-btn hidden" title="Open code editor">
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+                </svg>
+            </button>
+
             <!-- Type -->
             <button id="type-btn" class="control-btn" title="Type your answer">
                 <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
@@ -332,6 +343,81 @@
                     </svg>
                     Send
                 </button>
+            </div>
+        </div>
+    </div>
+
+
+    <!-- ================================================================
+         CODE EDITOR OVERLAY (hidden, slides up for coding questions)
+         ================================================================ -->
+    <div id="code-overlay" class="hidden"
+         style="position:fixed; bottom:0; left:0; right:0; z-index:55;
+                height:88vh; transform:translateY(100%);
+                transition:transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease;
+                opacity:0;">
+        <div style="height:100%; display:flex; flex-direction:column;
+                    background:#0f172a; border-top:1px solid rgba(255,255,255,0.1);
+                    border-radius:16px 16px 0 0; box-shadow:0 -8px 40px rgba(0,0,0,0.5);">
+            <!-- Header bar -->
+            <div style="display:flex; align-items:center; justify-content:space-between;
+                        padding:10px 16px; border-bottom:1px solid rgba(255,255,255,0.08); flex-shrink:0;">
+                <!-- Left: Title + language selector -->
+                <div style="display:flex; align-items:center; gap:12px;">
+                    <svg class="w-4 h-4 text-indigo-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M17.25 6.75 22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3-4.5 16.5"/>
+                    </svg>
+                    <span style="font-size:13px; font-weight:600; color:#e2e8f0;">Code Editor</span>
+                    <select id="code-overlay-language"
+                            style="font-size:11px; background:#1e293b; color:#94a3b8;
+                                   border:1px solid rgba(255,255,255,0.1); border-radius:6px;
+                                   padding:4px 8px; outline:none;">
+                        <option value="python">Python</option>
+                        <option value="javascript">JavaScript</option>
+                        <option value="java">Java</option>
+                        <option value="cpp">C++</option>
+                        <option value="go">Go</option>
+                        <option value="typescript">TypeScript</option>
+                        <option value="sql">SQL</option>
+                    </select>
+                </div>
+                <!-- Right: Action buttons + close -->
+                <div style="display:flex; align-items:center; gap:8px;">
+                    <button id="code-overlay-run"
+                            class="text-[11px] font-semibold bg-slate-800 text-emerald-400 border border-emerald-500/30 rounded-lg px-3.5 py-1.5 hover:bg-slate-700 transition-colors flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5.25 5.653c0-.856.917-1.398 1.667-.986l11.54 6.347a1.125 1.125 0 0 1 0 1.972l-11.54 6.347a1.125 1.125 0 0 1-1.667-.986V5.653Z"/>
+                        </svg>
+                        Run
+                    </button>
+                    <button id="code-overlay-submit"
+                            class="text-[11px] font-semibold bg-indigo-600 text-white border-none rounded-lg px-3.5 py-1.5 hover:bg-indigo-500 transition-colors flex items-center gap-1.5 cursor-pointer">
+                        <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5"/>
+                        </svg>
+                        Submit Code
+                    </button>
+                    <button id="code-overlay-reset"
+                            class="text-[11px] font-semibold text-slate-400 border border-white/10 rounded-lg px-2.5 py-1.5 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer bg-transparent">
+                        Reset
+                    </button>
+                    <div style="width:1px; height:20px; background:rgba(255,255,255,0.1); margin:0 4px;"></div>
+                    <button id="code-overlay-close"
+                            class="w-8 h-8 rounded-lg flex items-center justify-center text-slate-400 hover:text-white hover:bg-slate-700 transition-colors cursor-pointer bg-transparent border-none">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 5.25l-7.5 7.5-7.5-7.5m15 6l-7.5 7.5-7.5-7.5"/>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <!-- Monaco editor container -->
+            <div id="code-overlay-editor" style="flex:1; min-height:0; position:relative;"></div>
+            <!-- Output panel -->
+            <div id="code-overlay-output"
+                 style="max-height:150px; overflow-y:auto; flex-shrink:0;
+                        padding:10px 16px; border-top:1px solid rgba(255,255,255,0.08);
+                        background:#0a0f1e; font-size:12px; color:#94a3b8;">
+                <p style="font-size:11px; color:#475569;">Output will appear here after running your code.</p>
             </div>
         </div>
     </div>
