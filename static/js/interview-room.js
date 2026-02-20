@@ -231,13 +231,31 @@ class AudioPipeline {
     /* --- speech recognition --------------------------------------- */
     initRecognition() {
         const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-        if (!SR) return;
+        if (!SR) {
+            this.recognitionState = 'error';
+            return;
+        }
+        this.recognitionState = 'idle';
+        this.onRecognitionStateChange = null;
         this.recognition = new SR();
         this.recognition.continuous = true;
         this.recognition.interimResults = true;
         this.recognition.lang = 'en-IN';
+        this.recognition.maxAlternatives = 1;
+
+        this.recognition.onstart = () => {
+            this.recognitionState = 'listening';
+            this.onRecognitionStateChange?.('listening');
+            console.log('[STT] Recognition started');
+        };
+
+        this.recognition.onaudiostart = () => {
+            console.log('[STT] Audio capture started');
+        };
 
         this.recognition.onresult = (event) => {
+            this._noSpeechCount = 0;
+            this._restartCount = 0;
             let interim = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const t = event.results[i][0].transcript;
@@ -254,26 +272,51 @@ class AudioPipeline {
         };
 
         this._noSpeechCount = 0;
+        this._restartCount = 0;
         this.recognition.onerror = (e) => {
+            console.warn('[STT] Error:', e.error);
             if (e.error === 'aborted') return;
+            if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+                this.recognitionState = 'error';
+                this.onRecognitionStateChange?.('error');
+                this.onTranscript?.('Microphone access denied. Check browser permissions.', false);
+                return;
+            }
+            if (e.error === 'network') {
+                this.recognitionState = 'error';
+                this.onRecognitionStateChange?.('error');
+                this.onTranscript?.('Speech recognition unavailable. Check internet connection.', false);
+                return;
+            }
             if (e.error === 'no-speech') {
                 this._noSpeechCount++;
                 if (this._noSpeechCount >= 3) {
                     this._noSpeechCount = 0;
-                    this.onTranscript?.('Try speaking louder or use the Type button', false);
+                    this.onTranscript?.('No speech detected. Speak louder or use the Type button.', false);
                 }
                 return;
             }
-            console.error('Speech recognition error:', e.error);
+            console.error('[STT] Unhandled error:', e.error);
         };
 
         this.recognition.onend = () => {
-            if (this.isListening) {
+            console.log('[STT] Recognition ended, isListening:', this.isListening);
+            if (this.isListening && this.recognitionState !== 'error') {
+                this._restartCount++;
+                if (this._restartCount > 10) {
+                    this.recognitionState = 'error';
+                    this.onRecognitionStateChange?.('error');
+                    this.onTranscript?.('Speech recognition stopped. Please use the Type button.', false);
+                    return;
+                }
+                const delay = Math.min(100 * this._restartCount, 1000);
                 setTimeout(() => {
                     if (this.isListening) {
-                        try { this.recognition.start(); } catch (_) { /* already started */ }
+                        try { this.recognition.start(); } catch (err) {
+                            console.error('[STT] Restart failed:', err);
+                        }
                     }
-                }, 100);
+                }, delay);
             }
         };
     }
@@ -305,8 +348,18 @@ class AudioPipeline {
         this.interimTranscript = '';
         this.isListening = true;
         this._noSpeechCount = 0;
+        this._restartCount = 0;
+        this.recognitionState = 'starting';
+        this.onRecognitionStateChange?.('starting');
         this.silenceTimer = Date.now();
-        try { this.recognition.start(); } catch (_) { /* */ }
+        try {
+            this.recognition.start();
+        } catch (e) {
+            console.error('[STT] Start failed:', e);
+            this.recognitionState = 'error';
+            this.onRecognitionStateChange?.('error');
+            return false;
+        }
 
         this._silenceCheck = setInterval(() => {
             if (!this.isListening) return;
@@ -371,6 +424,7 @@ class AudioPipeline {
             if (resp.status !== 200) return false;
 
             const arrayBuffer = await resp.arrayBuffer();
+            if (!arrayBuffer || arrayBuffer.byteLength === 0) return false;
             const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
 
             const source = this.audioContext.createBufferSource();
@@ -913,6 +967,26 @@ class InterviewRoom {
                 this.toggleMic();
             }
         };
+
+        /* speech recognition state feedback */
+        this.audio.onRecognitionStateChange = (state) => {
+            if (state === 'listening') {
+                this.setCaption('🎙 Listening... speak now');
+                this.dom.micBtn?.classList.remove('error-state');
+                /* clear initial caption after 3s if no transcript yet */
+                setTimeout(() => {
+                    if (this.state.isRecording &&
+                        this.audio.finalTranscript.length === 0 &&
+                        this.audio.interimTranscript.length === 0) {
+                        this.setCaption('🎙 Listening... speak now or use Type button');
+                    }
+                }, 3000);
+            } else if (state === 'error') {
+                this.dom.micBtn?.classList.add('error-state');
+            } else if (state === 'starting') {
+                this.setCaption('Starting microphone...');
+            }
+        };
     }
 
     /* ============================================================== */
@@ -931,6 +1005,12 @@ class InterviewRoom {
             /* replay past exchanges into transcript */
             let lastUnanswered = null;
             for (const ex of exchanges) {
+                if (ex.question_text && !ex.answer_text) {
+                    /* current unanswered question — skip instant display, will typewriter below */
+                    lastUnanswered = ex;
+                    this.state.questionNumber = ex.sequence || this.state.questionNumber + 1;
+                    continue;
+                }
                 if (ex.question_text) {
                     this.transcript.addMessage('interviewer', ex.question_text, {
                         questionType: ex.question_type,
@@ -939,14 +1019,12 @@ class InterviewRoom {
                 }
                 if (ex.answer_text) {
                     this.transcript.addMessage('candidate', ex.answer_text);
-                } else if (ex.question_text) {
-                    lastUnanswered = ex;
                 }
             }
 
             this.updateQuestionCounter();
 
-            /* speak the last unanswered question (current) */
+            /* typewriter + speak the last unanswered question concurrently */
             if (lastUnanswered) {
                 if (lastUnanswered.requires_code) {
                     this.state.currentRequiresCode = true;
@@ -956,7 +1034,14 @@ class InterviewRoom {
                         this.codeEditor.setLanguage(lastUnanswered.code_language);
                     }
                 }
-                await this.speakInterviewerMessage(lastUnanswered.question_text);
+                const typewriterP = this.transcript.addMessageTypewriter(
+                    'interviewer',
+                    lastUnanswered.question_text,
+                    { questionType: lastUnanswered.question_type },
+                    20
+                );
+                const speakP = this.speakInterviewerMessage(lastUnanswered.question_text);
+                await Promise.all([typewriterP, speakP]);
             }
         } catch (e) {
             console.error('Failed to load session:', e);
@@ -1128,6 +1213,7 @@ class InterviewRoom {
         this.audio.onSpeakStart = () => {
             this.state.isSpeaking = true;
             this.dom.aiWave?.classList.remove('hidden');
+            this.avatar.frame.classList.add('speaking-tilt', 'speaking-glow');
             if (this.audio.useElevenLabs) {
                 this.avatar.startMouthAnimation(() => this.audio.getFrequencyData());
             } else {
@@ -1139,6 +1225,7 @@ class InterviewRoom {
         this.audio.onSpeakEnd = () => {
             this.state.isSpeaking = false;
             this.avatar.stopMouthAnimation();
+            this.avatar.frame.classList.remove('speaking-tilt', 'speaking-glow');
             this.dom.aiWave?.classList.add('hidden');
             this.setCaption('');
         };
@@ -1161,27 +1248,58 @@ class InterviewRoom {
         this.timer.stop();
         this.disableControls(true);
 
+        /* show full-screen processing overlay */
+        this.showEndingOverlay();
+
         const fallbackUrl = `/interview/feedback/${this.config.sessionId}`;
-        try {
+
+        const attemptEnd = async () => {
             const resp = await fetch('/api/interview/end', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ session_id: this.config.sessionId }),
             });
             if (!resp.ok) {
-                console.error('End interview HTTP error:', resp.status);
-                this.cleanup();
-                window.location.href = fallbackUrl;
-                return;
+                const errData = await resp.json().catch(() => ({}));
+                return { ok: false, redirect: errData.redirect_url || fallbackUrl };
             }
             const data = await resp.json();
+            return { ok: true, redirect: data.redirect_url || fallbackUrl };
+        };
+
+        try {
+            let result = await attemptEnd();
+            if (!result.ok) {
+                /* auto-retry once after 3 seconds */
+                this.showEndError('Generating feedback failed. Retrying...');
+                await this.sleep(3000);
+                result = await attemptEnd();
+            }
             this.cleanup();
-            window.location.href = data.redirect_url || fallbackUrl;
+            window.location.href = result.redirect;
         } catch (e) {
             console.error('End interview error:', e);
             this.cleanup();
             window.location.href = fallbackUrl;
         }
+    }
+
+    showEndingOverlay() {
+        if (document.getElementById('ending-overlay')) return;
+        const overlay = document.createElement('div');
+        overlay.id = 'ending-overlay';
+        overlay.className = 'ending-overlay';
+        overlay.innerHTML = `
+            <div class="ending-spinner"></div>
+            <p class="ending-msg">Generating your feedback report...</p>
+            <p class="ending-sub">This may take a few seconds</p>`;
+        document.querySelector('.room-layout')?.appendChild(overlay) ||
+            document.body.appendChild(overlay);
+    }
+
+    showEndError(msg) {
+        const el = document.querySelector('.ending-msg');
+        if (el) el.textContent = msg;
     }
 
     /* ============================================================== */

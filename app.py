@@ -3913,61 +3913,79 @@ def api_interview_end():
     data = request.get_json(silent=True) or {}
     session_id = data.get('session_id')
 
-    from models import InterviewSession, InterviewExchange
-    iv_session = InterviewSession.query.get(session_id)
-    if not iv_session or iv_session.user_id != session['user_id']:
-        return jsonify({'error': 'Session not found'}), 404
-    if iv_session.status == 'completed':
-        return jsonify({'redirect_url': url_for('career_services_interview_feedback',
-                                                 session_id=iv_session.id)})
+    try:
+        from models import InterviewSession, InterviewExchange
+        iv_session = InterviewSession.query.get(session_id)
+        if not iv_session or iv_session.user_id != session['user_id']:
+            return jsonify({'error': 'Session not found'}), 404
+        if iv_session.status == 'completed':
+            return jsonify({'redirect_url': url_for('career_services_interview_feedback',
+                                                     session_id=iv_session.id)})
 
-    # Mark as completed
-    iv_session.status = 'completed'
-    iv_session.ended_at = datetime.utcnow()
+        # Mark as completed
+        iv_session.status = 'completed'
+        iv_session.ended_at = datetime.utcnow()
 
-    # Generate final feedback
-    exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
-    answered = [ex for ex in exchanges if ex.answer_text]
+        # Generate final feedback
+        exchanges = iv_session.exchanges.order_by(InterviewExchange.sequence).all()
+        answered = [ex for ex in exchanges if ex.answer_text]
 
-    if not answered:
-        # No answers given — skip LLM call, use placeholder
-        iv_session.overall_score = 0
-        iv_session.feedback_json = json.dumps({
-            'overall_score': 0,
-            'summary': 'Interview ended before any questions were answered.',
-            'dimensions': {},
-            'top_strengths': [],
-            'key_improvements': ['Complete at least a few questions for meaningful feedback.'],
-            'per_question_feedback': [],
-        })
-    else:
-        try:
-            from interview_service import generate_final_feedback
-            feedback = generate_final_feedback(iv_session, exchanges)
-            iv_session.overall_score = feedback.get('overall_score', 50)
-            iv_session.feedback_json = json.dumps(feedback)
-        except Exception as e:
-            logger.error('Interview feedback generation error: %s', e)
+        if not answered:
+            # No answers given — skip LLM call, use placeholder
+            iv_session.overall_score = 0
             iv_session.feedback_json = json.dumps({
                 'overall_score': 0,
-                'summary': 'Feedback generation failed. Please try again.',
+                'summary': 'Interview ended before any questions were answered.',
                 'dimensions': {},
                 'top_strengths': [],
-                'key_improvements': [],
+                'key_improvements': ['Complete at least a few questions for meaningful feedback.'],
                 'per_question_feedback': [],
             })
-            iv_session.overall_score = 0
+        else:
+            try:
+                from interview_service import generate_final_feedback
+                feedback = generate_final_feedback(iv_session, exchanges)
+                iv_session.overall_score = feedback.get('overall_score', 50)
+                iv_session.feedback_json = json.dumps(feedback)
+            except Exception as e:
+                logger.error('Interview feedback generation error: %s', e)
+                iv_session.feedback_json = json.dumps({
+                    'overall_score': 0,
+                    'summary': 'Feedback generation failed. Please try again.',
+                    'dimensions': {},
+                    'top_strengths': [],
+                    'key_improvements': [],
+                    'per_question_feedback': [],
+                })
+                iv_session.overall_score = 0
 
-    try:
-        db.session.commit()
+        try:
+            db.session.commit()
+        except Exception as e:
+            logger.error('Interview end commit error: %s', e)
+            db.session.rollback()
+            return jsonify({
+                'error': 'Failed to save interview results.',
+                'redirect_url': url_for('career_services_interview_feedback',
+                                         session_id=iv_session.id),
+            }), 500
+
+        return jsonify({
+            'redirect_url': url_for('career_services_interview_feedback',
+                                     session_id=iv_session.id),
+        })
+
     except Exception as e:
-        logger.error('Interview end commit error: %s', e)
-        db.session.rollback()
-
-    return jsonify({
-        'redirect_url': url_for('career_services_interview_feedback',
-                                 session_id=iv_session.id),
-    })
+        logger.error('Unexpected error in api_interview_end: %s', e)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
+        fallback_sid = (data or {}).get('session_id', '')
+        return jsonify({
+            'error': 'An unexpected error occurred.',
+            'redirect_url': f'/interview/feedback/{fallback_sid}' if fallback_sid else '/career-services/mock-interviews',
+        }), 500
 
 
 @app.route('/api/interview/session/<int:session_id>')
@@ -4123,7 +4141,12 @@ def api_interview_run_code():
 
 @app.route('/api/interview/tts', methods=['POST'])
 def api_interview_tts():
-    """ElevenLabs TTS proxy — returns audio stream."""
+    """ElevenLabs TTS proxy — returns streamed audio.
+
+    Setup: Add ELEVENLABS_API_KEY to environment variables (Railway dashboard).
+    Voice: Shakuntala — expressive Indian female (multilingual).
+    Model: eleven_multilingual_v2 for natural Indian English accent.
+    """
     elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
     if not elevenlabs_key:
         return '', 204  # No content — frontend falls back to Web Speech API
@@ -4134,25 +4157,42 @@ def api_interview_tts():
         return jsonify({'error': 'text is required'}), 400
 
     import requests as http_requests
-    voice_id = data.get('voice_id', 'pqHfZKP75CvOlQylNhV4')  # Indian English professional voice
+    # Shakuntala — Expressive Indian Female Voice (multilingual)
+    voice_id = data.get('voice_id', 'EGQM7bHbTHTb7VUEcOHG')
 
     try:
         resp = http_requests.post(
-            f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}',
+            f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream',
             headers={
                 'xi-api-key': elevenlabs_key,
                 'Content-Type': 'application/json',
+                'Accept': 'audio/mpeg',
             },
             json={
                 'text': text,
-                'model_id': 'eleven_turbo_v2',
-                'voice_settings': {'stability': 0.5, 'similarity_boost': 0.75},
+                'model_id': 'eleven_multilingual_v2',
+                'voice_settings': {
+                    'stability': 0.6,
+                    'similarity_boost': 0.8,
+                    'style': 0.35,
+                    'use_speaker_boost': True,
+                },
             },
-            timeout=15,
+            timeout=20,
+            stream=True,
         )
         if resp.status_code != 200:
+            logger.warning('ElevenLabs TTS status %s: %s', resp.status_code,
+                           resp.text[:200] if hasattr(resp, 'text') else '')
             return '', 204  # Fallback
-        return Response(resp.content, mimetype='audio/mpeg')
+
+        def generate():
+            for chunk in resp.iter_content(chunk_size=4096):
+                if chunk:
+                    yield chunk
+
+        return Response(generate(), mimetype='audio/mpeg',
+                        headers={'Transfer-Encoding': 'chunked'})
     except Exception as e:
         logger.error('ElevenLabs TTS error: %s', e)
         return '', 204

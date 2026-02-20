@@ -85,7 +85,7 @@ CV-BASED INSTRUCTIONS:
 - For technical candidates, ask about technologies and tools listed on their resume.
 """
 
-    return f"""You are an experienced interviewer named Professor X conducting a {interview_type} interview for the role of **{target_role}**. Difficulty level: {difficulty}.
+    return f"""You are an experienced interviewer named Priya conducting a {interview_type} interview for the role of **{target_role}**. Difficulty level: {difficulty}.
 
 PERSONA:
 {persona_desc}
@@ -168,7 +168,7 @@ def start_interview(session, resume_text: str = None) -> dict:
     result = _call_llm_chat(messages, max_tokens=1000, temperature=0.6, timeout=30.0)
 
     # Ensure required fields have defaults
-    result.setdefault('interviewer_message', 'Hello! I am Professor X, and I will be your interviewer today.')
+    result.setdefault('interviewer_message', 'Hello! I am Priya, and I will be your interviewer today.')
     result.setdefault('question_type', 'warmup')
     result.setdefault('is_follow_up', False)
     result.setdefault('is_final_question', False)
