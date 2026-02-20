@@ -245,6 +245,7 @@ class AudioPipeline {
 
         this.recognition.onstart = () => {
             this.recognitionState = 'listening';
+            this._restartCount = 0; // Reset only when recognition actually starts
             this.onRecognitionStateChange?.('listening');
             console.log('[STT] Recognition started');
         };
@@ -255,7 +256,8 @@ class AudioPipeline {
 
         this.recognition.onresult = (event) => {
             this._noSpeechCount = 0;
-            this._restartCount = 0;
+            // NOTE: Don't reset _restartCount here — it breaks backoff logic.
+            // _restartCount is reset in onstart instead.
             let interim = '';
             for (let i = event.resultIndex; i < event.results.length; i++) {
                 const t = event.results[i][0].transcript;
@@ -365,7 +367,7 @@ class AudioPipeline {
             if (!this.isListening) return;
             if (
                 this.finalTranscript.trim().length > 0 &&
-                Date.now() - this.silenceTimer > 3000
+                Date.now() - this.silenceTimer > 5000
             ) {
                 this.onSilenceAutoStop?.();
             }
@@ -392,23 +394,20 @@ class AudioPipeline {
         if (this.useElevenLabs) {
             const ok = await this.speakElevenLabs(text);
             if (ok) return;
+            /* ElevenLabs failed — fall through to browser */
         }
 
-        /* first-time probe */
+        /* first-time probe — use the actual text instead of wasting credits on "test" */
         if (!this._elevenLabsChecked) {
             this._elevenLabsChecked = true;
             try {
-                const resp = await fetch('/api/interview/tts', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ text: 'test' }),
-                });
-                if (resp.status === 200) {
+                const ok = await this.speakElevenLabs(text);
+                if (ok) {
                     this.useElevenLabs = true;
-                    const ok = await this.speakElevenLabs(text);
-                    if (ok) return;
+                    return;
                 }
             } catch (_) { /* fall through to Web Speech */ }
+            console.warn('[TTS] ElevenLabs unavailable, falling back to browser voice. Set ELEVENLABS_API_KEY in environment.');
         }
 
         return this.speakWebSpeech(text);
@@ -416,11 +415,15 @@ class AudioPipeline {
 
     async speakElevenLabs(text) {
         try {
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 30000); // 30s max
             const resp = await fetch('/api/interview/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text }),
+                signal: controller.signal,
             });
+            clearTimeout(timeout);
             if (resp.status !== 200) return false;
 
             const arrayBuffer = await resp.arrayBuffer();
@@ -1034,11 +1037,15 @@ class InterviewRoom {
                         this.codeEditor.setLanguage(lastUnanswered.code_language);
                     }
                 }
+                const qText = lastUnanswered.question_text;
+                const wc = qText.split(/\s+/).length;
+                const estMs = (wc / 2.5) * 1000;
+                const cDelay = Math.max(25, Math.min(80, Math.round(estMs / qText.length)));
                 const typewriterP = this.transcript.addMessageTypewriter(
                     'interviewer',
-                    lastUnanswered.question_text,
+                    qText,
                     { questionType: lastUnanswered.question_type },
-                    20
+                    cDelay
                 );
                 const speakP = this.speakInterviewerMessage(lastUnanswered.question_text);
                 await Promise.all([typewriterP, speakP]);
@@ -1172,9 +1179,12 @@ class InterviewRoom {
                 });
             }
 
-            /* 7. run typewriter + TTS concurrently */
+            /* 7. run typewriter + TTS concurrently — sync speed to estimated speech duration */
+            const wordCount = message.split(/\s+/).length;
+            const estimatedSpeechMs = (wordCount / 2.5) * 1000; // ~150 wpm
+            const charDelay = Math.max(25, Math.min(80, Math.round(estimatedSpeechMs / message.length)));
             const typewriterPromise = this.transcript.addMessageTypewriter(
-                'interviewer', message, { questionType: data.question_type }, 20
+                'interviewer', message, { questionType: data.question_type }, charDelay
             );
             const speakPromise = this.speakInterviewerMessage(message);
             await Promise.all([typewriterPromise, speakPromise]);
@@ -1206,7 +1216,7 @@ class InterviewRoom {
     /*  SPEAK INTERVIEWER MESSAGE  (TTS + avatar)                      */
     /* ============================================================== */
     async speakInterviewerMessage(text) {
-        this.setCaption(text);
+        this.setCaption('🔊 Priya is speaking...');
 
         /* decide mouth animation style based on TTS backend */
         const origOnStart = this.audio.onSpeakStart;

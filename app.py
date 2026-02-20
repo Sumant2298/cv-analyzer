@@ -3913,6 +3913,12 @@ def api_interview_end():
     data = request.get_json(silent=True) or {}
     session_id = data.get('session_id')
 
+    if not session_id:
+        return jsonify({
+            'error': 'Missing session_id',
+            'redirect_url': '/career-services/mock-interviews',
+        }), 400
+
     try:
         from models import InterviewSession, InterviewExchange
         iv_session = InterviewSession.query.get(session_id)
@@ -3960,14 +3966,20 @@ def api_interview_end():
                 iv_session.overall_score = 0
 
         try:
+            db.session.flush()   # Catch integrity errors early
             db.session.commit()
         except Exception as e:
             logger.error('Interview end commit error: %s', e)
             db.session.rollback()
+            # Still return a redirect so the user isn't stuck
+            try:
+                redirect_url = url_for('career_services_interview_feedback',
+                                        session_id=iv_session.id)
+            except Exception:
+                redirect_url = f'/interview/feedback/{session_id}'
             return jsonify({
                 'error': 'Failed to save interview results.',
-                'redirect_url': url_for('career_services_interview_feedback',
-                                         session_id=iv_session.id),
+                'redirect_url': redirect_url,
             }), 500
 
         return jsonify({
@@ -3976,12 +3988,12 @@ def api_interview_end():
         })
 
     except Exception as e:
-        logger.error('Unexpected error in api_interview_end: %s', e)
+        logger.error('Unexpected error in api_interview_end: %s', e, exc_info=True)
         try:
             db.session.rollback()
         except Exception:
             pass
-        fallback_sid = (data or {}).get('session_id', '')
+        fallback_sid = session_id or ''
         return jsonify({
             'error': 'An unexpected error occurred.',
             'redirect_url': f'/interview/feedback/{fallback_sid}' if fallback_sid else '/career-services/mock-interviews',

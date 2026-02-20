@@ -3,175 +3,231 @@
     <clipPath id="circle-clip">
       <circle cx="140" cy="140" r="140"/>
     </clipPath>
+
+    <!-- Background gradient — soft warm -->
     <linearGradient id="bg-grad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#1e293b"/>
-      <stop offset="100%" stop-color="#0f172a"/>
+      <stop offset="0%" stop-color="#1e1b4b"/>
+      <stop offset="100%" stop-color="#0f0a2e"/>
     </linearGradient>
-    <linearGradient id="skin-grad" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%" stop-color="#D4A574"/>
-      <stop offset="100%" stop-color="#C68B59"/>
+
+    <!-- Skin — warm golden-brown -->
+    <linearGradient id="skin" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#e0a870"/>
+      <stop offset="100%" stop-color="#c88e55"/>
     </linearGradient>
-    <linearGradient id="hair-grad" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%" stop-color="#1a1a2e"/>
-      <stop offset="100%" stop-color="#0d0d1a"/>
+
+    <!-- Skin shadow -->
+    <linearGradient id="skin-shadow" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#b87840"/>
+      <stop offset="100%" stop-color="#a06830"/>
     </linearGradient>
-    <linearGradient id="blouse-grad" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#5b21b6"/>
+
+    <!-- Hair — rich dark -->
+    <linearGradient id="hair" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#1c1025"/>
+      <stop offset="100%" stop-color="#0a0610"/>
     </linearGradient>
-    <linearGradient id="dupatta-grad" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#ec4899" stop-opacity="0.7"/>
-      <stop offset="100%" stop-color="#be185d" stop-opacity="0.5"/>
+
+    <!-- Hair highlight -->
+    <linearGradient id="hair-hi" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3d2855" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#1c1025" stop-opacity="0"/>
     </linearGradient>
-    <linearGradient id="lip-grad" x1="0.5" y1="0" x2="0.5" y2="1">
-      <stop offset="0%" stop-color="#C2555A"/>
-      <stop offset="100%" stop-color="#A04048"/>
+
+    <!-- Blouse — modern indigo -->
+    <linearGradient id="blouse" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#6366f1"/>
+      <stop offset="100%" stop-color="#4338ca"/>
     </linearGradient>
-    <radialGradient id="cheek-l" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="#D4846A" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#D4846A" stop-opacity="0"/>
+
+    <!-- Lip color -->
+    <linearGradient id="lips" x1="0.5" y1="0" x2="0.5" y2="1">
+      <stop offset="0%" stop-color="#c85a60"/>
+      <stop offset="100%" stop-color="#a84048"/>
+    </linearGradient>
+
+    <!-- Cheek blush -->
+    <radialGradient id="blush-l" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#d4846a" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#d4846a" stop-opacity="0"/>
     </radialGradient>
-    <radialGradient id="cheek-r" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0%" stop-color="#D4846A" stop-opacity="0.4"/>
-      <stop offset="100%" stop-color="#D4846A" stop-opacity="0"/>
+    <radialGradient id="blush-r" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0%" stop-color="#d4846a" stop-opacity="0.35"/>
+      <stop offset="100%" stop-color="#d4846a" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Eye highlight -->
+    <radialGradient id="eye-glow" cx="0.4" cy="0.35" r="0.6">
+      <stop offset="0%" stop-color="white" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="white" stop-opacity="0"/>
+    </radialGradient>
+
+    <!-- Ambient light on face -->
+    <radialGradient id="face-light" cx="0.5" cy="0.3" r="0.6">
+      <stop offset="0%" stop-color="#f5d0a0" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#f5d0a0" stop-opacity="0"/>
     </radialGradient>
   </defs>
 
   <g clip-path="url(#circle-clip)">
     <!-- Background -->
     <rect width="280" height="280" fill="url(#bg-grad)"/>
+    <!-- Subtle radial glow behind head -->
+    <circle cx="140" cy="130" r="120" fill="#312e81" opacity="0.15"/>
 
-    <!-- Long hair behind shoulders -->
-    <ellipse cx="140" cy="190" rx="90" ry="100" fill="url(#hair-grad)"/>
-    <!-- Hair strands falling over shoulders -->
-    <path d="M65 160 Q60 200 68 260" stroke="#1a1a2e" stroke-width="18" fill="none" stroke-linecap="round"/>
-    <path d="M215 160 Q220 200 212 260" stroke="#1a1a2e" stroke-width="18" fill="none" stroke-linecap="round"/>
-    <!-- Hair highlight strands -->
-    <path d="M72 170 Q68 210 74 255" stroke="#2d2d44" stroke-width="3" fill="none" opacity="0.4"/>
-    <path d="M208 170 Q212 210 206 255" stroke="#2d2d44" stroke-width="3" fill="none" opacity="0.4"/>
+    <!-- === HAIR BEHIND (flowing over shoulders) === -->
+    <path d="M60 145 Q55 195 60 260 L90 260 Q80 200 82 155 Z" fill="url(#hair)"/>
+    <path d="M220 145 Q225 195 220 260 L190 260 Q200 200 198 155 Z" fill="url(#hair)"/>
+    <!-- Hair strands behind shoulders -->
+    <path d="M65 160 Q58 210 65 265" stroke="#1c1025" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <path d="M215 160 Q222 210 215 265" stroke="#1c1025" stroke-width="20" fill="none" stroke-linecap="round"/>
+    <!-- Hair strand highlights -->
+    <path d="M70 175 Q64 215 70 258" stroke="#2a1d3d" stroke-width="2" fill="none" opacity="0.3"/>
+    <path d="M210 175 Q216 215 210 258" stroke="#2a1d3d" stroke-width="2" fill="none" opacity="0.3"/>
 
-    <!-- Blouse / Professional attire -->
-    <ellipse cx="140" cy="310" rx="125" ry="85" fill="url(#blouse-grad)"/>
-    <!-- Neckline (round/modest) -->
-    <path d="M105 235 Q122 248 140 250 Q158 248 175 235" fill="url(#blouse-grad)" stroke="none"/>
-    <!-- Collar detail -->
-    <path d="M108 232 Q125 244 140 246 Q155 244 172 232" fill="none" stroke="#6d28d9" stroke-width="1.5" opacity="0.6"/>
+    <!-- === CLOTHING === -->
+    <!-- Shoulders / blouse -->
+    <ellipse cx="140" cy="310" rx="130" ry="88" fill="url(#blouse)"/>
+    <!-- Neckline — elegant round -->
+    <path d="M108 232 Q125 250 140 252 Q155 250 172 232" fill="url(#blouse)"/>
+    <!-- Neckline rim -->
+    <path d="M110 230 Q127 247 140 249 Q153 247 170 230" fill="none" stroke="#818cf8" stroke-width="1" opacity="0.5"/>
 
-    <!-- Dupatta draped over left shoulder -->
-    <path d="M60 220 Q80 240 70 280" fill="url(#dupatta-grad)" stroke="none"/>
-    <path d="M55 225 Q75 245 65 280" fill="none" stroke="#ec4899" stroke-width="0.8" opacity="0.4"/>
+    <!-- Dupatta (sheer drape over left shoulder) -->
+    <path d="M55 220 Q75 240 68 280" fill="#a78bfa" fill-opacity="0.18" stroke="#a78bfa" stroke-width="0.5" stroke-opacity="0.25"/>
 
-    <!-- Neck -->
-    <rect x="125" y="195" width="30" height="38" rx="8" fill="url(#skin-grad)"/>
+    <!-- === NECK === -->
+    <rect x="124" y="195" width="32" height="38" rx="10" fill="url(#skin)"/>
     <!-- Neck shadow -->
-    <ellipse cx="140" cy="210" rx="12" ry="3" fill="#B8784D" opacity="0.2"/>
+    <ellipse cx="140" cy="230" rx="16" ry="5" fill="#a06830" opacity="0.15"/>
 
-    <!-- Necklace (thin gold chain with small pendant) -->
-    <path d="M118 228 Q130 238 140 240 Q150 238 162 228" fill="none" stroke="#D4A030" stroke-width="1.2"/>
-    <circle cx="140" cy="240" r="3" fill="#D4A030"/>
-    <circle cx="140" cy="240" r="1.5" fill="#E8C060"/>
+    <!-- === NECKLACE (thin gold chain) === -->
+    <path d="M120 228 Q131 237 140 239 Q149 237 160 228" fill="none" stroke="#d4a030" stroke-width="1"/>
+    <circle cx="140" cy="239" r="2.5" fill="#d4a030"/>
+    <circle cx="140" cy="239" r="1.2" fill="#e8c060"/>
 
-    <!-- Head / Face shape (feminine oval) -->
-    <ellipse cx="140" cy="145" rx="58" ry="68" fill="url(#skin-grad)"/>
-    <!-- Jaw / chin (softer, more rounded) -->
-    <ellipse cx="140" cy="183" rx="38" ry="18" fill="url(#skin-grad)"/>
+    <!-- === HEAD / FACE === -->
+    <!-- Main face oval -->
+    <ellipse cx="140" cy="144" rx="56" ry="66" fill="url(#skin)"/>
+    <!-- Jaw — soft, feminine -->
+    <ellipse cx="140" cy="182" rx="36" ry="17" fill="url(#skin)"/>
+    <!-- Face ambient light -->
+    <ellipse cx="140" cy="135" rx="45" ry="50" fill="url(#face-light)"/>
+    <!-- Chin highlight -->
+    <ellipse cx="140" cy="192" rx="8" ry="3" fill="#f0c888" opacity="0.1"/>
 
-    <!-- Ears (smaller) -->
-    <ellipse cx="82" cy="145" rx="8" ry="14" fill="#C68B59"/>
-    <ellipse cx="82" cy="145" rx="5" ry="9" fill="#B8784D" opacity="0.25"/>
-    <ellipse cx="198" cy="145" rx="8" ry="14" fill="#C68B59"/>
-    <ellipse cx="198" cy="145" rx="5" ry="9" fill="#B8784D" opacity="0.25"/>
+    <!-- === EARS (partially hidden by hair) === -->
+    <ellipse cx="84" cy="148" rx="7" ry="12" fill="#c88e55"/>
+    <ellipse cx="196" cy="148" rx="7" ry="12" fill="#c88e55"/>
 
-    <!-- Earrings (gold jhumka-style drops) -->
-    <circle cx="82" cy="162" r="4" fill="#D4A030"/>
-    <circle cx="82" cy="162" r="2" fill="#E8C060"/>
-    <circle cx="82" cy="168" r="2.5" fill="#D4A030"/>
-    <circle cx="198" cy="162" r="4" fill="#D4A030"/>
-    <circle cx="198" cy="162" r="2" fill="#E8C060"/>
-    <circle cx="198" cy="168" r="2.5" fill="#D4A030"/>
+    <!-- === EARRINGS (modern gold drops) === -->
+    <circle cx="84" cy="162" r="3.5" fill="#d4a030"/>
+    <circle cx="84" cy="162" r="1.8" fill="#ecd070"/>
+    <ellipse cx="84" cy="168" rx="2.5" ry="3" fill="#d4a030" opacity="0.8"/>
+    <circle cx="196" cy="162" r="3.5" fill="#d4a030"/>
+    <circle cx="196" cy="162" r="1.8" fill="#ecd070"/>
+    <ellipse cx="196" cy="168" rx="2.5" ry="3" fill="#d4a030" opacity="0.8"/>
 
-    <!-- Hair top (center-parted) -->
-    <ellipse cx="140" cy="100" rx="62" ry="48" fill="url(#hair-grad)"/>
-    <!-- Part line -->
-    <line x1="140" y1="62" x2="140" y2="110" stroke="#0d0d1a" stroke-width="1.5" opacity="0.6"/>
-    <!-- Hair volume left -->
-    <path d="M78 100 Q80 70 105 60 Q125 55 140 62" fill="#1a1a2e"/>
-    <!-- Hair volume right -->
-    <path d="M202 100 Q200 70 175 60 Q155 55 140 62" fill="#1a1a2e"/>
-    <!-- Side hair flowing down -->
-    <path d="M78 100 Q75 130 78 160" fill="#1a1a2e" stroke="none"/>
-    <path d="M202 100 Q205 130 202 160" fill="#1a1a2e" stroke="none"/>
+    <!-- === HAIR TOP === -->
+    <!-- Main hair mass -->
+    <ellipse cx="140" cy="100" rx="62" ry="50" fill="url(#hair)"/>
+    <!-- Hair volume top -->
+    <ellipse cx="140" cy="82" rx="56" ry="32" fill="#1c1025"/>
+    <!-- Center part line -->
+    <line x1="140" y1="58" x2="140" y2="108" stroke="#0a0610" stroke-width="1.2" opacity="0.7"/>
+    <!-- Left side hair -->
+    <path d="M78 100 Q76 65 108 55 Q128 50 140 56" fill="#1c1025"/>
+    <path d="M78 100 Q74 130 78 158" fill="#1c1025"/>
+    <!-- Right side hair -->
+    <path d="M202 100 Q204 65 172 55 Q152 50 140 56" fill="#1c1025"/>
+    <path d="M202 100 Q206 130 202 158" fill="#1c1025"/>
+    <!-- Hair shine arcs -->
+    <path d="M105 68 Q122 60 138 64" fill="none" stroke="#4a3568" stroke-width="3" opacity="0.18" stroke-linecap="round"/>
+    <path d="M142 64 Q158 60 175 68" fill="none" stroke="#4a3568" stroke-width="3" opacity="0.18" stroke-linecap="round"/>
     <!-- Hair texture -->
-    <path d="M95 75 Q115 65 140 68 Q165 65 185 75" fill="none" stroke="#0d0d1a" stroke-width="1.2" opacity="0.4"/>
-    <path d="M90 85 Q118 73 140 76 Q162 73 190 85" fill="none" stroke="#0d0d1a" stroke-width="0.8" opacity="0.3"/>
-    <!-- Hair shine highlight -->
-    <path d="M110 72 Q125 66 138 68" fill="none" stroke="#374151" stroke-width="2" opacity="0.15"/>
-    <path d="M142 68 Q155 66 170 72" fill="none" stroke="#374151" stroke-width="2" opacity="0.15"/>
+    <path d="M92 80 Q118 68 140 72 Q162 68 188 80" fill="none" stroke="#0a0610" stroke-width="1" opacity="0.25"/>
+    <path d="M88 92 Q116 78 140 82 Q164 78 192 92" fill="none" stroke="#0a0610" stroke-width="0.7" opacity="0.18"/>
 
-    <!-- Bindi (red dot on forehead) -->
-    <circle cx="140" cy="112" r="3" fill="#9B1B30"/>
-    <circle cx="140" cy="112" r="1.5" fill="#C62828" opacity="0.6"/>
+    <!-- === BINDI === -->
+    <circle cx="140" cy="112" r="2.8" fill="#c41e3a"/>
+    <circle cx="140" cy="112" r="1.4" fill="#e83050" opacity="0.5"/>
 
-    <!-- Eyebrows (thin, arched, feminine) -->
-    <path d="M105 124 Q116 117 130 121" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/>
-    <path d="M150 121 Q164 117 175 124" fill="none" stroke="#1a1a2e" stroke-width="2" stroke-linecap="round"/>
+    <!-- === EYEBROWS (clean, arched) === -->
+    <path d="M107 124 Q117 118 130 121" fill="none" stroke="#2d1a3e" stroke-width="2.2" stroke-linecap="round"/>
+    <path d="M150 121 Q163 118 173 124" fill="none" stroke="#2d1a3e" stroke-width="2.2" stroke-linecap="round"/>
 
-    <!-- Eyes (larger, almond-shaped) -->
+    <!-- === EYES === -->
     <!-- Eye whites -->
-    <ellipse cx="117" cy="135" rx="15" ry="10" fill="white"/>
-    <ellipse cx="163" cy="135" rx="15" ry="10" fill="white"/>
+    <ellipse cx="118" cy="136" rx="13.5" ry="9.5" fill="white"/>
+    <ellipse cx="162" cy="136" rx="13.5" ry="9.5" fill="white"/>
 
-    <!-- Kajal / eyeliner (upper lid) -->
-    <path d="M102 133 Q110 126 117 126 Q124 126 132 133" fill="none" stroke="#1a1a2e" stroke-width="1.8" stroke-linecap="round"/>
-    <path d="M148 133 Q156 126 163 126 Q170 126 178 133" fill="none" stroke="#1a1a2e" stroke-width="1.8" stroke-linecap="round"/>
-    <!-- Lower eyeliner (subtle) -->
-    <path d="M104 137 Q117 143 130 137" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.4"/>
-    <path d="M150 137 Q163 143 176 137" fill="none" stroke="#3d2b1f" stroke-width="0.8" opacity="0.4"/>
+    <!-- Upper eyeliner (kajal) -->
+    <path d="M104 134 Q112 127 118 127 Q124 127 132 134" fill="none" stroke="#1c1025" stroke-width="2" stroke-linecap="round"/>
+    <path d="M148 134 Q156 127 162 127 Q168 127 176 134" fill="none" stroke="#1c1025" stroke-width="2" stroke-linecap="round"/>
+
+    <!-- Lower lid line (subtle) -->
+    <path d="M106 138 Q118 143 130 138" fill="none" stroke="#8b6f5a" stroke-width="0.7" opacity="0.3"/>
+    <path d="M150 138 Q162 143 174 138" fill="none" stroke="#8b6f5a" stroke-width="0.7" opacity="0.3"/>
 
     <!-- Iris -->
-    <circle cx="117" cy="135" r="7.5" fill="#3B2507"/>
-    <circle cx="163" cy="135" r="7.5" fill="#3B2507"/>
+    <circle cx="118" cy="136" r="7" fill="#3b2507"/>
+    <circle cx="162" cy="136" r="7" fill="#3b2507"/>
+    <!-- Iris inner ring -->
+    <circle cx="118" cy="136" r="5" fill="#2a1a05"/>
+    <circle cx="162" cy="136" r="5" fill="#2a1a05"/>
 
     <!-- Pupils -->
-    <circle cx="117" cy="135" r="3.5" fill="#0d0d0d"/>
-    <circle cx="163" cy="135" r="3.5" fill="#0d0d0d"/>
+    <circle cx="118" cy="136" r="3.2" fill="#080808"/>
+    <circle cx="162" cy="136" r="3.2" fill="#080808"/>
 
-    <!-- Eye highlights -->
-    <circle cx="119.5" cy="133" r="2" fill="white" opacity="0.9"/>
-    <circle cx="165.5" cy="133" r="2" fill="white" opacity="0.9"/>
-    <circle cx="115" cy="136.5" r="1" fill="white" opacity="0.4"/>
-    <circle cx="161" cy="136.5" r="1" fill="white" opacity="0.4"/>
+    <!-- Eye highlights (catch lights) -->
+    <circle cx="120.5" cy="133.5" r="2.2" fill="white" opacity="0.92"/>
+    <circle cx="164.5" cy="133.5" r="2.2" fill="white" opacity="0.92"/>
+    <circle cx="116" cy="137.5" r="1" fill="white" opacity="0.35"/>
+    <circle cx="160" cy="137.5" r="1" fill="white" opacity="0.35"/>
+
+    <!-- Eye glow -->
+    <ellipse cx="118" cy="135" rx="10" ry="8" fill="url(#eye-glow)"/>
+    <ellipse cx="162" cy="135" rx="10" ry="8" fill="url(#eye-glow)"/>
 
     <!-- Eyelid crease -->
-    <path d="M104 130 Q117 123 130 130" fill="none" stroke="#B8784D" stroke-width="0.7" opacity="0.4"/>
-    <path d="M150 130 Q163 123 176 130" fill="none" stroke="#B8784D" stroke-width="0.7" opacity="0.4"/>
+    <path d="M106 130 Q118 124 130 130" fill="none" stroke="#b87840" stroke-width="0.6" opacity="0.3"/>
+    <path d="M150 130 Q162 124 174 130" fill="none" stroke="#b87840" stroke-width="0.6" opacity="0.3"/>
 
-    <!-- Nose -->
-    <path d="M140 140 L137.5 160 Q135 166 140 166 Q145 166 142.5 160 Z" fill="#B8784D" opacity="0.3"/>
+    <!-- === NOSE === -->
+    <!-- Nose bridge shadow -->
+    <path d="M140 126 L138 155 Q136 160 140 160 Q144 160 142 155 Z" fill="#b87840" opacity="0.15"/>
     <!-- Nose tip -->
-    <ellipse cx="140" cy="163" rx="4.5" ry="2.8" fill="#D4A574" opacity="0.4"/>
+    <ellipse cx="140" cy="158" rx="5" ry="3" fill="#d8a870" opacity="0.25"/>
     <!-- Nostrils -->
-    <ellipse cx="136" cy="164" rx="2" ry="1.3" fill="#A06D42" opacity="0.35"/>
-    <ellipse cx="144" cy="164" rx="2" ry="1.3" fill="#A06D42" opacity="0.35"/>
+    <ellipse cx="136.5" cy="159.5" rx="2" ry="1.2" fill="#a06838" opacity="0.28"/>
+    <ellipse cx="143.5" cy="159.5" rx="2" ry="1.2" fill="#a06838" opacity="0.28"/>
+    <!-- Nose highlight -->
+    <ellipse cx="140" cy="148" rx="2" ry="6" fill="white" opacity="0.04"/>
 
-    <!-- Cheeks -->
-    <ellipse cx="100" cy="152" rx="13" ry="9" fill="url(#cheek-l)"/>
-    <ellipse cx="180" cy="152" rx="13" ry="9" fill="url(#cheek-r)"/>
+    <!-- === CHEEKS === -->
+    <ellipse cx="100" cy="152" rx="14" ry="10" fill="url(#blush-l)"/>
+    <ellipse cx="180" cy="152" rx="14" ry="10" fill="url(#blush-r)"/>
 
-    <!-- Mouth / Lips (warm, fuller, professional smile) -->
+    <!-- === MOUTH (warm, professional smile) === -->
     <!-- Upper lip -->
-    <path d="M125 178 Q130 175 136 177 L140 176 L144 177 Q150 175 155 178"
-          fill="url(#lip-grad)" stroke="none"/>
+    <path d="M126 174 Q131 171 137 173 L140 172 L143 173 Q149 171 154 174" fill="url(#lips)"/>
     <!-- Lower lip -->
-    <path d="M125 178 Q133 185 140 186 Q147 185 155 178"
-          fill="url(#lip-grad)" stroke="none" opacity="0.85"/>
+    <path d="M126 174 Q134 181 140 182 Q146 181 154 174" fill="url(#lips)" opacity="0.82"/>
+    <!-- Lip highlight -->
+    <ellipse cx="140" cy="177" rx="6" ry="2" fill="white" opacity="0.06"/>
     <!-- Lip line -->
-    <path d="M126 179 Q133 182 140 182 Q147 182 154 179" fill="none" stroke="#A04048" stroke-width="0.6" opacity="0.5"/>
-    <!-- Smile line -->
-    <path d="M122 179 Q124 181 126 179" fill="none" stroke="#B8784D" stroke-width="0.5" opacity="0.3"/>
-    <path d="M154 179 Q156 181 158 179" fill="none" stroke="#B8784D" stroke-width="0.5" opacity="0.3"/>
+    <path d="M127 175 Q134 177 140 177 Q146 177 153 175" fill="none" stroke="#a04048" stroke-width="0.5" opacity="0.4"/>
+    <!-- Smile dimples -->
+    <path d="M123 175 Q125 177 126 175" fill="none" stroke="#b87840" stroke-width="0.4" opacity="0.25"/>
+    <path d="M154 175 Q155 177 157 175" fill="none" stroke="#b87840" stroke-width="0.4" opacity="0.25"/>
+
+    <!-- === FACE SHADOW (under chin / jaw) === -->
+    <ellipse cx="140" cy="198" rx="32" ry="6" fill="#a06830" opacity="0.08"/>
   </g>
 
-  <!-- Outer glow ring -->
-  <circle cx="140" cy="140" r="139" fill="none" stroke="url(#blouse-grad)" stroke-width="2" opacity="0.3"/>
+  <!-- Outer ring glow -->
+  <circle cx="140" cy="140" r="139" fill="none" stroke="url(#blouse)" stroke-width="2" opacity="0.25"/>
+  <!-- Subtle outer glow -->
+  <circle cx="140" cy="140" r="138" fill="none" stroke="#818cf8" stroke-width="1" opacity="0.08"/>
 </svg>
