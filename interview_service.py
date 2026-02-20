@@ -378,7 +378,10 @@ def generate_final_feedback(session, exchanges: list) -> dict:
     ]
 
     try:
-        result = _call_llm_chat(messages, max_tokens=4000, temperature=0.3, timeout=60.0)
+        # Railway proxy timeout is ~60-90s. Use 20s timeout, NO retries (_retries=0)
+        # so this returns in <25s instead of 60×3=180s that would cause 504.
+        result = _call_llm_chat(messages, max_tokens=4000, temperature=0.3,
+                                timeout=20.0, _retries=0)
     except Exception as e:
         logger.error('Final feedback LLM call failed: %s', e)
         result = {

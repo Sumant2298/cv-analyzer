@@ -55,11 +55,6 @@ class TimerManager {
 class AvatarEngine {
     constructor(frameEl) {
         this.frame = frameEl;
-        this.mouth = document.getElementById('avatar-mouth');
-        this.blinkContainer = document.getElementById('avatar-blink');
-        this.eyelids = this.blinkContainer
-            ? this.blinkContainer.querySelectorAll('.eyelid')
-            : [];
         this.currentMouthOpen = 0;
         this.blinkTimeout = null;
         this.nodInterval = null;
@@ -67,23 +62,14 @@ class AvatarEngine {
         this._speaking = false;
     }
 
-    /* --- idle loop ------------------------------------------------ */
+    /* --- idle loop (no overlays — avatar is pure SVG) ------------- */
     startIdleAnimation() {
-        this.scheduleBlink();
+        /* Blink/mouth overlays removed. Speaking feedback is via
+           speaking-tilt + speaking-glow CSS on the frame. */
     }
 
-    scheduleBlink() {
-        const delay = 2000 + Math.random() * 4000;
-        this.blinkTimeout = setTimeout(() => {
-            this.blink();
-            this.scheduleBlink();
-        }, delay);
-    }
-
-    blink() {
-        this.eyelids.forEach(el => el.classList.add('blink'));
-        setTimeout(() => this.eyelids.forEach(el => el.classList.remove('blink')), 150);
-    }
+    scheduleBlink() { /* no-op — overlays removed */ }
+    blink() { /* no-op — overlays removed */ }
 
     /* --- expressions ---------------------------------------------- */
     setExpression(name) {
@@ -95,66 +81,11 @@ class AvatarEngine {
         }
     }
 
-    /* --- mouth: driven by real audio analyser data ---------------- */
-    startMouthAnimation(frequencyDataGetter) {
-        this._speaking = true;
-        const animate = () => {
-            if (!this._speaking) return;
-            const data = frequencyDataGetter();
-            let amplitude = 0;
-            if (data) {
-                const vocalBins = Array.from(data).slice(2, 12);
-                amplitude = vocalBins.reduce((a, b) => a + b, 0) / vocalBins.length / 255;
-            }
-            const target = Math.min(amplitude * 2.5, 1);
-            this.currentMouthOpen += (target - this.currentMouthOpen) * 0.3;
-            if (this.mouth) {
-                this.mouth.style.transform =
-                    `translateX(-50%) scaleY(${0.1 + this.currentMouthOpen * 0.9})`;
-                this.mouth.style.opacity = this.currentMouthOpen > 0.05 ? '1' : '0';
-            }
-            this.animationFrame = requestAnimationFrame(animate);
-        };
-        animate();
-    }
-
-    /* --- mouth: simulated from text syllable timing --------------- */
-    startSimulatedMouth(text) {
-        this._speaking = true;
-        const avgDuration = 180;
-        const startTime = performance.now();
-        const animate = () => {
-            if (!this._speaking) {
-                if (this.mouth) this.mouth.style.transform = 'translateX(-50%) scaleY(0.1)';
-                return;
-            }
-            const elapsed = performance.now() - startTime;
-            const phase = (elapsed % avgDuration) / avgDuration;
-            const openness =
-                Math.sin(phase * Math.PI) * 0.7 +
-                Math.sin(elapsed * 0.02) * 0.15 +
-                Math.random() * 0.08;
-            this.currentMouthOpen +=
-                (Math.max(0, openness) - this.currentMouthOpen) * 0.3;
-            if (this.mouth) {
-                this.mouth.style.transform =
-                    `translateX(-50%) scaleY(${0.1 + this.currentMouthOpen * 0.9})`;
-                this.mouth.style.opacity = this.currentMouthOpen > 0.05 ? '1' : '0';
-            }
-            this.animationFrame = requestAnimationFrame(animate);
-        };
-        animate();
-    }
-
-    stopMouthAnimation() {
-        this._speaking = false;
-        cancelAnimationFrame(this.animationFrame);
-        this.currentMouthOpen = 0;
-        if (this.mouth) {
-            this.mouth.style.transform = 'translateX(-50%) scaleY(0.1)';
-            this.mouth.style.opacity = '0';
-        }
-    }
+    /* Mouth/blink overlay divs removed. Speaking visual feedback is
+       handled by speaking-tilt + speaking-glow CSS classes on #avatar-frame. */
+    startMouthAnimation() { this._speaking = true; }
+    startSimulatedMouth() { this._speaking = true; }
+    stopMouthAnimation() { this._speaking = false; cancelAnimationFrame(this.animationFrame); }
 
     /* --- nodding while candidate speaks --------------------------- */
     startNodding() {
@@ -418,8 +349,14 @@ class AudioPipeline {
 
     async speakElevenLabs(text) {
         try {
+            /* Ensure AudioContext is running (Chrome autoplay policy) */
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+
             const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 30000); // 30s max
+            const timeout = setTimeout(() => controller.abort(), 30000);
+            console.log('[TTS] Requesting ElevenLabs audio for', text.length, 'chars...');
             const resp = await fetch('/api/interview/tts', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -427,11 +364,21 @@ class AudioPipeline {
                 signal: controller.signal,
             });
             clearTimeout(timeout);
-            if (resp.status !== 200) return false;
+
+            if (resp.status !== 200) {
+                console.warn('[TTS] ElevenLabs returned status', resp.status);
+                return false;
+            }
 
             const arrayBuffer = await resp.arrayBuffer();
-            if (!arrayBuffer || arrayBuffer.byteLength === 0) return false;
-            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer);
+            console.log('[TTS] Received', arrayBuffer.byteLength, 'bytes');
+            if (!arrayBuffer || arrayBuffer.byteLength < 100) {
+                console.warn('[TTS] Audio too small:', arrayBuffer.byteLength);
+                return false;
+            }
+
+            const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer.slice(0));
+            console.log('[TTS] Decoded audio:', audioBuffer.duration.toFixed(1), 's');
 
             const source = this.audioContext.createBufferSource();
             source.buffer = audioBuffer;
@@ -446,9 +393,14 @@ class AudioPipeline {
                     this.onSpeakEnd?.();
                     resolve(true);
                 };
+                /* Safety: if onended doesn't fire, force-resolve after audio duration + 1s */
+                setTimeout(() => {
+                    this.onSpeakEnd?.();
+                    resolve(true);
+                }, (audioBuffer.duration + 1) * 1000);
             });
         } catch (e) {
-            console.error('ElevenLabs TTS error:', e);
+            console.error('[TTS] ElevenLabs error:', e.message || e);
             return false;
         }
     }
@@ -1241,21 +1193,7 @@ class InterviewRoom {
     async speakInterviewerMessage(text) {
         this.setCaption('🔊 Priya is speaking...');
 
-        /* decide mouth animation style based on TTS backend */
-        const origOnStart = this.audio.onSpeakStart;
-        this.audio.onSpeakStart = () => {
-            this.state.isSpeaking = true;
-            this.dom.aiWave?.classList.remove('hidden');
-            this.avatar.frame.classList.add('speaking-tilt', 'speaking-glow');
-            if (this.audio.useElevenLabs) {
-                this.avatar.startMouthAnimation(() => this.audio.getFrequencyData());
-            } else {
-                this.avatar.startSimulatedMouth(text);
-            }
-        };
-
-        const origOnEnd = this.audio.onSpeakEnd;
-        this.audio.onSpeakEnd = () => {
+        const resetSpeakingState = () => {
             this.state.isSpeaking = false;
             this.avatar.stopMouthAnimation();
             this.avatar.frame.classList.remove('speaking-tilt', 'speaking-glow');
@@ -1263,18 +1201,34 @@ class InterviewRoom {
             this.setCaption('');
         };
 
-        await this.audio.speak(text);
+        const origOnStart = this.audio.onSpeakStart;
+        this.audio.onSpeakStart = () => {
+            this.state.isSpeaking = true;
+            this.dom.aiWave?.classList.remove('hidden');
+            this.avatar.frame.classList.add('speaking-tilt', 'speaking-glow');
+        };
 
-        /* Safety net: ALWAYS force-reset speaking state after speak() completes.
-           Guards against Chrome's onend bug and any edge case where onSpeakEnd didn't fire. */
-        this.state.isSpeaking = false;
-        this.avatar.stopMouthAnimation();
-        this.avatar.frame.classList.remove('speaking-tilt', 'speaking-glow');
-        this.dom.aiWave?.classList.add('hidden');
+        const origOnEnd = this.audio.onSpeakEnd;
+        this.audio.onSpeakEnd = () => resetSpeakingState();
 
-        /* restore generic callbacks */
-        this.audio.onSpeakStart = origOnStart;
-        this.audio.onSpeakEnd = origOnEnd;
+        /* HARD TIMEOUT: If TTS hangs for any reason, force-cancel after 45s.
+           This prevents isSpeaking from being stuck true forever. */
+        const hardTimeout = setTimeout(() => {
+            console.warn('[TTS] Hard timeout — forcing speech end');
+            this.audio.synthesis.cancel();
+            resetSpeakingState();
+        }, 45000);
+
+        try {
+            await this.audio.speak(text);
+        } catch (e) {
+            console.error('[TTS] speak() threw:', e);
+        } finally {
+            clearTimeout(hardTimeout);
+            resetSpeakingState();
+            this.audio.onSpeakStart = origOnStart;
+            this.audio.onSpeakEnd = origOnEnd;
+        }
     }
 
     /* ============================================================== */
@@ -1294,17 +1248,27 @@ class InterviewRoom {
         const fallbackUrl = `/interview/feedback/${this.config.sessionId}`;
 
         const attemptEnd = async () => {
-            const resp = await fetch('/api/interview/end', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ session_id: this.config.sessionId }),
-            });
-            if (!resp.ok) {
-                const errData = await resp.json().catch(() => ({}));
-                return { ok: false, redirect: errData.redirect_url || fallbackUrl };
+            const controller = new AbortController();
+            const fetchTimer = setTimeout(() => controller.abort(), 30000); // 30s hard limit
+            try {
+                const resp = await fetch('/api/interview/end', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ session_id: this.config.sessionId }),
+                    signal: controller.signal,
+                });
+                clearTimeout(fetchTimer);
+                if (!resp.ok) {
+                    const errData = await resp.json().catch(() => ({}));
+                    return { ok: false, redirect: errData.redirect_url || fallbackUrl };
+                }
+                const data = await resp.json();
+                return { ok: true, redirect: data.redirect_url || fallbackUrl };
+            } catch (e) {
+                clearTimeout(fetchTimer);
+                console.warn('[EndCall] fetch failed/aborted:', e.message);
+                return { ok: false, redirect: fallbackUrl };
             }
-            const data = await resp.json();
-            return { ok: true, redirect: data.redirect_url || fallbackUrl };
         };
 
         try {

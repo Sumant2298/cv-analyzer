@@ -4161,16 +4161,15 @@ def api_interview_run_code():
 
 @app.route('/api/interview/tts', methods=['POST'])
 def api_interview_tts():
-    """ElevenLabs TTS proxy — returns streamed audio.
+    """ElevenLabs TTS proxy — returns complete MP3 audio (non-streaming).
 
-    Setup: Add ELEVENLABS_API_KEY to environment variables (Railway dashboard).
-    Voice: Shakuntala — expressive Indian female (multilingual).
-    Model: eleven_multilingual_v2 for natural Indian English accent.
+    Uses non-streaming endpoint to avoid chunked-transfer issues with
+    Web Audio API's decodeAudioData() which needs a complete file.
     """
     elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
     if not elevenlabs_key:
         logger.warning('ELEVENLABS_API_KEY not set — TTS falling back to browser')
-        return '', 204  # No content — frontend falls back to Web Speech API
+        return '', 204
 
     data = request.get_json(silent=True) or {}
     text = data.get('text', '')
@@ -4178,12 +4177,12 @@ def api_interview_tts():
         return jsonify({'error': 'text is required'}), 400
 
     import requests as http_requests
-    # Shakuntala — Expressive Indian Female Voice (multilingual)
     voice_id = data.get('voice_id', 'EGQM7bHbTHTb7VUEcOHG')
 
     try:
+        # NON-streaming endpoint — returns complete MP3 in one response
         resp = http_requests.post(
-            f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}/stream',
+            f'https://api.elevenlabs.io/v1/text-to-speech/{voice_id}',
             headers={
                 'xi-api-key': elevenlabs_key,
                 'Content-Type': 'application/json',
@@ -4193,27 +4192,27 @@ def api_interview_tts():
                 'text': text,
                 'model_id': 'eleven_multilingual_v2',
                 'voice_settings': {
-                    'stability': 0.6,
-                    'similarity_boost': 0.8,
-                    'style': 0.35,
+                    'stability': 0.5,
+                    'similarity_boost': 0.6,
+                    'style': 0.4,
                     'use_speaker_boost': True,
                 },
             },
-            timeout=20,
-            stream=True,
+            timeout=30,
         )
         if resp.status_code != 200:
             logger.warning('ElevenLabs TTS status %s: %s', resp.status_code,
-                           resp.text[:200] if hasattr(resp, 'text') else '')
-            return '', 204  # Fallback
+                           resp.text[:300] if hasattr(resp, 'text') else '')
+            return '', 204
 
-        def generate():
-            for chunk in resp.iter_content(chunk_size=4096):
-                if chunk:
-                    yield chunk
+        audio_data = resp.content
+        if not audio_data or len(audio_data) < 100:
+            logger.warning('ElevenLabs returned empty/tiny audio (%d bytes)', len(audio_data) if audio_data else 0)
+            return '', 204
 
-        return Response(generate(), mimetype='audio/mpeg',
-                        headers={'Transfer-Encoding': 'chunked'})
+        logger.info('ElevenLabs TTS OK: %d bytes for %d chars', len(audio_data), len(text))
+        return Response(audio_data, mimetype='audio/mpeg',
+                        headers={'Content-Length': str(len(audio_data))})
     except Exception as e:
         logger.error('ElevenLabs TTS error: %s', e)
         return '', 204
