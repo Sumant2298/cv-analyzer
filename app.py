@@ -3919,6 +3919,12 @@ def api_interview_end():
             'redirect_url': '/career-services/mock-interviews',
         }), 400
 
+    # Clear any stale transaction state from previous failed requests
+    try:
+        db.session.rollback()
+    except Exception:
+        pass
+
     try:
         from models import InterviewSession, InterviewExchange
         iv_session = InterviewSession.query.get(session_id)
@@ -3978,9 +3984,9 @@ def api_interview_end():
             except Exception:
                 redirect_url = f'/interview/feedback/{session_id}'
             return jsonify({
-                'error': 'Failed to save interview results.',
+                'warning': 'Interview results may not have been fully saved.',
                 'redirect_url': redirect_url,
-            }), 500
+            })
 
         return jsonify({
             'redirect_url': url_for('career_services_interview_feedback',
@@ -3994,10 +4000,11 @@ def api_interview_end():
         except Exception:
             pass
         fallback_sid = session_id or ''
+        redirect_url = f'/interview/feedback/{fallback_sid}' if fallback_sid else '/career-services/mock-interviews'
         return jsonify({
-            'error': 'An unexpected error occurred.',
-            'redirect_url': f'/interview/feedback/{fallback_sid}' if fallback_sid else '/career-services/mock-interviews',
-        }), 500
+            'warning': 'An unexpected error occurred, but redirecting to feedback.',
+            'redirect_url': redirect_url,
+        })
 
 
 @app.route('/api/interview/session/<int:session_id>')
@@ -4161,6 +4168,7 @@ def api_interview_tts():
     """
     elevenlabs_key = os.environ.get('ELEVENLABS_API_KEY')
     if not elevenlabs_key:
+        logger.warning('ELEVENLABS_API_KEY not set — TTS falling back to browser')
         return '', 204  # No content — frontend falls back to Web Speech API
 
     data = request.get_json(silent=True) or {}

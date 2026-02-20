@@ -17,11 +17,11 @@
         #avatar-frame { width: 280px; height: 280px; border-radius: 50%; overflow: hidden; position: relative; box-shadow: 0 0 60px rgba(99,102,241,0.15); animation: avatar-idle 6s ease-in-out infinite; transition: filter 300ms ease, transform 300ms ease; }
         @keyframes avatar-idle { 0%,100%{transform:scale(1) translateY(0) rotate(0deg)} 25%{transform:scale(1.006) translateY(-1.5px) rotate(0.3deg)} 50%{transform:scale(1) translateY(0) rotate(-0.2deg)} 75%{transform:scale(0.994) translateY(1.5px) rotate(0.1deg)} }
 
-        #avatar-mouth { position:absolute; bottom:32%; left:50%; transform:translateX(-50%) scaleY(0.1); width:40px; height:20px; background:rgba(0,0,0,0.7); border-radius:50%; transition:transform 50ms ease; transform-origin:center top; }
+        #avatar-mouth { position:absolute; bottom:32%; left:50%; transform:translateX(-50%) scaleY(0.1); width:40px; height:20px; background:rgba(60,20,20,0.55); border-radius:50%; transition:transform 50ms ease, opacity 100ms ease; transform-origin:center top; opacity:0; }
 
         #avatar-blink { position:absolute; top:28%; left:15%; right:15%; height:8%; display:flex; justify-content:space-between; pointer-events:none; }
-        .eyelid { width:30%; height:100%; background:#C68B59; border-radius:50%; transform:scaleY(0); transition:transform 80ms ease; }
-        .eyelid.blink { transform:scaleY(1.5); }
+        .eyelid { width:30%; height:100%; background:#d8a870; border-radius:50%; transform:scaleY(0); transition:transform 80ms ease, opacity 60ms ease; opacity:0; }
+        .eyelid.blink { transform:scaleY(1.5); opacity:1; }
 
         /* Expression classes applied to #avatar-frame */
         #avatar-frame.thinking { transform:rotate(2.5deg) translateY(-1px); filter:brightness(0.95) saturate(0.95); animation: think-sway 3s ease-in-out infinite; }

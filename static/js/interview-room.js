@@ -111,6 +111,7 @@ class AvatarEngine {
             if (this.mouth) {
                 this.mouth.style.transform =
                     `translateX(-50%) scaleY(${0.1 + this.currentMouthOpen * 0.9})`;
+                this.mouth.style.opacity = this.currentMouthOpen > 0.05 ? '1' : '0';
             }
             this.animationFrame = requestAnimationFrame(animate);
         };
@@ -138,6 +139,7 @@ class AvatarEngine {
             if (this.mouth) {
                 this.mouth.style.transform =
                     `translateX(-50%) scaleY(${0.1 + this.currentMouthOpen * 0.9})`;
+                this.mouth.style.opacity = this.currentMouthOpen > 0.05 ? '1' : '0';
             }
             this.animationFrame = requestAnimationFrame(animate);
         };
@@ -150,6 +152,7 @@ class AvatarEngine {
         this.currentMouthOpen = 0;
         if (this.mouth) {
             this.mouth.style.transform = 'translateX(-50%) scaleY(0.1)';
+            this.mouth.style.opacity = '0';
         }
     }
 
@@ -459,9 +462,29 @@ class AudioPipeline {
             utter.volume = 1.0;
             if (this.preferredVoice) utter.voice = this.preferredVoice;
 
+            let resolved = false;
+            const safeResolve = () => {
+                if (resolved) return;
+                resolved = true;
+                this.onSpeakEnd?.();
+                resolve();
+            };
+
             utter.onstart = () => this.onSpeakStart?.();
-            utter.onend = () => { this.onSpeakEnd?.(); resolve(); };
-            utter.onerror = () => { this.onSpeakEnd?.(); resolve(); };
+            utter.onend = safeResolve;
+            utter.onerror = safeResolve;
+
+            /* Chrome bug workaround: onend doesn't fire for long text (>200 chars).
+               Estimate speech duration at ~150 wpm and add a 2-second buffer. */
+            const wordCount = text.split(/\s+/).length;
+            const estimatedMs = (wordCount / 2.5) * 1000 + 2000;
+            setTimeout(() => {
+                if (!resolved) {
+                    console.warn('[TTS] Chrome onend bug — forcing speech end after', estimatedMs, 'ms');
+                    this.synthesis.cancel();
+                    safeResolve();
+                }
+            }, estimatedMs);
 
             this.synthesis.speak(utter);
         });
@@ -1242,6 +1265,13 @@ class InterviewRoom {
 
         await this.audio.speak(text);
 
+        /* Safety net: ALWAYS force-reset speaking state after speak() completes.
+           Guards against Chrome's onend bug and any edge case where onSpeakEnd didn't fire. */
+        this.state.isSpeaking = false;
+        this.avatar.stopMouthAnimation();
+        this.avatar.frame.classList.remove('speaking-tilt', 'speaking-glow');
+        this.dom.aiWave?.classList.add('hidden');
+
         /* restore generic callbacks */
         this.audio.onSpeakStart = origOnStart;
         this.audio.onSpeakEnd = origOnEnd;
@@ -1281,10 +1311,11 @@ class InterviewRoom {
             let result = await attemptEnd();
             if (!result.ok) {
                 /* auto-retry once after 3 seconds */
-                this.showEndError('Generating feedback failed. Retrying...');
+                this.showEndError('Generating feedback... Retrying...');
                 await this.sleep(3000);
                 result = await attemptEnd();
             }
+            /* Always redirect — server includes redirect_url even on failure */
             this.cleanup();
             window.location.href = result.redirect;
         } catch (e) {

@@ -377,7 +377,18 @@ def generate_final_feedback(session, exchanges: list) -> dict:
         {'role': 'user', 'content': f'Please analyze this interview transcript and provide detailed feedback:\n\n{transcript}'},
     ]
 
-    result = _call_llm_chat(messages, max_tokens=4000, temperature=0.3, timeout=60.0)
+    try:
+        result = _call_llm_chat(messages, max_tokens=4000, temperature=0.3, timeout=60.0)
+    except Exception as e:
+        logger.error('Final feedback LLM call failed: %s', e)
+        result = {
+            'overall_score': 0,
+            'summary': 'Feedback generation encountered an error. Your interview data has been saved.',
+            'dimensions': {},
+            'top_strengths': [],
+            'key_improvements': ['Feedback could not be generated. Please try again later.'],
+            'per_question_feedback': [],
+        }
 
     # Ensure required fields
     result.setdefault('overall_score', 50)
