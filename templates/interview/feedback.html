@@ -27,6 +27,10 @@
     details summary { list-style:none; }
     .chevron { transition:transform 0.2s ease; }
     details[open] .chevron { transform:rotate(180deg); }
+    .radar-poly { transform-origin:270px 220px; animation:radarGrow 1s cubic-bezier(.22,1,.36,1) forwards; }
+    @keyframes radarGrow { from{transform:scale(0);opacity:0} to{transform:scale(1);opacity:1} }
+    .radar-dot { opacity:0; animation:dotPop .4s cubic-bezier(.22,1,.36,1) forwards; }
+    @keyframes dotPop { from{opacity:0} to{opacity:1} }
 </style>
 
 <div class="max-w-4xl mx-auto space-y-6 pb-8">
@@ -56,24 +60,117 @@
         </div>
     </div>
 
-    <!-- ═══════ DIMENSION SCORES (horizontal bars — clean, no canvas) ═══════ -->
+    <!-- ═══════ PERFORMANCE RADAR CHART (SVG) ═══════ -->
+    {% set dims = feedback.get('dimensions', {}) if dims is not defined else dims %}
+    {# Pre-compute cos/sin for 6 vertices (top, then clockwise) #}
+    {% set trig = [
+        (0.0, -1.0),
+        (0.866, -0.5),
+        (0.866, 0.5),
+        (0.0, 1.0),
+        (-0.866, 0.5),
+        (-0.866, -0.5)
+    ] %}
+    {% set cx = 270 %}
+    {% set cy = 220 %}
+    {% set R = 150 %}
+    {# Compute average score #}
+    {% set ns = namespace(total=0, count=0, score_pts='') %}
+    {% for key, label, color, emoji in dim_meta %}
+        {% set dscore = dims.get(key, {}).get('score', 0)|int %}
+        {% set ns.total = ns.total + dscore %}
+        {% set ns.count = ns.count + 1 %}
+        {% set cosv = trig[loop.index0][0] %}
+        {% set sinv = trig[loop.index0][1] %}
+        {% set px = cx + (dscore / 100.0 * R * cosv)|round|int %}
+        {% set py = cy + (dscore / 100.0 * R * sinv)|round|int %}
+        {% if loop.index0 == 0 %}
+            {% set ns.score_pts = px|string ~ ',' ~ py|string %}
+        {% else %}
+            {% set ns.score_pts = ns.score_pts ~ ' ' ~ px|string ~ ',' ~ py|string %}
+        {% endif %}
+    {% endfor %}
+    {% set avg = (ns.total / ns.count)|round|int if ns.count > 0 else 0 %}
+
     <div class="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
-        <h2 class="text-base font-bold text-slate-800 mb-5">Performance Breakdown</h2>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-4">
-            {% for key, label, color, emoji in dim_meta %}
-            {% set dscore = dims.get(key, {}).get('score', 0)|int %}
-            <div>
-                <div class="flex items-center justify-between mb-1.5">
-                    <span class="text-sm font-semibold text-slate-700 flex items-center gap-1.5">
-                        <span class="text-base">{{ emoji }}</span> {{ label }}
-                    </span>
-                    <span class="text-sm font-black tabular-nums" style="color:{{ color }}">{{ dscore }}</span>
-                </div>
-                <div class="dim-bar-track">
-                    <div class="dim-bar-fill" style="width:{{ dscore }}%; background:{{ color }};"></div>
-                </div>
-            </div>
-            {% endfor %}
+        <h2 class="text-base font-bold text-slate-800 mb-2">Performance Breakdown</h2>
+        <div class="flex justify-center">
+            <svg viewBox="0 0 540 460" style="max-width:480px; width:100%;" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                    <linearGradient id="radarFill" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#6366f1" stop-opacity="0.25"/>
+                        <stop offset="50%" stop-color="#8b5cf6" stop-opacity="0.18"/>
+                        <stop offset="100%" stop-color="#ec4899" stop-opacity="0.25"/>
+                    </linearGradient>
+                    <linearGradient id="radarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stop-color="#6366f1"/>
+                        <stop offset="50%" stop-color="#10b981"/>
+                        <stop offset="100%" stop-color="#ec4899"/>
+                    </linearGradient>
+                </defs>
+
+                {# ── Grid rings (5 levels: 20%, 40%, 60%, 80%, 100%) ── #}
+                {% for pct in [20, 40, 60, 80, 100] %}
+                    {% set rns = namespace(ring='') %}
+                    {% for i in range(6) %}
+                        {% set gx = cx + (pct / 100.0 * R * trig[i][0])|round|int %}
+                        {% set gy = cy + (pct / 100.0 * R * trig[i][1])|round|int %}
+                        {% if i == 0 %}
+                            {% set rns.ring = gx|string ~ ',' ~ gy|string %}
+                        {% else %}
+                            {% set rns.ring = rns.ring ~ ' ' ~ gx|string ~ ',' ~ gy|string %}
+                        {% endif %}
+                    {% endfor %}
+                    <polygon points="{{ rns.ring }}" fill="none" stroke="#e2e8f0" stroke-width="{% if pct == 100 %}1.5{% else %}0.8{% endif %}"/>
+                {% endfor %}
+
+                {# ── Dashed axis lines ── #}
+                {% for i in range(6) %}
+                    {% set ax = cx + (R * trig[i][0])|round|int %}
+                    {% set ay = cy + (R * trig[i][1])|round|int %}
+                    <line x1="{{ cx }}" y1="{{ cy }}" x2="{{ ax }}" y2="{{ ay }}" stroke="#e2e8f0" stroke-width="0.8" stroke-dasharray="4,4"/>
+                {% endfor %}
+
+                {# ── Score polygon ── #}
+                <polygon points="{{ ns.score_pts }}" fill="url(#radarFill)" stroke="url(#radarStroke)" stroke-width="2.5" stroke-linejoin="round" class="radar-poly"/>
+
+                {# ── Colored dots + labels ── #}
+                {% for key, label, color, emoji in dim_meta %}
+                    {% set dscore = dims.get(key, {}).get('score', 0)|int %}
+                    {% set cosv = trig[loop.index0][0] %}
+                    {% set sinv = trig[loop.index0][1] %}
+                    {% set dx = cx + (dscore / 100.0 * R * cosv)|round|int %}
+                    {% set dy = cy + (dscore / 100.0 * R * sinv)|round|int %}
+                    {# Dot at score position #}
+                    <circle cx="{{ dx }}" cy="{{ dy }}" r="5" fill="{{ color }}" stroke="white" stroke-width="2" class="radar-dot" style="animation-delay:{{ loop.index0 * 0.1 + 0.6 }}s"/>
+
+                    {# Label position — pushed further out from vertex #}
+                    {% set lx = cx + (185 * cosv)|round|int %}
+                    {% set ly = cy + (185 * sinv)|round|int %}
+                    {# text-anchor: middle for top/bottom, start for right, end for left #}
+                    {% if loop.index0 == 0 %}
+                        {# Top #}
+                        <text x="{{ lx }}" y="{{ ly - 8 }}" text-anchor="middle" fill="#334155" font-size="12" font-weight="600">{{ label }}</text>
+                        <text x="{{ lx }}" y="{{ ly + 6 }}" text-anchor="middle" fill="{{ color }}" font-size="13" font-weight="800">{{ dscore }}</text>
+                    {% elif loop.index0 == 3 %}
+                        {# Bottom #}
+                        <text x="{{ lx }}" y="{{ ly + 10 }}" text-anchor="middle" fill="#334155" font-size="12" font-weight="600">{{ label }}</text>
+                        <text x="{{ lx }}" y="{{ ly + 25 }}" text-anchor="middle" fill="{{ color }}" font-size="13" font-weight="800">{{ dscore }}</text>
+                    {% elif loop.index0 in [1, 2] %}
+                        {# Right side #}
+                        <text x="{{ lx + 8 }}" y="{{ ly - 4 }}" text-anchor="start" fill="#334155" font-size="12" font-weight="600">{{ label }}</text>
+                        <text x="{{ lx + 8 }}" y="{{ ly + 11 }}" text-anchor="start" fill="{{ color }}" font-size="13" font-weight="800">{{ dscore }}</text>
+                    {% else %}
+                        {# Left side (4, 5) #}
+                        <text x="{{ lx - 8 }}" y="{{ ly - 4 }}" text-anchor="end" fill="#334155" font-size="12" font-weight="600">{{ label }}</text>
+                        <text x="{{ lx - 8 }}" y="{{ ly + 11 }}" text-anchor="end" fill="{{ color }}" font-size="13" font-weight="800">{{ dscore }}</text>
+                    {% endif %}
+                {% endfor %}
+
+                {# ── Center average score ── #}
+                <text x="{{ cx }}" y="{{ cy - 6 }}" text-anchor="middle" fill="#0f172a" font-size="28" font-weight="800">{{ avg }}</text>
+                <text x="{{ cx }}" y="{{ cy + 12 }}" text-anchor="middle" fill="#94a3b8" font-size="10" font-weight="600">AVERAGE</text>
+            </svg>
         </div>
     </div>
 
